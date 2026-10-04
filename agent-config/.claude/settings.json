@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py",
+            "args": ["-3", "${CLAUDE_PROJECT_DIR}/roteador/roteador.py"],
+            "timeout": 8
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "cat \"${CLAUDE_PROJECT_DIR:-.}/roteador/estado/status.txt\" 2>/dev/null || echo 'roteador: sem status'",
+    "padding": 0
+  }
+}

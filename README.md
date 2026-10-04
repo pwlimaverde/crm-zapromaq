@@ -21,7 +21,8 @@ crm-zapromaq/
 │   ├── specs/             spec do projeto, das 6 stacks e de cada funcionalidade
 │   ├── vendor/agent-skills/  addyosmani/agent-skills na íntegra (git subtree, MIT)
 │   ├── adaptacao/         o que se soma ao original para este projeto
-│   ├── .claude/           skills, comandos e agentes do Claude Code (GERADO)
+│   ├── .claude/           skills, comandos e agentes do Claude Code (GERADO) + settings.json
+│   ├── roteador/          gancho que consulta o Jev e escolhe skill, nível e especialista
 │   ├── ferramentas/       verificar-tudo, instalar-skills, atualizar-agent-skills,
 │   │                      empacotar-base, finalizar-branch
 │   └── doc_dev/planejamento/

@@ -13,6 +13,7 @@ O que é deste projeto fica nesta pasta e é **somado** ao original:
 | `commands/_todos.md` | fim de **todos** os comandos |
 | `agents/<nome>.md` | fim de `.claude/agents/<nome>.md` |
 | `excluidos.txt` | itens do original que não são instalados |
+| `proprios/{skills,commands,agents}/` | itens só deste projeto, copiados como estão (ex.: `/roteador`) |
 
 `agent-config/.claude/` (o que o Claude Code lê) é **gerado** por
 `ferramentas/instalar-skills.ps1`. Não edite lá: edite aqui e rode o script.

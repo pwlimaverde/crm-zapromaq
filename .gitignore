@@ -35,3 +35,5 @@ __pycache__/
 # ---------------------------------------------------------------- Claude Code (pessoal)
 /agent-config/.claude/settings.local.json
 .simplify-ignore-cache/
+/agent-config/roteador/estado/
+__pycache__/

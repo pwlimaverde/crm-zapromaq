@@ -10,7 +10,8 @@ O Claude Code é aberto **nesta pasta** (`agent-config/`) e trabalha sobre a pas
 crm-zapromaq\
   README.md
   agent-config\       este CLAUDE.md, DIRETRIZES-IA.md, specs\, ferramentas\, doc_dev\ (plano e referências),
-                      vendor\agent-skills (original, subtree), adaptacao\, .claude\ (GERADO)
+                      vendor\agent-skills (original, subtree), adaptacao\, .claude\ (GERADO + settings.json),
+                      roteador\ (gancho do Jev)
   src\BASE\           o entregável (estrutura fixa, nunca reorganizar)
 ```
 
@@ -26,6 +27,7 @@ Nas seções abaixo, `BASE\` significa `..\src\BASE\`. O legado (`old/`) saiu do
 - **Parar e perguntar** em teste sem correção óbvia, spec ambígua e ação irreversível (lista em `DIRETRIZES-IA.md`).
 - `.claude\skills|commands|agents|references` são **gerados**: mude `adaptacao\` e rode `ferramentas\instalar-skills.ps1`. `vendor\agent-skills` nunca se edita (atualizar: `ferramentas\atualizar-agent-skills.ps1`); o `CLAUDE.md`/`AGENTS.md`/`.claude` de dentro dele **não** valem para este projeto.
 - Mudou uma stack? Atualize a spec dela no mesmo commit.
+- **Roteador (Jev):** o gancho `roteador\roteador.py` (registrado em `.claude\settings.json`) consulta o Jev a cada mensagem e injeta a skill indicada (`[seletor de skill] Skill indicada: X` → invoque a skill X e siga-a) ou, no modo `on`, a decisão de delegação (nível → modelo, especialista). `/roteador on|skills|off|status`; atalhos `>>`, `#rapido|#padrao|#profundo`, `$<skill>`. Política em `roteador\roteador.config.json`; detalhes em `roteador\README.md`.
 
 ## Plano e referências
 

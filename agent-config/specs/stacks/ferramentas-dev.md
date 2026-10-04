@@ -12,6 +12,7 @@ o sistema na rede.
 | git + git-flow (GitFlow .NET 2.3.0) | versionamento | finalizar com `agent-config/ferramentas/finalizar-branch.ps1` |
 | agent-skills (Addy Osmani, MIT) | processo spec → ship | `agent-config/vendor/agent-skills` (subtree) + `adaptacao/` → `.claude/` |
 | Claude Code | desenvolvimento | aberto em `agent-config/` |
+| Roteador + Jev (TypeSafe System One) | escolhe skill/nível/especialista a cada mensagem (gancho `UserPromptSubmit`) | `agent-config/roteador/` (chave `TYPESAFE_API_KEY` no `env` global; internet só no desenvolvimento) |
 | Excel 365 + ACE 16 | build `-Teste`, testes com banco | nesta máquina |
 
 ## Scripts de `agent-config/ferramentas`
@@ -23,6 +24,12 @@ atualizar-agent-skills.ps1                 # git subtree pull do original + rein
 finalizar-branch.ps1 [-Branch x] [-Enviar] # finish do git-flow (--no-ff, tag vX.Y em release/hotfix)
 empacotar-base.ps1                         # dist\BASE-vX.Y-....zip para a empresa (do commit)
 ```
+
+Roteador: `py -3 agent-config\roteador\testar_roteador.py` (sem rede, no `verificar-tudo -Rapido`),
+`py -3 agent-config\roteador\avaliar_roteador.py` (calibração com o Jev). Mudou a política,
+os casos ou as skills/agentes instalados: rode a calibração e registre o resultado no
+`roteador/README.md`. Mensagem que vai ao Jev é sempre mascarada (`mascarar`): dado de
+cliente novo que precise de proteção = padrão novo em `_PADROES_SEGREDO` + teste.
 
 ## Estilo
 
