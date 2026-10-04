@@ -388,7 +388,8 @@ try {
         $chg = Join-Path $dados 'docs\CHANGELOG.md'
         $cab = "# CHANGELOG - CRM Zapromaq`r`n`r`nCada publicação do front é registrada aqui pelo build (MONTAR-FRONTEND.bat).`r`n"
         $resto = ''
-        if (Test-Path -LiteralPath $chg) { $resto = ([System.IO.File]::ReadAllText($chg, [System.Text.Encoding]::UTF8)).Replace($cab, '').TrimStart() }
+        # fim de linha normalizado antes de tirar o cabeçalho: com LF ele não casava e saía duplicado
+        if (Test-Path -LiteralPath $chg) { $resto = (([System.IO.File]::ReadAllText($chg, [System.Text.Encoding]::UTF8)) -replace '\r?\n', "`r`n").Replace($cab, '').TrimStart() }
         $entrada = "`r`n## " + $versao + ' - ' + $quando.ToString('dd/MM/yyyy HH:mm') + ' - ' + $env:USERNAME + '@' + $env:COMPUTERNAME + ' - ' + $Ambiente + "`r`n`r`n"
         if (@($antes.Keys).Count -eq 0) { $entrada += "- primeira publicação registrada por este build`r`n" }
         elseif ($mud.Count -eq 0) { $entrada += "- nenhuma fonte alterada (remontagem)`r`n" }

@@ -1,0 +1,4 @@
+# Nenhuma conversão de fim de linha: as fontes VBA são cp1252 + CRLF, o .ps1 é UTF-8
+# com BOM + CRLF, e o Markdown/JSON é LF. O git guarda e entrega cada arquivo byte a byte,
+# qualquer que seja o core.autocrlf de quem clonar.
+* -text
