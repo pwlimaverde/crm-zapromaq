@@ -79,7 +79,8 @@ Em cada máquina com Claude Desktop, **a partir da pasta da rede**:
 1. Remover o agendamento antigo (Agendador de Tarefas do usuário: tarefas do
    legado, que apontam para o caminho velho).
 2. `SISTEMA\DADOS\operacao\AGENDAR-BACKUPS.bat` a partir da rede (sem
-   administrador; roda com o usuário logado, 09:00 e 16:40 por padrão).
+   administrador; roda com o usuário logado, 09:00, 12:30 e 16:00, seg-sex, por padrão;
+   retenção: mês corrente e anterior).
 3. `SISTEMA\DADOS\operacao\FAZER-BACKUP.bat` uma vez agora; conferir o arquivo em
    `SISTEMA\DADOS\execucao\backup\`.
 4. `SISTEMA\DADOS\operacao\TESTAR-RESTAURACAO.bat`: restaura o último backup numa

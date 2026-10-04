@@ -22,7 +22,8 @@ SISTEMA\
     operacao\
       FAZER-BACKUP.bat         backup manual (completo ou simples)
       TESTAR-RESTAURACAO.bat   restaura o último backup numa cópia e confere
-      AGENDAR-BACKUPS.bat      tarefas 09:00 e 16:40 para o usuário (sem administrador)
+      AGENDAR-BACKUPS.bat      tarefas 09:00, 12:30 e 16:00, seg-sex, para o usuário (sem administrador);
+                               retenção: mês corrente e anterior
     testes\
       CHECAR-AMBIENTE.bat      o que esta máquina tem e o que falta
       conferir-painel.ps1      indicadores do Painel × banco

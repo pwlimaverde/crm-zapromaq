@@ -18,7 +18,7 @@ O conector de dados (`crm-zapromaq`) é outro: serve para consultar e alterar
 
 Ele diz a versão que a próxima publicação vai gerar, a versão publicada na rede,
 a versão do esquema do banco, as migrações pendentes, se o banco está em uso
-(alguém com o CRM aberto) e se a máquina tem Excel e Python. Decida a partir daí
+(alguém com o CRM aberto) e se a máquina tem Excel. Decida a partir daí
 e conte ao usuário o que encontrou.
 
 ## Alterar o front (telas, textos, regras)
@@ -107,9 +107,9 @@ final do último log (`build`, `visual`, `migracoes`, `backup`, `ambiente`).
 ## Coisas que exigem a máquina certa
 
 `montar_teste` e `publicar` precisam de **Excel 2019 64 bits** instalado;
-`gerar_previa` precisa do **Edge**; `verificar_projeto` é completo com Python e
-cai numa conferência básica sem ele (nesse caso, confie no `montar_teste`, que
-compila e roda o autoteste de verdade). `estado_sistema` diz o que a máquina
+`gerar_previa` precisa do **Edge**; `verificar_projeto` roda só em PowerShell (sem Python)
+e não confere a sintaxe do VBA: para isso, confie no `montar_teste`, que
+compila e roda o autoteste de verdade. `estado_sistema` diz o que a máquina
 tem.
 
 ## O que este conector não faz

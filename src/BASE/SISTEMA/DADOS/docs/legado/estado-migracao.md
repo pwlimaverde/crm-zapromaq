@@ -19,7 +19,7 @@ Retomada: refazer a verificação do último passo concluído, nunca confiar na 
 | — | Leitura do banco pela sessão de IA | **conferida** | `mdbtools` leu o `.accdb` (ACE12) e devolveu os mesmos 855 / 496 / 487 / 127 e a mesma soma — contagem independente do ACE, como o passo 11 exige |
 | 10 | `aplicar-fila.ps1` | **executado com sucesso** | 3 comandos aplicados, 2 recusados pelos motivos certos; contexto e log conferidos no banco pelo `mdbtools` |
 | 11a | Teste de **edição simultânea** | **aprovado em 16/09/2026** | dois usuários no mesmo atendimento: o segundo foi recusado, sem sobrescrita |
-| 11b | Backup e restauração | **agendado e restauração testada** | tarefas às 09:00 e 16:40 nesta estação; restauração conferida |
+| 11b | Backup e restauração | **agendado e restauração testada** | tarefas às 09:00, 12:30 e 16:00 (seg-sex) nesta estação — revisado em 23/09/2026; restauração conferida |
 | 12 | Virada | **concluída em 16/09/2026** | produção com 852 / 500 / 489, soma de valor conferida, conferência sem divergência |
 
 ## Correções da 1ª carga (16/09/2026)

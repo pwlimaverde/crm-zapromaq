@@ -90,6 +90,11 @@ try {
         } catch { $log.L('AVISO: banco não abriu (' + $_.Exception.Message.Split([char]13)[0] + '); a versão não será gravada nele.') }
     } else { $log.L('AVISO: banco não encontrado em ' + $bancoArq + '; a versão não será gravada nele.') }
     if ($Ambiente -notin @('PRODUCAO', 'TESTE')) { $Ambiente = 'PRODUCAO' }
+    # publicar sem o banco geraria uma planilha apontando para um arquivo que não existe
+    # (por exemplo, depois de trocar a pasta BASE inteira e esquecer o .accdb)
+    if (-not $Teste -and -not $temBanco) {
+        Parar ('o banco ' + $script:NomeBanco + ' não está na raiz de BASE ou não abriu (veja o aviso acima). Ele precisa estar em ' + $bancoArq + '. Nada foi publicado.')
+    }
 
     # ------------------------------------------------------------ 2. backup
     if (-not $Teste -and -not $SemBackup) {
@@ -118,7 +123,10 @@ try {
     }
 
     # ------------------------------------------------------------ 4. versão
-    $versaoAtual = Get-VersaoAtual $dados
+    $versaoAtual = Get-VersaoDePartida $dados $raiz
+    if ($versaoAtual -ne (Get-VersaoAtual $dados)) {
+        $log.L('AVISO: VERSAO.txt (' + (Get-VersaoAtual $dados) + ') está atrás da versão publicada (' + $versaoAtual + '); a numeração continua da publicada.')
+    }
     $versao = Get-ProximaVersao $versaoAtual
     $quando = Get-Date
     $textoB7 = Format-TextoB7 $Ambiente $versao $quando

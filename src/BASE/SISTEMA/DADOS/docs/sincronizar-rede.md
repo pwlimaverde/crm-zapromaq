@@ -33,11 +33,22 @@ quê e por quê — que ajuda a escrever a mensagem do commit.
 
 ## Do repositório para a rede (fim de cada ciclo)
 
-Só depois do passo acima. Copie para a rede as pastas de `BASE\SISTEMA\DADOS`
-que vêm do repositório (`fonte`, `build`, `banco`, `operacao`, `lib`, `docs`,
-`testes`, `ferramentas`) e a pasta `BASE\IA` — **nunca** `execucao\` (é da rede:
-logs, backups, histórico de publicações, registro do MCP) nem o `.accdb`/`.xlsm`
-da raiz. Em seguida, `SISTEMA\MONTAR-FRONTEND.bat` na rede publica a versão nova.
+Só depois do passo acima. Gere o pacote na máquina de desenvolvimento
+(`agent-config\ferramentas\empacotar-base.ps1`, sai do commit) e **extraia o
+`.zip` por cima da `BASE` da rede**, substituindo os arquivos — nunca apague a
+`BASE` antes. O pacote não leva `execucao\` (é da rede: logs, backups, histórico
+de publicações, registro do MCP), o `.accdb`, o `.xlsm`, `VERSAO-FRONT.txt` nem o
+`.ico` da raiz, que continuam lá. Em seguida, `SISTEMA\MONTAR-FRONTEND.bat` na
+rede publica a versão nova. Roteiro: `docs\levar-para-a-empresa.md`.
+
+## A BASE inteira veio da rede
+
+Quando a BASE da empresa chega inteira (por exemplo, compactada), ela é
+comparada em três vias: o último commit, a cópia da rede e o repositório. O que
+mudou só na rede entra como está (**a rede tem prioridade**); o que mudou só no
+repositório fica; o que mudou nos dois lados é juntado à mão. Nunca entram:
+backups (`execucao\backup`), logs, `.bak-*`, `__pycache__`, o `.zip` das skills
+(o pacote gera) e qualquer dado real nos documentos.
 
 ## Conflitos
 

@@ -38,7 +38,8 @@ Repositório git na raiz `crm-zapromaq/`, público no GitHub (`pwlimaverde/crm-z
 - `main` = o que está publicado; `develop` = integração. Nunca commitar direto em nenhuma das duas.
 - Trabalho novo: `git flow feature start <nome>` (sai de `develop`, volta para ela); correção de `develop`: `bugfix/`.
 - Publicação: `git flow release start X.Y` → build na rede → `git flow release finish X.Y` (merge na `main`, tag `vX.Y`). A tag é o número que o build gravou em `VERSAO.txt`; `hotfix/` sai da `main` para correção urgente do publicado.
-- **Finalizar com `agent-configerramentasinalizar-branch.ps1 [-Enviar]`**, não com `git flow ... finish`: o GitFlow .NET 2.3.0 instalado (winget `Kubis1982.GitFlow`) falha em todo merge `--no-ff` ("Value cannot be null. (Parameter 'message')") e deixa o merge pela metade; o script faz o mesmo finish (feature/bugfix → develop; release/hotfix → main + tag `vX.Y` + develop) e conclui um merge que a ferramenta tenha deixado pendente. O `start` da ferramenta funciona.
+- **Finalizar com `agent-config\ferramentas\finalizar-branch.ps1 [-Enviar]`**, não com `git flow ... finish`: o GitFlow .NET 2.3.0 instalado (winget `Kubis1982.GitFlow`) falha em todo merge `--no-ff` ("Value cannot be null. (Parameter 'message')") e deixa o merge pela metade; o script faz o mesmo finish (feature/bugfix → develop; release/hotfix → main + tag `vX.Y` + develop) e conclui um merge que a ferramenta tenha deixado pendente. O `start` da ferramenta funciona.
+- **A versão da rede tem prioridade.** O usuário ajusta o sistema na empresa pelo Claude Desktop; antes de mexer aqui, a BASE de lá volta para o repositório (comparação em três vias com o último commit; o que mudou lá entra como está). Para levar: `empacotar-base.ps1` e extrair **por cima** da BASE da rede — nunca apagá-la (banco, planilha, `crm_zapromaq.ico` e `execucao\` só existem lá); lá só se roda o `MONTAR-FRONTEND.bat`, que não publica sem o banco e nunca repete versão (parte da maior entre `VERSAO.txt` e `VERSAO-FRONT.txt`).
 - Testar o build fora da rede só com `MONTAR-FRONTEND.bat -Teste`: sem `-Teste` ele publica e sobe a versão de `VERSAO.txt`.
 - Repositório público: **nenhum dado real** (cliente, CNPJ, telefone, endereço, valor de carteira, nome de estação) em código, teste ou documentação — exemplo é sempre fictício. `old/`, bancos e planilhas ficam no `.gitignore`. O histórico anterior (com `old/`) foi guardado fora do repositório em `crm-zapromaq-historico-ate-2026-10-04.bundle`.
 - `.gitattributes` com `* -text`: o git nunca converte fim de linha (VBA em cp1252 + CRLF entra byte a byte).
@@ -52,7 +53,7 @@ O entregável fica em `../src/BASE/`; `agent-config/` (com `doc_dev/`) ficam for
 ```
 BASE\                      pasta copiada inteira para a rede
   crm_zapromaq.accdb       banco
-  CRM_Zapromaq.xlsm        front; nome fixo; o .bat das estações (fora do projeto) compara Início!B7
+  CRM_Zapromaq.xlsm        front; nome fixo (o INICIAR-CRM.bat compara VERSAO-FRONT.txt)
   SISTEMA\
     MONTAR-FRONTEND.bat    único ponto de entrada do build
     DADOS\                 VERSAO.txt, fonte\, build\, banco\ (esquema, migracoes), operacao\,
@@ -100,7 +101,7 @@ Tabelas: `clientes`, `contatos`, `oportunidades`, `listas`, `metas`, `log_altera
 - `frmCRM.txt` — código do UserForm; os campos da ficha são criados em tempo de execução a partir de `modSchema`. Os nomes dos controles fixos (`lstReg`, `fraCampos`, `cmdSalvar`…) são contrato com o código.
 - `ThisWorkbook.txt` — proteção da cópia modelo e os eventos das abas de grade (`Workbook_Sheet*`, porque abas criadas por automação não têm CodeName).
 
-O `.xlsm` **não é fonte**: é montado do zero pelo build. O modelo fica na rede; `INICIAR-CRM.bat` (fora do projeto) copia para `Documentos\CRM Zapromaq\` da estação quando `Início!B7` muda.
+O `.xlsm` **não é fonte**: é montado do zero pelo build. O modelo fica na rede; `INICIAR-CRM.bat` (raiz de `BASE`, no projeto desde 04/10/2026) copia para `Documentos\CRM Zapromaq\` da estação quando `Início!B7` muda.
 
 No legado, a IA gravava por uma fila JSON (`BASE\FILA\`, `aplicar-fila.ps1`) com `mdbtools` só leitura: **eliminado** (D06), substituído pelo MCP.
 
@@ -130,8 +131,12 @@ SISTEMA\DADOS\banco\APLICAR-MIGRACOES.bat                              # migraç
 powershell -File SISTEMA\DADOS\testes\criar-banco-demo.ps1 [-Recriar]  # banco fictício (20 de cada) para ver o front
 powershell -File SISTEMA\DADOS\banco\esquema\criar-banco.ps1 -Banco <accdb> -Recriar
 
-# Rede -> repositório (antes de qualquer ciclo novo)
+# Rede -> repositório (antes de qualquer ciclo novo): só fonte\ ...
 powershell -File SISTEMA\DADOS\ferramentas\sincronizar\trazer-da-rede.ps1 -Rede \\servidor\...\BASE [-Simular]
+# ... ou a BASE inteira recebida da empresa: comparar em três vias com o último commit (a rede tem prioridade)
+
+# Repositório -> rede: pacote do commit (sem banco/planilha/logs), extraído POR CIMA da BASE de lá
+powershell -File ..\..\agent-config\ferramentas\empacotar-base.ps1    # -> dist\BASE-vX.Y-....zip na raiz do repositório
 ```
 
 Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela prévia, e o build `-Teste` (Excel 365) compila e roda o autoteste (`modAutoteste`) e o teste de uso; a palavra final é o build numa estação com Excel 2019. Roteiro de implantação: `SISTEMA\DADOS\docs\implantacao.md`.
@@ -147,7 +152,7 @@ Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela pr�
 
 ## IA
 
-- `IA\mcp\servidor.ps1` (dados, 11 ferramentas) e `IA\mcp-dev\servidor-dev.ps1` (desenvolvimento, 15 ferramentas: lê/grava só `SISTEMA\DADOS\fonte`, prévia como imagem, migrações do banco — listar/ler/criar/aplicar —, conferência estática, estado do sistema, montagem de teste, publicação com confirmação) usam o mesmo núcleo `IA\mcp\lib\Protocolo.ps1`. Instalação: `IA\INSTALAR-MCP.bat` / `IA\INSTALAR-MCP-DEV.bat`.
+- `IA\mcp\servidor.ps1` (dados, 25 ferramentas; também instalável no Codex por `IA\INSTALAR-CLAUDE-E-CODEX.bat`) e `IA\mcp-dev\servidor-dev.ps1` (desenvolvimento, 15 ferramentas: lê/grava só `SISTEMA\DADOS\fonte`, prévia como imagem, migrações do banco — listar/ler/criar/aplicar —, conferência estática, estado do sistema, montagem de teste, publicação com confirmação) usam o mesmo núcleo `IA\mcp\lib\Protocolo.ps1`. Instalação: `IA\INSTALAR-MCP.bat` / `IA\INSTALAR-MCP-DEV.bat`.
 - Skills do Claude Desktop em `IA\instrucoes\`: `crm-zapromaq` (dados) e `crm-zapromaq-dev` (manutenção: onde mexer, pacote de campo novo, quando publicar).
 - Ajuste feito na rede pelo MCP de desenvolvimento fica em `execucao\dev\alteracoes.log` (+ cópias) e volta ao repositório com `trazer-da-rede.ps1` (`docs\sincronizar-rede.md`).
 

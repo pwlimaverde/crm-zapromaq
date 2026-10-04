@@ -17,12 +17,13 @@ crm-zapromaq/
 ├── agent-config/          configuração dos agentes de IA (não vai para a rede)
 │   ├── CLAUDE.md          instruções do projeto; o Claude Code é aberto nesta pasta
 │   │                      e trabalha sobre a pasta acima
-│   ├── ferramentas/       scripts de desenvolvimento (finalizar-branch.ps1 do git-flow)
+│   ├── ferramentas/       scripts de desenvolvimento (empacotar-base, finalizar-branch)
 │   └── doc_dev/planejamento/
 │       ├── PLANO.md       checklist de fases, decisões, correções e pendências
 │       └── referencias/   documentação oficial offline (VBA, MSForms, Excel, ADO, ACE…)
 └── src/
     └── BASE/              ENTREGÁVEL — a pasta copiada inteira para a rede
+        ├── INICIAR-CRM.bat           lançador das estações (atalho aponta para ele na rede)
         ├── SISTEMA/
         │   ├── MONTAR-FRONTEND.bat   único ponto de entrada do build
         │   ├── LEIA-ME-PRIMEIRO.md   roteiro de publicação
@@ -92,12 +93,26 @@ estação com Excel 2019.
 
 Roteiro completo em [`src/BASE/SISTEMA/LEIA-ME-PRIMEIRO.md`](src/BASE/SISTEMA/LEIA-ME-PRIMEIRO.md)
 e [`src/BASE/SISTEMA/DADOS/docs/implantacao.md`](src/BASE/SISTEMA/DADOS/docs/implantacao.md).
-Em resumo: copiar `src/BASE/SISTEMA` (e `IA`, se usar o Claude Desktop) para a pasta da
-rede e executar `MONTAR-FRONTEND.bat`. O build faz backup, aplica migrações, monta,
-compila, testa e só então substitui o `.xlsm` publicado e sobe a versão.
+A BASE vai para a empresa como um pacote:
 
-Ajustes feitos diretamente na rede pelo MCP de desenvolvimento voltam ao repositório com
-`SISTEMA\DADOS\ferramentas\sincronizar\trazer-da-rede.ps1`.
+```powershell
+powershell -File agent-config\ferramentas\empacotar-base.ps1   # -> dist\BASE-vX.Y-....zip
+```
+
+O pacote sai do commit e nunca leva banco, planilha, logs nem backups. Na empresa:
+
+1. **Extraia o `.zip` por cima da pasta `BASE` da rede**, substituindo os arquivos.
+   **Não apague a `BASE` antes**: o banco, a planilha publicada, o ícone e
+   `SISTEMA\DADOS\execucao` (backups, histórico) só existem lá.
+2. Rode `SISTEMA\MONTAR-FRONTEND.bat`. Ele faz backup, aplica as migrações do banco,
+   monta, compila, testa e só então publica a versão seguinte. Sem o banco na raiz,
+   não publica; a numeração nunca repete uma versão já publicada.
+
+**A versão da rede tem prioridade.** Ajustes feitos lá pelo Claude Desktop (MCP de
+desenvolvimento) voltam para o repositório **antes** de qualquer ciclo novo: a BASE
+da rede é trazida inteira e comparada com o último commit. Roteiro em
+[`levar-para-a-empresa.md`](src/BASE/SISTEMA/DADOS/docs/levar-para-a-empresa.md) e
+[`sincronizar-rede.md`](src/BASE/SISTEMA/DADOS/docs/sincronizar-rede.md).
 
 ## Desenvolvimento com IA
 
@@ -117,7 +132,7 @@ o plano em `agent-config/doc_dev/planejamento/PLANO.md`.
 | `hotfix/<nome>` | correção urgente do que está publicado, sai da `main` |
 
 Para abrir uma branch use `git flow <tipo> start <nome>`. Para finalizar, use
-`powershell -File agent-configerramentasinalizar-branch.ps1 [-Enviar]` em vez de
+`powershell -File agent-config\ferramentas\finalizar-branch.ps1 [-Enviar]` em vez de
 `git flow <tipo> finish`: o GitFlow .NET 2.3.0 (winget `Kubis1982.GitFlow`) falha em todo
 merge `--no-ff`. O script faz o mesmo finish (com a tag `vX.Y` em release e hotfix), e
 `-Enviar` faz o push.
