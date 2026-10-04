@@ -281,7 +281,7 @@ Roteiro passo a passo, com conferências e volta atrás: `BASE\SISTEMA\DADOS\doc
 | P05 | `OnTime` com ficha modal aberta: roda ou espera? | Testar na Fase 6 |
 | P06 | Nitidez do fundo a 125%/150% | Medir na calibração (4.11); plano B: fundo em três resoluções |
 | P07 | Office 2019 sem atualizações de segurança desde 14/10/2025 | Risco aceito pela empresa; registrar |
-| P08 | ACE redistribuível e um futuro Office Click-to-Run na máquina de desenvolvimento podem conflitar | Evitar instalar Office nesta máquina |
+| P08 | ACE redistribuível e Office Click-to-Run na máquina de desenvolvimento podem conflitar | **Ocorreu** (Excel 365 instalado, 04/10/2026): ACE, MCP e build `-Teste` funcionando juntos. Se o provedor ACE falhar aqui, suspeitar disto primeiro |
 | P09 | Mouse wheel em listas não é suportado sem subclassing (derruba o Excel) | Aceito; navegação por barra, teclado e botões |
 
 ## 9. Regras de trabalho
