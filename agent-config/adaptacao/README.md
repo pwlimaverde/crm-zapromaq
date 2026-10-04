@@ -18,6 +18,9 @@ O que é deste projeto fica nesta pasta e é **somado** ao original:
 `agent-config/.claude/` (o que o Claude Code lê) é **gerado** por
 `ferramentas/instalar-skills.ps1`. Não edite lá: edite aqui e rode o script.
 No texto gerado, `agent-skills:<skill>` (nome de plugin) vira `<skill>`.
+O **Antigravity** espelha e consome este mesmo ecossistema por referência via
+`GEMINI.md` e `.agents/skills.json`, mantendo uma única fonte da verdade e zero
+arquivos duplicados.
 
 ## Princípio
 

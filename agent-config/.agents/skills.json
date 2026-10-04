@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {
+      "path": "agent-config/.claude/skills"
+    },
+    {
+      "path": ".claude/skills"
+    }
+  ]
+}

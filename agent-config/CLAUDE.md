@@ -25,7 +25,7 @@ Nas seções abaixo, `BASE\` significa `..\src\BASE\`. O legado (`old/`) saiu do
 - **Spec antes de código;** plano em fatias verticais; **teste que falha primeiro** (tabela em `specs\PROJETO.md`); um commit por tarefa.
 - **Pronto = prova:** `powershell -File ferramentas\verificar-tudo.ps1` (`-Rapido` | padrão | `-Completo`) sem falha, com a saída mostrada.
 - **Parar e perguntar** em teste sem correção óbvia, spec ambígua e ação irreversível (lista em `DIRETRIZES-IA.md`).
-- `.claude\skills|commands|agents|references` são **gerados**: mude `adaptacao\` e rode `ferramentas\instalar-skills.ps1`. `vendor\agent-skills` nunca se edita (atualizar: `ferramentas\atualizar-agent-skills.ps1`); o `CLAUDE.md`/`AGENTS.md`/`.claude` de dentro dele **não** valem para este projeto.
+- `.claude\skills|commands|agents|references` são **gerados**: mude `adaptacao\` e rode `ferramentas\instalar-skills.ps1`. `vendor\agent-skills` nunca se edita (atualizar: `ferramentas\atualizar-agent-skills.ps1`); o `CLAUDE.md`/`AGENTS.md`/`.claude` de dentro dele **não** valem para este projeto. O **Antigravity** espelha este mesmo ecossistema via `GEMINI.md` e `.agents\skills.json` por referência (sem arquivos duplicados).
 - Mudou uma stack? Atualize a spec dela no mesmo commit.
 - **Roteador (Jev):** o gancho `roteador\roteador.py` (registrado em `.claude\settings.json`) consulta o Jev a cada mensagem e injeta a skill indicada (`[seletor de skill] Skill indicada: X` → invoque a skill X e siga-a) ou, no modo `on`, a decisão de delegação (nível → modelo, especialista). `/roteador on|skills|off|status`; atalhos `>>`, `#rapido|#padrao|#profundo`, `$<skill>`. Política em `roteador\roteador.config.json`; detalhes em `roteador\README.md`.
 
