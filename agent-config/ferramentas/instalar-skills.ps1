@@ -15,11 +15,13 @@
   checklists que as skills citam como ../../references). O resto de .claude
   (settings*.json) não é tocado. No texto, "agent-skills:<skill>" (nome do plugin)
   vira "<skill>": aqui as skills são do projeto, não de um plugin.
+  Também confere e assegura o espelhamento do Antigravity (.agents\skills.json
+  e GEMINI.md), mantendo fonte única por referência, sem duplicatas.
 
   Gerado, não editar: para mudar, edite adaptacao\ e rode de novo.
 
   Uso: instalar-skills.ps1 [-Conferir]
-    -Conferir  só confere se .claude está igual ao que seria gerado (sai 1 se não)
+    -Conferir  só confere se .claude e Antigravity estão em dia (sai 1 se não)
 #>
 param([switch]$Conferir)
 $ErrorActionPreference = 'Stop'
@@ -157,14 +159,58 @@ function Mapa([string]$raiz) {
 $novo = Mapa $temp; $atual = Mapa $destino
 $dif = @($novo.Keys | Where-Object { $atual[$_] -ne $novo[$_] }) + @($atual.Keys | Where-Object { -not $novo.ContainsKey($_) })
 
+# --- Antigravity (espelho por referência, sem duplicatas)
+$geminiMd    = Join-Path $ac 'GEMINI.md'
+$antigravity = Join-Path $ac '.agents'
+$skillsJson  = Join-Path $antigravity 'skills.json'
+
+function Conferir-Antigravity {
+    $erros = @()
+    if (-not (Test-Path -LiteralPath $geminiMd)) {
+        $erros += 'GEMINI.md ausente em agent-config\'
+    }
+    if (-not (Test-Path -LiteralPath $skillsJson)) {
+        $erros += '.agents\skills.json ausente em agent-config\'
+    } else {
+        $conteudo = Ler $skillsJson
+        if (-not ($conteudo -match '\.claude/skills')) {
+            $erros += '.agents\skills.json não referencia .claude/skills'
+        }
+    }
+    return $erros
+}
+
+function Assegurar-Antigravity {
+    if (-not (Test-Path -LiteralPath $antigravity)) {
+        New-Item -ItemType Directory -Path $antigravity -Force | Out-Null
+    }
+    if (-not (Test-Path -LiteralPath $skillsJson)) {
+        $json = @'
+{
+  "entries": [
+    {
+      "path": "agent-config/.claude/skills"
+    },
+    {
+      "path": ".claude/skills"
+    }
+  ]
+}
+'@
+        Gravar $skillsJson $json
+    }
+}
+
 if ($Conferir) {
     Remove-Item -LiteralPath $temp -Recurse -Force
-    if ($dif.Count -gt 0) {
+    $errosAgy = Conferir-Antigravity
+    if ($dif.Count -gt 0 -or $errosAgy.Count -gt 0) {
         $dif | Sort-Object | Select-Object -First 20 | ForEach-Object { Write-Host ('  difere: ' + $_) }
-        Write-Host ('.claude DESATUALIZADO (' + $dif.Count + ' arquivo(s)). Rode ferramentas\instalar-skills.ps1.') -ForegroundColor Red
+        $errosAgy | ForEach-Object { Write-Host ('  antigravity: ' + $_) }
+        Write-Host ('.claude ou Antigravity DESATUALIZADO. Rode ferramentas\instalar-skills.ps1.') -ForegroundColor Red
         exit 1
     }
-    Write-Host '.claude em dia com vendor\agent-skills + adaptacao.' -ForegroundColor Green
+    Write-Host '.claude e Antigravity em dia com vendor\agent-skills + adaptacao.' -ForegroundColor Green
     exit 0
 }
 
@@ -191,9 +237,16 @@ foreach ($p in $pastas) {
 }
 Remove-Item -LiteralPath $temp -Recurse -Force
 
+Assegurar-Antigravity
+$errosAgy = Conferir-Antigravity
+if ($errosAgy.Count -gt 0) {
+    $errosAgy | ForEach-Object { Write-Warning ('Antigravity: ' + $_) }
+}
+
 $n = @{}
 foreach ($p in @('skills', 'commands', 'agents')) {
     $n[$p] = @(Get-ChildItem -LiteralPath (Join-Path $destino $p) | Where-Object { $_.PSIsContainer -or $_.Extension -eq '.md' }).Count
 }
 Write-Host ('.claude gerado: ' + $n.skills + ' skills, ' + $n.commands + ' comandos, ' + $n.agents + ' agentes; ' +
             $usados.Count + ' adaptação(ões) aplicada(s); ' + $dif.Count + ' arquivo(s) mudaram.')
+Write-Host ('Antigravity sincronizado: GEMINI.md e .agents\skills.json ativos referenciando .claude\skills.')
