@@ -3,43 +3,55 @@
 Roteiro da cópia desta estação (desenvolvimento) para a máquina da empresa, onde
 a manutenção passa a ser feita pelo **Claude Desktop** (não há Claude Code lá).
 
-## O que copiar
+## Como a BASE vai para a empresa
 
-Só duas pastas, inteiras, para dentro da `BASE` da rede:
+A BASE inteira vai num pacote `.zip` gerado na máquina de desenvolvimento:
 
+```powershell
+powershell -File agent-config\ferramentas\empacotar-base.ps1
+# -> dist\BASE-v<versão>-<data>-<commit>.zip
 ```
-SISTEMA\      build, fontes, banco (esquema e migrações), testes, docs
-IA\           os dois conectores MCP + as skills do Claude Desktop
-```
 
-O que **não** se copia: o `.accdb` e o `CRM_Zapromaq.xlsm` — os de verdade já
-estão na rede. `VERSAO-FRONT.txt` também não: quem o escreve é o build, na
-primeira publicação.
+O pacote sai do **commit** (só o que está versionado) e já leva as skills do
+Claude Desktop em `.zip`. Ele **não** leva o que é só da rede, e por isso essas
+coisas continuam lá depois da troca:
 
-Esta cópia sai com `SISTEMA\DADOS\execucao\` vazia (só `.gitkeep`), sem logs e
-sem o banco de ensaio: nada daqui se mistura com a produção.
-
-## Versão
-
-`SISTEMA\DADOS\VERSAO.txt` está em **1.4**, que é a versão em uso na empresa. O
-primeiro `MONTAR-FRONTEND.bat` lá vai publicar a **1.5** e só então gravar 1.5 no
-arquivo. O `CHANGELOG.md` está limpo: a primeira linha dele será a 1.5 real.
+| Fica na rede | O que é |
+|---|---|
+| `crm_zapromaq.accdb` | o banco de produção |
+| `CRM_Zapromaq.xlsm`, `VERSAO-FRONT.txt` | a planilha publicada e a versão dela (escritos pelo build) |
+| `crm_zapromaq.ico` | ícone do atalho das estações |
+| `SISTEMA\DADOS\execucao\` | backups, histórico de publicações, logs, registro do MCP |
+| `IA\logs\` | logs dos conectores |
 
 ## Passo a passo na empresa
 
-1. Backup manual do `crm_zapromaq.accdb` e do `CRM_Zapromaq.xlsm` atuais.
-2. Copiar `SISTEMA` e `IA` para dentro da `BASE` da rede.
-3. Todos fechando o CRM (a cópia local em `Documentos` pode ficar aberta; o
+1. **Antes de tudo, traga para cá o que foi alterado lá** (ajustes pelo Claude
+   Desktop): mande a BASE da rede compactada para o desenvolvimento e espere ela
+   entrar no repositório. O pacote substitui os arquivos de lá; o que foi feito
+   na rede e não voltou para o repositório se perde.
+2. Todos fechando o CRM (a cópia local em `Documentos` pode ficar aberta; o
    `.xlsm` da rede, não).
-4. `SISTEMA\MONTAR-FRONTEND.bat` — faz tudo: confere o ambiente, backup, aplica
-   as migrações pendentes, monta, compila, autoteste, teste de uso e publica a
-   1.5. Se qualquer etapa falhar, nada é publicado.
-5. Testar a cópia publicada na sua máquina e avisar a equipe para abrir o
-   `INICIAR-CRM`.
+3. **Extraia o `.zip` por cima da pasta `BASE` da rede** — na pasta que contém a
+   `BASE` (`01 - CRM\01 - CONTROLE`), e responda **"Substituir os arquivos no
+   destino"**. **Nunca apague a `BASE` antes**: o banco e a planilha publicada
+   estão nela e não vêm no pacote.
+4. `SISTEMA\MONTAR-FRONTEND.bat` — confere o ambiente, faz backup, aplica as
+   migrações pendentes do banco, monta, compila, roda autoteste e teste de uso e
+   publica a versão seguinte. Se qualquer etapa falhar, nada é publicado e a
+   planilha de antes continua valendo.
+5. As estações atualizam sozinhas pelo `INICIAR-CRM` (ele compara a primeira
+   linha de `VERSAO-FRONT.txt` com a versão instalada).
 
-Detalhes e o que fazer se der errado: `SISTEMA\LEIA-ME-PRIMEIRO.md` e
-`docs\implantacao.md`. O `INICIAR-CRM.bat` das estações lê a primeira linha de
-`VERSAO-FRONT.txt` (trecho pronto em `docs\versao-para-o-iniciar-crm.md`).
+Proteções do build para esse caminho: sem o `crm_zapromaq.accdb` na raiz ele
+**não publica**; e a numeração parte da **maior** entre `VERSAO.txt` e a versão
+já publicada em `VERSAO-FRONT.txt`, então um pacote com `VERSAO.txt` mais
+antigo nunca repete um número (o que faria as estações acharem que não há nada
+novo).
+
+Arquivo que saiu do projeto continua na rede depois da extração (ela só
+acrescenta e substitui). Os conectores carregam as bibliotecas por nome, então
+isso não atrapalha.
 
 ## Deixar o Claude Desktop pronto para manter o sistema
 
@@ -61,9 +73,8 @@ migrações do banco** (campo novo, tabela nova, correção de dados), conferir 
 projeto, montar um `.xlsm` de teste e publicar a versão nova.
 
 O que ele **não** faz e continua sendo trabalho desta estação: mexer em `build\`,
-na própria pasta `IA\` e refatoração grande. Nesse caso, traga os ajustes feitos
-na rede de volta com `ferramentas\sincronizar\trazer-da-rede.ps1`
-(`docs\sincronizar-rede.md`) antes de começar.
+na própria pasta `IA\` e refatoração grande. Nesse caso, traga a BASE da rede de volta
+para o repositório antes de começar (`docs\sincronizar-rede.md`).
 
 ## Máquina da empresa: o que precisa ter
 
