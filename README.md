@@ -17,6 +17,7 @@ crm-zapromaq/
 ├── agent-config/          configuração dos agentes de IA (não vai para a rede)
 │   ├── CLAUDE.md          instruções do projeto; o Claude Code é aberto nesta pasta
 │   │                      e trabalha sobre a pasta acima
+│   ├── ferramentas/       scripts de desenvolvimento (finalizar-branch.ps1 do git-flow)
 │   └── doc_dev/planejamento/
 │       ├── PLANO.md       checklist de fases, decisões, correções e pendências
 │       └── referencias/   documentação oficial offline (VBA, MSForms, Excel, ADO, ACE…)
@@ -114,6 +115,12 @@ o plano em `agent-config/doc_dev/planejamento/PLANO.md`.
 | `bugfix/<nome>` | correção em `develop` |
 | `release/X.Y` | preparação da publicação; ao terminar, merge na `main` + tag `vX.Y` |
 | `hotfix/<nome>` | correção urgente do que está publicado, sai da `main` |
+
+Para abrir uma branch use `git flow <tipo> start <nome>`. Para finalizar, use
+`powershell -File agent-configerramentasinalizar-branch.ps1 [-Enviar]` em vez de
+`git flow <tipo> finish`: o GitFlow .NET 2.3.0 (winget `Kubis1982.GitFlow`) falha em todo
+merge `--no-ff`. O script faz o mesmo finish (com a tag `vX.Y` em release e hotfix), e
+`-Enviar` faz o push.
 
 Os merges são `--no-ff`. O número da tag é o que o build gravou em `VERSAO.txt` ao
 publicar; para montar sem publicar (e sem subir a versão), use `MONTAR-FRONTEND.bat -Teste`.

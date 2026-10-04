@@ -9,7 +9,7 @@ O Claude Code é aberto **nesta pasta** (`agent-config/`) e trabalha sobre a pas
 ```
 crm-zapromaq\
   README.md
-  agent-config\       configuração dos agentes (este CLAUDE.md) + doc_dev\ (plano e referências)
+  agent-config\       configuração dos agentes (este CLAUDE.md), doc_dev\ (plano e referências), ferramentas\
   src\BASE\           o entregável (estrutura fixa, nunca reorganizar)
 ```
 
@@ -38,6 +38,7 @@ Repositório git na raiz `crm-zapromaq/`, público no GitHub (`pwlimaverde/crm-z
 - `main` = o que está publicado; `develop` = integração. Nunca commitar direto em nenhuma das duas.
 - Trabalho novo: `git flow feature start <nome>` (sai de `develop`, volta para ela); correção de `develop`: `bugfix/`.
 - Publicação: `git flow release start X.Y` → build na rede → `git flow release finish X.Y` (merge na `main`, tag `vX.Y`). A tag é o número que o build gravou em `VERSAO.txt`; `hotfix/` sai da `main` para correção urgente do publicado.
+- **Finalizar com `agent-configerramentasinalizar-branch.ps1 [-Enviar]`**, não com `git flow ... finish`: o GitFlow .NET 2.3.0 instalado (winget `Kubis1982.GitFlow`) falha em todo merge `--no-ff` ("Value cannot be null. (Parameter 'message')") e deixa o merge pela metade; o script faz o mesmo finish (feature/bugfix → develop; release/hotfix → main + tag `vX.Y` + develop) e conclui um merge que a ferramenta tenha deixado pendente. O `start` da ferramenta funciona.
 - Testar o build fora da rede só com `MONTAR-FRONTEND.bat -Teste`: sem `-Teste` ele publica e sobe a versão de `VERSAO.txt`.
 - Repositório público: **nenhum dado real** (cliente, CNPJ, telefone, endereço, valor de carteira, nome de estação) em código, teste ou documentação — exemplo é sempre fictício. `old/`, bancos e planilhas ficam no `.gitignore`. O histórico anterior (com `old/`) foi guardado fora do repositório em `crm-zapromaq-historico-ate-2026-10-04.bundle`.
 - `.gitattributes` com `* -text`: o git nunca converte fim de linha (VBA em cp1252 + CRLF entra byte a byte).
