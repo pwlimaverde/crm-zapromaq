@@ -9,6 +9,7 @@
       commands\_todos.md   acrescentado ao fim de TODO comando
       agents\<nome>.md     acrescentado ao fim de .claude\agents\<nome>.md
       excluidos.txt        itens do original que não se aplicam (um por linha: skills\x, commands\x, agents\x)
+      proprios\{skills,commands,agents}\   itens só deste projeto, copiados como estão (ex.: /roteador)
 
   Gera .claude\skills, .claude\commands, .claude\agents e .claude\references (os
   checklists que as skills citam como ../../references). O resto de .claude
@@ -96,6 +97,22 @@ foreach ($f in Get-ChildItem -LiteralPath (Join-Path $vendor 'agents') -Filter '
     Gravar (Join-Path $temp ('agents\' + $f.Name)) (Somar (Ajustar (Ler $f.FullName)) @($extra))
 }
 
+# --- itens próprios do projeto (não existem no original): copiados como estão
+foreach ($sub in @('skills', 'commands', 'agents')) {
+    $p = Join-Path $adapt ('proprios\' + $sub)
+    if (-not (Test-Path -LiteralPath $p)) { continue }
+    foreach ($f in Get-ChildItem -LiteralPath $p -Recurse -File) {
+        $rel = $f.FullName.Substring($p.Length + 1)
+        $alvo = Join-Path $temp ($sub + '\' + $rel)
+        if (Test-Path -LiteralPath $alvo) {
+            Remove-Item -LiteralPath $temp -Recurse -Force
+            throw ('Item próprio com o mesmo nome de um do original: adaptacao\proprios\' + $sub + '\' + $rel)
+        }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $alvo) -Force | Out-Null
+        Copy-Item -LiteralPath $f.FullName -Destination $alvo
+    }
+}
+
 # --- checklists compartilhados (../../references a partir de skills\<nome>\SKILL.md)
 foreach ($f in Get-ChildItem -LiteralPath (Join-Path $vendor 'references') -File) {
     Gravar (Join-Path $temp ('references\' + $f.Name)) (Ajustar (Ler $f.FullName))
@@ -151,12 +168,27 @@ if ($Conferir) {
     exit 0
 }
 
+# Sincroniza arquivo a arquivo, sem apagar as pastas: o Claude Code observa
+# .claude\skills e um terminal pode estar parado dentro dela - apagar a pasta
+# inteira falha no meio e deixa a instalação vazia.
+New-Item -ItemType Directory -Path $destino -Force | Out-Null
+foreach ($rel in $atual.Keys) {
+    if (-not $novo.ContainsKey($rel)) { Remove-Item -LiteralPath (Join-Path $destino $rel) -Force }
+}
+foreach ($rel in $novo.Keys) {
+    if ($atual[$rel] -eq $novo[$rel]) { continue }
+    $para = Join-Path $destino $rel
+    New-Item -ItemType Directory -Path (Split-Path -Parent $para) -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $temp $rel) -Destination $para -Force
+}
 foreach ($p in $pastas) {
     $alvo = Join-Path $destino $p
-    if (Test-Path -LiteralPath $alvo) { Remove-Item -LiteralPath $alvo -Recurse -Force }
+    if (-not (Test-Path -LiteralPath $alvo)) { continue }
+    # pastas que ficaram vazias (item removido do original ou da adaptação)
+    Get-ChildItem -LiteralPath $alvo -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending |
+        Where-Object { @(Get-ChildItem -LiteralPath $_.FullName -Force).Count -eq 0 } |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
 }
-New-Item -ItemType Directory -Path $destino -Force | Out-Null
-foreach ($item in Get-ChildItem -LiteralPath $temp) { Move-Item -LiteralPath $item.FullName -Destination (Join-Path $destino $item.Name) -Force }
 Remove-Item -LiteralPath $temp -Recurse -Force
 
 $n = @{}
