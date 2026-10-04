@@ -46,6 +46,9 @@ Modernizar o CRM Comercial Zapromaq **mantendo o modelo de execução atual** (p
 | D11 | 19/09 | Layout desenhado para **1000 × 505 pt a 100%**; ao abrir, o formulário aplica `Zoom` conforme a DPI | 1366×768 com escala variável (R8) |
 | D12 | 19/09 | **MCP de desenvolvimento** separado do MCP de dados, para ajustes pequenos pelo Claude Desktop da empresa | Praticidade sem instalar nada |
 | D13 | 19/09 | Repositório git na raiz `crm-zapromaq\`: `BASE\` (entregável), `doc_dev\` (documentação de desenvolvimento), `old\` (legado: só textos versionados) | `doc_dev` não pode ir para a rede (R3) |
+| D14 | 04/10 | Repositório público reorganizado: `src\BASE` (entregável), `agent-config\` (Claude Code, specs, ferramentas, `doc_dev`); `old\` fora; histórico anterior em bundle fora do repositório; git-flow | Versionar no GitHub sem dado real |
+| D15 | 04/10 | A BASE vai para a empresa como pacote do commit (`empacotar-base.ps1`), extraído **por cima** da BASE da rede; a versão da rede tem prioridade e volta ao repositório antes de cada ciclo | Ajustes feitos lá pelo Claude Desktop |
+| D16 | 04/10 | Processo de desenvolvimento do **agent-skills** (Addy Osmani, MIT): original na íntegra em `agent-config\vendor` (subtree), adaptação em `agent-config\adaptacao`, `.claude` gerado; specs do projeto e das stacks em `agent-config\specs` | Atualizar o original sem perder a adaptação |
 
 ## 4. Correções trazidas pela revisão com a documentação (19/09)
 

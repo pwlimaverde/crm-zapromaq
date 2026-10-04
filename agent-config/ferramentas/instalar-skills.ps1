@@ -1,0 +1,167 @@
+﻿<#
+  instalar-skills.ps1 - monta agent-config\.claude (o que o Claude Code lê) a partir de:
+
+    vendor\agent-skills\   o projeto addyosmani/agent-skills NA ÍNTEGRA (git subtree,
+                           nunca editado aqui; atualizar com atualizar-agent-skills.ps1)
+    adaptacao\             o que é deste projeto, somado ao original:
+      skills\<nome>.md     acrescentado ao fim de .claude\skills\<nome>\SKILL.md
+      commands\<nome>.md   acrescentado ao fim de .claude\commands\<nome>.md
+      commands\_todos.md   acrescentado ao fim de TODO comando
+      agents\<nome>.md     acrescentado ao fim de .claude\agents\<nome>.md
+      excluidos.txt        itens do original que não se aplicam (um por linha: skills\x, commands\x, agents\x)
+
+  Gera .claude\skills, .claude\commands, .claude\agents e .claude\references (os
+  checklists que as skills citam como ../../references). O resto de .claude
+  (settings*.json) não é tocado. No texto, "agent-skills:<skill>" (nome do plugin)
+  vira "<skill>": aqui as skills são do projeto, não de um plugin.
+
+  Gerado, não editar: para mudar, edite adaptacao\ e rode de novo.
+
+  Uso: instalar-skills.ps1 [-Conferir]
+    -Conferir  só confere se .claude está igual ao que seria gerado (sai 1 se não)
+#>
+param([switch]$Conferir)
+$ErrorActionPreference = 'Stop'
+
+$ac       = Split-Path -Parent $PSScriptRoot
+$vendor   = Join-Path $ac 'vendor\agent-skills'
+$adapt    = Join-Path $ac 'adaptacao'
+$destino  = Join-Path $ac '.claude'
+$pastas   = @('skills', 'commands', 'agents', 'references')
+$utf8     = New-Object System.Text.UTF8Encoding($false)
+
+if (-not (Test-Path -LiteralPath (Join-Path $vendor 'skills'))) { throw ('Original não encontrado em ' + $vendor) }
+
+$excluidos = @{}
+$arqExc = Join-Path $adapt 'excluidos.txt'
+if (Test-Path -LiteralPath $arqExc) {
+    foreach ($l in [System.IO.File]::ReadAllLines($arqExc, $utf8)) {
+        $l = $l.Trim()
+        if ($l -and -not $l.StartsWith('#')) { $excluidos[($l -replace '/', '\').ToLowerInvariant()] = $true }
+    }
+}
+
+function Ler([string]$p) { return [System.IO.File]::ReadAllText($p, $utf8) }
+function Gravar([string]$p, [string]$t) {
+    New-Item -ItemType Directory -Path (Split-Path -Parent $p) -Force | Out-Null
+    [System.IO.File]::WriteAllText($p, $t, $utf8)
+}
+function Ajustar([string]$t) { return ($t -replace 'agent-skills:', '') }
+function Somar([string]$texto, [string[]]$extras) {
+    foreach ($e in $extras) {
+        if (Test-Path -LiteralPath $e) { $texto = $texto.TrimEnd() + "`n`n" + (Ler $e).Trim() + "`n" }
+    }
+    return $texto
+}
+
+$temp = Join-Path ([System.IO.Path]::GetTempPath()) ('instalar-skills-' + $PID)
+if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
+$usados = @{}
+
+# --- skills: a pasta inteira (SKILL.md + references\, scripts\ ...), adaptação no SKILL.md
+foreach ($d in Get-ChildItem -LiteralPath (Join-Path $vendor 'skills') -Directory) {
+    if ($excluidos[('skills\' + $d.Name).ToLowerInvariant()]) { continue }
+    foreach ($f in Get-ChildItem -LiteralPath $d.FullName -Recurse -File) {
+        $rel = $f.FullName.Substring($d.FullName.Length + 1)
+        $alvo = Join-Path $temp ('skills\' + $d.Name + '\' + $rel)
+        if ($f.Extension -eq '.md') {
+            $t = Ajustar (Ler $f.FullName)
+            if ($rel -eq 'SKILL.md') {
+                $extra = Join-Path $adapt ('skills\' + $d.Name + '.md')
+                if (Test-Path -LiteralPath $extra) { $usados[$extra.ToLowerInvariant()] = $true }
+                $t = Somar $t @($extra)
+            }
+            Gravar $alvo $t
+        } else {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $alvo) -Force | Out-Null
+            Copy-Item -LiteralPath $f.FullName -Destination $alvo
+        }
+    }
+}
+
+# --- comandos do Claude Code (os .toml são de outros agentes)
+$todos = Join-Path $adapt 'commands\_todos.md'
+foreach ($f in Get-ChildItem -LiteralPath (Join-Path $vendor '.claude\commands') -Filter '*.md' -File) {
+    if ($excluidos[('commands\' + $f.BaseName).ToLowerInvariant()]) { continue }
+    $extra = Join-Path $adapt ('commands\' + $f.Name)
+    if (Test-Path -LiteralPath $extra) { $usados[$extra.ToLowerInvariant()] = $true }
+    Gravar (Join-Path $temp ('commands\' + $f.Name)) (Somar (Ajustar (Ler $f.FullName)) @($extra, $todos))
+}
+
+# --- agentes (personas dos revisores)
+foreach ($f in Get-ChildItem -LiteralPath (Join-Path $vendor 'agents') -Filter '*.md' -File) {
+    if ($excluidos[('agents\' + $f.BaseName).ToLowerInvariant()]) { continue }
+    $extra = Join-Path $adapt ('agents\' + $f.Name)
+    if (Test-Path -LiteralPath $extra) { $usados[$extra.ToLowerInvariant()] = $true }
+    Gravar (Join-Path $temp ('agents\' + $f.Name)) (Somar (Ajustar (Ler $f.FullName)) @($extra))
+}
+
+# --- checklists compartilhados (../../references a partir de skills\<nome>\SKILL.md)
+foreach ($f in Get-ChildItem -LiteralPath (Join-Path $vendor 'references') -File) {
+    Gravar (Join-Path $temp ('references\' + $f.Name)) (Ajustar (Ler $f.FullName))
+}
+
+# adaptação apontando para algo que não existe (ou foi excluído) é erro: ficaria esquecida
+foreach ($sub in @('skills', 'commands', 'agents')) {
+    $p = Join-Path $adapt $sub
+    if (-not (Test-Path -LiteralPath $p)) { continue }
+    foreach ($f in Get-ChildItem -LiteralPath $p -Filter '*.md' -File) {
+        if ($f.Name -eq '_todos.md') { continue }
+        if (-not $usados[$f.FullName.ToLowerInvariant()]) {
+            Remove-Item -LiteralPath $temp -Recurse -Force
+            throw ('Adaptação sem item correspondente no original (renomeado, removido ou excluído?): adaptacao\' + $sub + '\' + $f.Name)
+        }
+    }
+}
+
+Gravar (Join-Path $temp 'LEIA-ME.md') @"
+# agent-config\.claude — GERADO
+
+skills\, commands\, agents\ e references\ são gerados por
+``ferramentas\instalar-skills.ps1`` a partir de ``vendor\agent-skills`` (original,
+addyosmani/agent-skills, licença MIT) + ``adaptacao\`` (o que é deste projeto).
+Não edite aqui: edite ``adaptacao\`` e rode o script. Detalhes em ``adaptacao\README.md``.
+"@
+
+# --- comparar com o que está instalado
+function Mapa([string]$raiz) {
+    $m = @{}
+    if (-not (Test-Path -LiteralPath $raiz)) { return $m }
+    foreach ($p in $pastas + @('LEIA-ME.md')) {
+        $alvo = Join-Path $raiz $p
+        if (Test-Path -LiteralPath $alvo -PathType Leaf) { $m[$p] = (Get-FileHash -LiteralPath $alvo).Hash; continue }
+        if (-not (Test-Path -LiteralPath $alvo)) { continue }
+        foreach ($f in Get-ChildItem -LiteralPath $alvo -Recurse -File) {
+            $m[$f.FullName.Substring($raiz.Length + 1).ToLowerInvariant()] = (Get-FileHash -LiteralPath $f.FullName).Hash
+        }
+    }
+    return $m
+}
+$novo = Mapa $temp; $atual = Mapa $destino
+$dif = @($novo.Keys | Where-Object { $atual[$_] -ne $novo[$_] }) + @($atual.Keys | Where-Object { -not $novo.ContainsKey($_) })
+
+if ($Conferir) {
+    Remove-Item -LiteralPath $temp -Recurse -Force
+    if ($dif.Count -gt 0) {
+        $dif | Sort-Object | Select-Object -First 20 | ForEach-Object { Write-Host ('  difere: ' + $_) }
+        Write-Host ('.claude DESATUALIZADO (' + $dif.Count + ' arquivo(s)). Rode ferramentas\instalar-skills.ps1.') -ForegroundColor Red
+        exit 1
+    }
+    Write-Host '.claude em dia com vendor\agent-skills + adaptacao.' -ForegroundColor Green
+    exit 0
+}
+
+foreach ($p in $pastas) {
+    $alvo = Join-Path $destino $p
+    if (Test-Path -LiteralPath $alvo) { Remove-Item -LiteralPath $alvo -Recurse -Force }
+}
+New-Item -ItemType Directory -Path $destino -Force | Out-Null
+foreach ($item in Get-ChildItem -LiteralPath $temp) { Move-Item -LiteralPath $item.FullName -Destination (Join-Path $destino $item.Name) -Force }
+Remove-Item -LiteralPath $temp -Recurse -Force
+
+$n = @{}
+foreach ($p in @('skills', 'commands', 'agents')) {
+    $n[$p] = @(Get-ChildItem -LiteralPath (Join-Path $destino $p) | Where-Object { $_.PSIsContainer -or $_.Extension -eq '.md' }).Count
+}
+Write-Host ('.claude gerado: ' + $n.skills + ' skills, ' + $n.commands + ' comandos, ' + $n.agents + ' agentes; ' +
+            $usados.Count + ' adaptação(ões) aplicada(s); ' + $dif.Count + ' arquivo(s) mudaram.')

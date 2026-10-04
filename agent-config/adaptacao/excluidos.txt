@@ -1,0 +1,8 @@
+# Itens do agent-skills que não se aplicam a este projeto (não são instalados em .claude)
+# Formato: skills\<nome> | commands\<nome> | agents\<nome>
+
+# Front é Excel/VBA (MSForms), não web: DevTools, Core Web Vitals e componentes web não existem aqui
+skills\browser-testing-with-devtools
+skills\frontend-ui-engineering
+commands\webperf
+agents\web-performance-auditor

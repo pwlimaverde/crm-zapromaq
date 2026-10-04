@@ -9,11 +9,23 @@ O Claude Code é aberto **nesta pasta** (`agent-config/`) e trabalha sobre a pas
 ```
 crm-zapromaq\
   README.md
-  agent-config\       configuração dos agentes (este CLAUDE.md), doc_dev\ (plano e referências), ferramentas\
+  agent-config\       este CLAUDE.md, DIRETRIZES-IA.md, specs\, ferramentas\, doc_dev\ (plano e referências),
+                      vendor\agent-skills (original, subtree), adaptacao\, .claude\ (GERADO)
   src\BASE\           o entregável (estrutura fixa, nunca reorganizar)
 ```
 
 Nas seções abaixo, `BASE\` significa `..\src\BASE\`. O legado (`old/`) saiu do repositório; as menções a ele ficam como histórico — a cópia do estudo está em `..\src\BASE\SISTEMA\DADOS\docs\legado\`.
+
+## Processo de desenvolvimento (agent-skills)
+
+**Leia `DIRETRIZES-IA.md`.** Todo trabalho segue `/spec → /plan → /build → /test → /review → /code-simplify → /ship` (comandos e skills em `.claude\`, gerados de `vendor\agent-skills` + `adaptacao\`):
+
+- **Contexto, nesta ordem:** este arquivo → `specs\PROJETO.md` (objetivo, limites, **definição de pronto**, TDD por stack) → `specs\stacks\<stack>.md` das camadas tocadas → `specs\funcionalidades\NNN-nome\SPEC.md`.
+- **Spec antes de código;** plano em fatias verticais; **teste que falha primeiro** (tabela em `specs\PROJETO.md`); um commit por tarefa.
+- **Pronto = prova:** `powershell -File ferramentas\verificar-tudo.ps1` (`-Rapido` | padrão | `-Completo`) sem falha, com a saída mostrada.
+- **Parar e perguntar** em teste sem correção óbvia, spec ambígua e ação irreversível (lista em `DIRETRIZES-IA.md`).
+- `.claude\skills|commands|agents|references` são **gerados**: mude `adaptacao\` e rode `ferramentas\instalar-skills.ps1`. `vendor\agent-skills` nunca se edita (atualizar: `ferramentas\atualizar-agent-skills.ps1`); o `CLAUDE.md`/`AGENTS.md`/`.claude` de dentro dele **não** valem para este projeto.
+- Mudou uma stack? Atualize a spec dela no mesmo commit.
 
 ## Plano e referências
 

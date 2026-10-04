@@ -31,3 +31,7 @@ Thumbs.db
 desktop.ini
 __pycache__/
 *.pyc
+
+# ---------------------------------------------------------------- Claude Code (pessoal)
+/agent-config/.claude/settings.local.json
+.simplify-ignore-cache/

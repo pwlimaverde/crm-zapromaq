@@ -17,7 +17,13 @@ crm-zapromaq/
 ├── agent-config/          configuração dos agentes de IA (não vai para a rede)
 │   ├── CLAUDE.md          instruções do projeto; o Claude Code é aberto nesta pasta
 │   │                      e trabalha sobre a pasta acima
-│   ├── ferramentas/       scripts de desenvolvimento (empacotar-base, finalizar-branch)
+│   ├── DIRETRIZES-IA.md   protocolo de trabalho: /spec → /plan → /build → /test → /review → /ship
+│   ├── specs/             spec do projeto, das 6 stacks e de cada funcionalidade
+│   ├── vendor/agent-skills/  addyosmani/agent-skills na íntegra (git subtree, MIT)
+│   ├── adaptacao/         o que se soma ao original para este projeto
+│   ├── .claude/           skills, comandos e agentes do Claude Code (GERADO)
+│   ├── ferramentas/       verificar-tudo, instalar-skills, atualizar-agent-skills,
+│   │                      empacotar-base, finalizar-branch
 │   └── doc_dev/planejamento/
 │       ├── PLANO.md       checklist de fases, decisões, correções e pendências
 │       └── referencias/   documentação oficial offline (VBA, MSForms, Excel, ADO, ACE…)
@@ -119,6 +125,24 @@ da rede é trazida inteira e comparada com o último commit. Roteiro em
 Abra o Claude Code dentro de `agent-config/`. O `CLAUDE.md` descreve arquitetura,
 restrições e regras aprendidas na produção; o código manipulado fica em `../src/BASE` e
 o plano em `agent-config/doc_dev/planejamento/PLANO.md`.
+
+O trabalho segue o protocolo de [`agent-config/DIRETRIZES-IA.md`](agent-config/DIRETRIZES-IA.md),
+baseado em [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills):
+
+```
+/spec  ->  /plan  ->  /build  ->  /test  ->  /review  ->  /code-simplify  ->  /ship
+```
+
+- Especificações em [`agent-config/specs/`](agent-config/specs/README.md): a do projeto
+  (objetivo, limites, definição de pronto), uma por stack e uma pasta por funcionalidade.
+- O agent-skills fica **na íntegra** em `agent-config/vendor/agent-skills` (git subtree) e é
+  adaptado por `agent-config/adaptacao/`; o `.claude/` é gerado dos dois:
+
+```powershell
+powershell -File agent-config\ferramentas\instalar-skills.ps1          # regera .claude
+powershell -File agent-config\ferramentas\atualizar-agent-skills.ps1   # traz a versão nova do original
+powershell -File agent-config\ferramentas\verificar-tudo.ps1 [-Rapido | -Completo]   # a verificação (/test)
+```
 
 ### Fluxo de branches (git-flow)
 
