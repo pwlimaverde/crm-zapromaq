@@ -1,0 +1,80 @@
+{
+  "jev": {
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "modelo": "jev-1.13.0",
+    "timeout_s": 4.0
+  },
+  "modo_padrao": "skills",
+  "limiares": {
+    "risco_sobe_nivel": 0.7,
+    "confianca_nivel_min": 0.6,
+    "continuacao_herda": 0.55,
+    "confianca_especialista_min": 0.5,
+    "chance_skill_min": 0.5,
+    "confianca_skill_min": 0.65,
+    "soma_par_concorrente_min": 0.6
+  },
+  "janela_tarefa_anterior_min": 120,
+  "log_max_bytes": 5242880,
+  "niveis": {
+    "simples": { "modelo": "haiku", "rotulo": "Haiku", "atalho": "rapido" },
+    "rotina": { "modelo": "sonnet", "rotulo": "Sonnet", "atalho": "padrao" },
+    "dificil": { "modelo": "opus", "rotulo": "Opus", "atalho": "profundo" }
+  },
+  "nivel_em_falha": "rotina",
+  "skills_fora_do_jev": ["using-agent-skills", "context-engineering"],
+  "comando_para_skill": {
+    "spec": "spec-driven-development",
+    "plan": "planning-and-task-breakdown",
+    "build": "incremental-implementation",
+    "test": "test-driven-development",
+    "review": "code-review-and-quality",
+    "code-simplify": "code-simplification",
+    "ship": "shipping-and-launch",
+    "constraints": "constraint-driven-development"
+  },
+  "especialistas_nativos": {
+    "general-purpose": "Generic agent for research, implementation and multi-step tasks that fit no specialist",
+    "Plan": "Software architect agent for designing implementation plans: step-by-step plans, critical files, trade-offs. Read-only",
+    "Explore": "Read-only search agent for broad sweeps across many files when only the conclusion is needed"
+  },
+  "pares_concorrentes": [
+    {
+      "par": ["debugging-and-error-recovery", "test-driven-development"],
+      "especializada": "debugging-and-error-recovery",
+      "gatilhos": ["bug", "erro", "falh", "quebr", "não funciona", "nao funciona", "travou", "trava", "investig"]
+    },
+    {
+      "par": ["spec-driven-development", "planning-and-task-breakdown"],
+      "especializada": "planning-and-task-breakdown",
+      "gatilhos": ["tarefa", "quebra", "fatia", "plano", "planej"]
+    },
+    {
+      "par": ["code-review-and-quality", "code-simplification"],
+      "especializada": "code-simplification",
+      "gatilhos": ["simplific", "refator", "limpa", "reorganiz", "extrair"]
+    },
+    {
+      "par": ["code-review-and-quality", "security-and-hardening"],
+      "especializada": "security-and-hardening",
+      "gatilhos": ["segurança", "seguranca", "injeção", "injecao", "vazamento", "dado real", "auditoria"]
+    },
+    {
+      "par": ["deprecation-and-migration", "incremental-implementation"],
+      "especializada": "deprecation-and-migration",
+      "gatilhos": ["migração", "migracao", "esquema", "descontinu", "remover campo"]
+    }
+  ],
+  "skill_para_especialista": {
+    "code-review-and-quality": "code-reviewer",
+    "code-simplification": "code-reviewer",
+    "security-and-hardening": "security-auditor",
+    "test-driven-development": "test-engineer",
+    "spec-driven-development": "Plan",
+    "planning-and-task-breakdown": "Plan",
+    "interview-me": "general-purpose",
+    "debugging-and-error-recovery": "general-purpose"
+  },
+  "regras_para_subagente": "as regras do agent-config/CLAUDE.md e da spec de stack tocada (git-flow com finalizar-branch.ps1, verificar-tudo como prova de pronto, pt-BR, nenhum dado real no repositório público, fontes VBA em Windows-1252 + CRLF editados só com Edit/Write, Excel 2019 nas estações)",
+  "projeto": "CRM Zapromaq: CRM comercial de vendas de máquinas industriais, 100% local e offline. Front em Excel 2019 (VBA 7, MSForms, ADO late binding) sobre banco Access .accdb numa pasta de rede (ACE OLEDB 16); build, operação e publicação em Windows PowerShell 5.1 disparado por .bat; layout das telas em JSON com prévia HTML no Edge headless; servidores MCP em PowerShell para o Claude Desktop consultar e manter o CRM; ferramentas de desenvolvimento em Python e git-flow. O entregável é a pasta src/BASE, levada à rede da empresa como pacote."
+}

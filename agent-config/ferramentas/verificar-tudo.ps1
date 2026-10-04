@@ -3,7 +3,8 @@
 
   Níveis (cada um inclui o anterior):
     -Rapido    segundos/1 min: .claude em dia (instalar-skills -Conferir), verificar.py
-               (VBA, esquema, .ps1, .bat, JSON), testar-build-lib, protocolo do MCP
+               (VBA, esquema, .ps1, .bat, JSON), testar-build-lib, roteador (sem rede),
+               protocolo do MCP
     (padrão)   + testes dos dois MCPs COM banco, numa cópia isolada de src\BASE
                (criar-banco-teste + testar-mcp; testar-mcp-dev) - não toca no banco
                de demonstração de src\BASE
@@ -64,6 +65,8 @@ Etapa 'texto sem caractere de controle' {
     if ($ruins -gt 0) { cmd /c exit 1 } else { Write-Output 'nenhum caractere de controle'; cmd /c exit 0 }
 }
 Etapa 'testar-build-lib' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-build-lib.ps1') }
+if ($py) { Etapa 'roteador (sem rede)' { & $py.Source (Join-Path $ac 'roteador\testar_roteador.py') } }
+else { Pular 'roteador (sem rede)' 'Python não encontrado' }
 Etapa 'MCP: protocolo' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'IA\teste\testar-mcp.ps1') -SoProtocolo }
 
 # ------------------------------------------------------------ padrão
