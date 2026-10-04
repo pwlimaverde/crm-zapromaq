@@ -30,10 +30,19 @@ CRM comercial da Zapromaq (vendas de máquinas industriais). O objetivo deste re
 - **Modelo de execução:** uma pasta compartilhada no servidor contém o banco `.accdb` e o `.xlsm` montado. O usuário copia o `.xlsm` dessa pasta para a própria máquina e usa a cópia local como front, acessando os dados pela rede.
 - **Tudo que é necessário para montar o `.xlsm` fica na pasta da rede:** fontes VBA, scripts de build, assets (logo, ícones) e dados de configuração. O build roda numa estação a partir da rede, com o que já vem no Windows (PowerShell 5.1 + automação COM do Excel).
 - **O entregável é uma pasta.** Copiar a pasta inteira para a rede tem de bastar para montar e rodar — sem caminhos absolutos da máquina de desenvolvimento e sem letra de unidade (use caminhos relativos à pasta ou UNC).
-- **A máquina de desenvolvimento não tem Excel** (só o motor ACE do *Access Database Engine 2016 Redistributable x64*, para testar banco e MCP). Montar/compilar o `.xlsm` e testar o front só acontece numa máquina com Excel 2019; aqui o VBA é escrito e conferido estaticamente.
+- **A máquina de desenvolvimento tem Excel do Microsoft 365** (desde 04/10/2026) e o motor ACE: dá para montar com `MONTAR-FRONTEND.bat -Teste`, compilar e rodar autoteste e teste de uso aqui. Não é o Excel 2019 das estações — recurso que só existe no 365 passa aqui e quebra lá; a conferência final continua numa estação com 2019.
 - **Ferramentas de desenvolvimento são livres** (git, Python, linters, testes, geradores) desde que fiquem só no desenvolvimento: nada disso pode ser pré-requisito para montar ou usar o sistema na rede.
 
-Repositório git na raiz `crm-zapromaq/` (branch `main`; cada fase do plano é desenvolvida numa branch `fase-N-...` e integrada com merge `--no-ff` + tag `fase-N`). Documentação, comentários de código e mensagens estão em pt-BR.
+Repositório git na raiz `crm-zapromaq/`, público no GitHub (`pwlimaverde/crm-zapromaq`), com **git-flow** (merge `--no-ff`):
+
+- `main` = o que está publicado; `develop` = integração. Nunca commitar direto em nenhuma das duas.
+- Trabalho novo: `git flow feature start <nome>` (sai de `develop`, volta para ela); correção de `develop`: `bugfix/`.
+- Publicação: `git flow release start X.Y` → build na rede → `git flow release finish X.Y` (merge na `main`, tag `vX.Y`). A tag é o número que o build gravou em `VERSAO.txt`; `hotfix/` sai da `main` para correção urgente do publicado.
+- Testar o build fora da rede só com `MONTAR-FRONTEND.bat -Teste`: sem `-Teste` ele publica e sobe a versão de `VERSAO.txt`.
+- Repositório público: **nenhum dado real** (cliente, CNPJ, telefone, endereço, valor de carteira, nome de estação) em código, teste ou documentação — exemplo é sempre fictício. `old/`, bancos e planilhas ficam no `.gitignore`. O histórico anterior (com `old/`) foi guardado fora do repositório em `crm-zapromaq-historico-ate-2026-10-04.bundle`.
+- `.gitattributes` com `* -text`: o git nunca converte fim de linha (VBA em cp1252 + CRLF entra byte a byte).
+
+Documentação, comentários de código e mensagens estão em pt-BR.
 
 ## Estrutura alvo (aprovada)
 
@@ -124,7 +133,7 @@ powershell -File SISTEMA\DADOS\banco\esquema\criar-banco.ps1 -Banco <accdb> -Rec
 powershell -File SISTEMA\DADOS\ferramentas\sincronizar\trazer-da-rede.ps1 -Rede \\servidor\...\BASE [-Simular]
 ```
 
-Na máquina de desenvolvimento não há Excel: o VBA é conferido pelo `verificar.py` e pela prévia; compilação e autoteste (`modAutoteste`) só no build da estação. Roteiro de implantação: `SISTEMA\DADOS\docs\implantacao.md`.
+Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela prévia, e o build `-Teste` (Excel 365) compila e roda o autoteste (`modAutoteste`) e o teste de uso; a palavra final é o build numa estação com Excel 2019. Roteiro de implantação: `SISTEMA\DADOS\docs\implantacao.md`.
 
 ## Front (estado atual, Fases 4–6)
 

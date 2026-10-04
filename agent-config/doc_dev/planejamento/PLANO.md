@@ -294,3 +294,5 @@ Roteiro passo a passo, com conferências e volta atrás: `BASE\SISTEMA\DADOS\doc
 6. Ajuste feito na rede (Claude Desktop da empresa) é trazido de volta para o repositório antes de qualquer desenvolvimento novo.
 7. Commits pequenos, com mensagem dizendo o porquê; `CHANGELOG.md` atualizado pelo build a cada publicação.
 8. Referências: antes de usar um recurso novo de VBA/Excel/ADO/MCP, conferir em `referencias\`. Atualizar com `python referencias\atualizar-referencias.py` quando houver internet.
+9. Git-flow: `feature/`/`bugfix/` a partir de `develop`; publicação por `release/X.Y` com tag `vX.Y` na `main`; `hotfix/` a partir da `main`. Nada direto em `main`/`develop`.
+10. Repositório público: nenhum dado real em código, teste ou documentação.

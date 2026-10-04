@@ -104,8 +104,22 @@ Abra o Claude Code dentro de `agent-config/`. O `CLAUDE.md` descreve arquitetura
 restrições e regras aprendidas na produção; o código manipulado fica em `../src/BASE` e
 o plano em `agent-config/doc_dev/planejamento/PLANO.md`.
 
-Fluxo de branches: cada fase do plano é desenvolvida em `fase-N-...` e integrada em
-`main` com merge `--no-ff` + tag `fase-N`. Documentação, comentários e mensagens em pt-BR.
+### Fluxo de branches (git-flow)
+
+| Branch | Uso |
+|---|---|
+| `main` | versão publicada na rede; cada publicação tem a tag `vX.Y` |
+| `develop` | integração do que vai para a próxima publicação |
+| `feature/<nome>` | trabalho novo, sai de `develop` e volta para ela |
+| `bugfix/<nome>` | correção em `develop` |
+| `release/X.Y` | preparação da publicação; ao terminar, merge na `main` + tag `vX.Y` |
+| `hotfix/<nome>` | correção urgente do que está publicado, sai da `main` |
+
+Os merges são `--no-ff`. O número da tag é o que o build gravou em `VERSAO.txt` ao
+publicar; para montar sem publicar (e sem subir a versão), use `MONTAR-FRONTEND.bat -Teste`.
+
+Documentação, comentários e mensagens em pt-BR. O repositório é público: exemplos e dados
+de teste são sempre fictícios.
 
 ## Fora do versionamento
 
