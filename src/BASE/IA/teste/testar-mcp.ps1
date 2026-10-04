@@ -142,6 +142,17 @@ try {
         Conferir 'cidade normalizada em maiúsculas' ((-not $res.isError) -and ($g.alterados[0].depois -eq 'CAXIAS DO SUL')) $res.content[0].text
         $log = Dados (Chamar 'ultimas_alteracoes' ([ordered]@{ limite = 10 }))
         Conferir 'log de auditoria com origem IA' (@($log.alteracoes | Where-Object { $_.origem -eq 'IA' }).Count -ge 3)
+
+        # Devolve ao estado inicial o que muda o resultado dos testes acima, para o teste
+        # poder rodar de novo no mesmo banco (sem isto, a 2a execução falhava: o AT-0001-0001
+        # deixava de estar atrasado e a cidade do cliente 2 já estava normalizada).
+        Write-Host '--- restauração do banco de teste'
+        $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao; autor = 'teste' })
+        Conferir 'próxima ação do AT-0001-0001 restaurada' (-not $res.isError) $res.content[0].text
+        $cliAgora = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
+        $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cliAgora.versao; cidade = [string]$cli.cidade; autor = 'teste' })
+        Conferir 'cidade do cliente 2 restaurada' (-not $res.isError) $res.content[0].text
     }
 } catch {
     $script:falhas++
