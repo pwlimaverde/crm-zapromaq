@@ -17,9 +17,14 @@
 !/src/BASE/SISTEMA/DADOS/execucao/**/
 !/src/BASE/SISTEMA/DADOS/execucao/**/.gitkeep
 /src/BASE/IA/logs/
+/src/BASE/IA/instrucoes/*.zip
+.teste-escrita*
 
 # ---------------------------------------------------------------- legado (tem dados reais; nunca no git)
 /old/
+
+# ---------------------------------------------------------------- pacote para a empresa (empacotar-base.ps1)
+/dist/
 
 # ---------------------------------------------------------------- sistema
 Thumbs.db

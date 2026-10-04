@@ -11,17 +11,17 @@
     -Dev  registra o MCP de DESENVOLVIMENTO (IA\mcp-dev, "crm-zapromaq-dev"),
           que altera as fontes do front - só nas máquinas de quem mantém o sistema.
 #>
-param([switch]$Remover, [switch]$Dev)
+param([switch]$Remover, [switch]$Dev, [ValidateSet('Claude','Codex','Ambos')][string]$Aplicativo = 'Claude')
 $ErrorActionPreference = 'Stop'
 
 if ($Dev) {
     $nomeServidor = 'crm-zapromaq-dev'
-    $servidor = (Resolve-Path (Join-Path $PSScriptRoot '..\mcp-dev\servidor-dev.ps1')).Path
-    $qtdFerramentas = 9
+    $servidor = (Resolve-Path (Join-Path $PSScriptRoot '..\mcp-dev\servidor-dev.ps1')).ProviderPath
+    $qtdFerramentas = 15
 } else {
     $nomeServidor = 'crm-zapromaq'
-    $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'servidor.ps1')).Path
-    $qtdFerramentas = 11
+    $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'servidor.ps1')).ProviderPath
+    $qtdFerramentas = 25
 }
 
 # Unidade mapeada (ex.: G:) vira caminho UNC: o Claude Desktop pode subir antes
@@ -41,6 +41,7 @@ $entrada = [ordered]@{
     args = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $servidor)
 }
 
+if ($Aplicativo -in @('Claude','Ambos')) {
 # arquivos de configuração candidatos
 $alvos = New-Object System.Collections.ArrayList
 $padrao = Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'
@@ -79,4 +80,48 @@ Write-Host ''
 Write-Host 'Feche o Claude Desktop POR COMPLETO (também o ícone perto do relógio) e abra de novo.'
 if (-not $Remover) {
     Write-Host ('Depois, no campo de mensagem: "+" > Conectores > ' + $nomeServidor + ' deve aparecer com ' + $qtdFerramentas + ' ferramentas.')
+}
+
+} # configuracao Claude
+
+if ($Aplicativo -in @('Codex','Ambos')) {
+    $codexCmd = Get-Command codex -ErrorAction SilentlyContinue
+    if (-not $codexCmd) {
+        $codexCmd = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin\*\codex.exe') -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    }
+    if (-not $codexCmd) { throw 'Codex nao encontrado. Instale e abra o Codex antes.' }
+    $codexExe = if ($codexCmd.Source) { $codexCmd.Source } else { $codexCmd.FullName }
+    $codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+    $cfgCodex = Join-Path $codexRoot 'config.toml'
+    if (Test-Path -LiteralPath $cfgCodex) {
+        Copy-Item -LiteralPath $cfgCodex -Destination ($cfgCodex + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+    }
+    if ($Remover) {
+        & $codexExe mcp remove $nomeServidor
+    } else {
+        # O Codex inicia MCP com ambiente reduzido. OLE DB/ACE depende dos
+        # caminhos de componentes compartilhados do Windows/Office.
+        $envArgs = @()
+        foreach ($nomeEnv in @('SystemRoot','SystemDrive','CommonProgramFiles','CommonProgramW6432','ProgramFiles','ProgramW6432','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA')) {
+            $valorEnv = [Environment]::GetEnvironmentVariable($nomeEnv)
+            if (-not [string]::IsNullOrWhiteSpace($valorEnv)) {
+                $envArgs += @('--env', ($nomeEnv + '=' + $valorEnv))
+            }
+        }
+        & $codexExe mcp add $nomeServidor @envArgs -- $powershell @($entrada.args)
+    }
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar o MCP no Codex.' }
+    if (-not $Remover) {
+        $origemSkill = Join-Path (Split-Path $PSScriptRoot -Parent) ('instrucoes\' + $nomeServidor + '\SKILL.md')
+        $destinoSkill = Join-Path $codexRoot ('skills\' + $nomeServidor)
+        if (-not (Test-Path -LiteralPath $destinoSkill)) { New-Item -ItemType Directory -Path $destinoSkill -Force | Out-Null }
+        $arquivoSkill = Join-Path $destinoSkill 'SKILL.md'
+        if (Test-Path -LiteralPath $arquivoSkill) {
+            Copy-Item -LiteralPath $arquivoSkill -Destination ($arquivoSkill + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+        }
+        Copy-Item -LiteralPath $origemSkill -Destination $arquivoSkill -Force
+        Write-Host ('Skill instalada em: ' + $arquivoSkill)
+    }
+    Write-Host 'Reabra o Codex para carregar a conexao e a skill.'
 }

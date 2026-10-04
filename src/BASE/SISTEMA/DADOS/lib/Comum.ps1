@@ -19,7 +19,7 @@ $script:NomeFront = 'CRM_Zapromaq.xlsm'
 
 # ------------------------------------------------------------------ caminhos
 function Get-RaizBase([string]$apartirDe) {
-    $d = (Resolve-Path -LiteralPath $apartirDe).Path
+    $d = (Resolve-Path -LiteralPath $apartirDe).ProviderPath
     while ($d) {
         if (Test-Path -LiteralPath (Join-Path $d 'SISTEMA\DADOS\VERSAO.txt')) { return $d }
         $pai = Split-Path -Parent $d
@@ -40,6 +40,7 @@ function Get-PastaExecucao([string]$raiz, [string]$sub) {
 # Unidade mapeada (G:\...) vira caminho UNC (\\servidor\...). O front roda a
 # partir de Documentos, em qualquer estação: só o UNC vale para todas.
 function ConvertTo-CaminhoUNC([string]$caminho) {
+    $caminho = $caminho -replace '^Microsoft\.PowerShell\.Core\\FileSystem::', ''
     $cheio = [System.IO.Path]::GetFullPath($caminho)
     if ($cheio -match '^([A-Za-z]):\\') {
         $letra = $Matches[1] + ':'

@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Data
 
-$script:VersaoServidor = '1.0.0'
+$script:VersaoServidor = '1.4.1'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.
@@ -39,11 +39,12 @@ $script:UsuarioLog = 'IA'
 # ------------------------------------------------------------------ instruções
 $script:Instrucoes = @'
 Servidor do CRM Comercial Zapromaq (banco Access compartilhado em rede).
-- Leia antes de gravar: obter_atendimento / obter_cliente devolvem a "versao" exigida nas ferramentas de atualização.
+- Leia antes de gravar: obter_atendimento / obter_cliente / obter_contato devolvem a "versao" exigida nas ferramentas de atualização.
 - Se a gravação voltar "Conflito", alguém alterou o registro depois da leitura: leia de novo, confira com o usuário e só então repita.
 - Campos de lista (etapa, responsável, família, origem, prioridade, motivo, segmento, UF) só aceitam valores de listar_opcoes.
 - Datas sempre AAAA-MM-DD. Valores em reais como número (ex.: 1250000.50).
-- Nada é apagado por estas ferramentas; observações só recebem linhas novas.
+- Só pré-cliente sem vínculo pode ser excluído (alterar_situacao_cliente); cliente e contato se desativam; observações só recebem linhas novas.
+- Cadastrar contato ou abrir atendimento em pré-cliente promove a empresa a cliente: só com confirmação do usuário (promover_pre_cliente=true).
 - Toda gravação fica no log de auditoria com origem IA; confirme com o usuário antes de alterar dados de negócio.
 '@
 
