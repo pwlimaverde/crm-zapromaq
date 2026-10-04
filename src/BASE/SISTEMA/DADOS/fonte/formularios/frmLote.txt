@@ -1,0 +1,194 @@
+'==========================================================
+' CODIGO DO USERFORM  frmLote
+'
+' Cadastro em lote de pre-clientes. A tela e so a casca: a
+' leitura, a conferencia e a gravacao estao em modLote, que
+' e onde se altera regra.
+'
+' Fluxo: colar -> Conferir -> olhar a lista -> Cadastrar.
+' Nada vai para o banco antes do Cadastrar.
+'
+' Visual (Fase 5): botoes sao clsBotao (Labels) e a lista e a
+' clsGrade do Frame grdLinhas, criados pelo build a partir de
+' layout\formularios\frmLote.json.
+'==========================================================
+Option Explicit
+
+Private mConferido As Boolean
+Private mUI As clsUI
+Private mGrade As clsGrade
+
+'----------------------------------------------------------
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Set mGrade = mUI.Grade("grdLinhas")
+    Me.Caption = "CRM Zapromaq  -  cadastro em lote de pre-clientes"
+    lblTitulo.Caption = "Cadastro em lote de pre-clientes"
+    lblAjuda.Caption = "Cole aqui o bloco copiado da planilha de qualificacao, " & _
+        "uma empresa por linha. Ordem das colunas: aderencia, porte, qualificacao, " & _
+        "empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observacoes."
+    PrepararLista
+    cmdCadastrar.Enabled = False
+    lblResumo.Caption = ""
+    Repintar
+    modTela.Encaixar Me
+End Sub
+
+Private Sub PrepararLista()
+    ' soma 722 pt: a largura util da grade no layout
+    mGrade.ColumnWidths = "34;76;190;96;104;222"
+    mGrade.Cabecalho Array("Linha", "Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Empresa", "Cidade/UF", "CNPJ", "Motivo")
+    mGrade.ColunaSelo = 2
+    mGrade.Clear
+End Sub
+
+Private Sub Repintar()
+    If Not mUI Is Nothing Then mUI.Pintar
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsGrade/clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdConferir":  cmdConferir_Click
+        Case "cmdLimpar":    cmdLimpar_Click
+        Case "cmdCadastrar": cmdCadastrar_Click
+        Case "cmdFechar":    cmdFechar_Click
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+Private Sub cmdConferir_Click()
+    Dim n As Long
+
+    n = modLote.Analisar(txtColar.Text)
+    mConferido = True
+    Preencher
+
+    If n = 0 Then
+        MsgBox "Nao encontrei nenhuma linha no texto colado." & vbCrLf & vbCrLf & _
+               "Copie da planilha a FAIXA DE CELULAS, nao o texto de uma celula so - " & _
+               "e a tabulacao entre colunas que separa os campos.", _
+               vbInformation, "CRM Zapromaq"
+    End If
+End Sub
+
+Private Sub Preencher()
+    Dim i As Long, n As Long, rot As String, tela() As String, topo As Long
+
+    n = modLote.Quantidade()
+    ' volta a lista para onde estava: alternar uma linha la embaixo
+    ' nao pode jogar o usuario de volta ao topo
+    topo = mGrade.ListIndex
+    If n = 0 Then
+        mGrade.Clear
+    Else
+        ReDim tela(1 To n, 1 To 6)
+        For i = 1 To n
+            rot = modLote.Valor(i, "status")
+            If modLote.Ignorada(i) Then rot = "IGNORAR"
+            tela(i, 1) = modLote.Valor(i, "linha")
+            tela(i, 2) = rot
+            tela(i, 3) = modLote.Valor(i, "empresa")
+            tela(i, 4) = modLote.Valor(i, "cidade") & _
+                IIf(modLote.Valor(i, "uf") = "", "", "/" & modLote.Valor(i, "uf"))
+            tela(i, 5) = modValidacao.FormatarCNPJ(modLote.Valor(i, "cnpj"))
+            tela(i, 6) = modLote.Valor(i, "motivo")
+        Next i
+        mGrade.Carregar tela
+        If topo >= 0 And topo < n Then mGrade.ListIndex = topo
+    End If
+
+    lblResumo.Caption = n & " linha(s)  -  " & _
+        modLote.Contagem("OK") & " OK  -  " & _
+        modLote.Contagem("SUSPEITO") & " suspeita(s)  -  " & _
+        modLote.Contagem("DUPLICADO") & " duplicada(s)  -  " & _
+        modLote.Contagem("ERRO") & " com erro  -  " & _
+        "vai cadastrar " & modLote.ACadastrar()
+
+    cmdCadastrar.Enabled = (modLote.ACadastrar() > 0)
+    Repintar
+End Sub
+
+'----------------------------------------------------------
+' Duplo clique numa SUSPEITA alterna entre cadastrar e
+' ignorar. DUPLICADO e ERRO nao alternam: nao e questao de
+' opiniao, e dado que falta ou que ja existe.
+'----------------------------------------------------------
+Public Sub UI_GradeDuploClique(ByVal nome As String)
+    Dim i As Long
+    If mGrade.ListIndex < 0 Then Exit Sub
+    i = mGrade.ListIndex + 1
+    If Not modLote.AlternarIgnorar(i) Then
+        MsgBox "So a linha SUSPEITA alterna." & vbCrLf & vbCrLf & _
+               "DUPLICADO e ERRO nao entram: uma ja esta na base, a outra esta " & _
+               "sem dado obrigatorio. Corrija na planilha e confira de novo.", _
+               vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    Preencher
+End Sub
+
+'----------------------------------------------------------
+Private Sub cmdCadastrar_Click()
+    Dim gravados As Long, falhas As String, quantos As Long
+
+    If Not mConferido Then
+        MsgBox "Clique em Conferir antes.", vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+
+    quantos = modLote.ACadastrar()
+    If quantos = 0 Then Exit Sub
+
+    If MsgBox("Cadastrar " & quantos & " pre-cliente(s)?" & vbCrLf & vbCrLf & _
+              "Cada um entra como PRE-CLIENTE, sem codigo de cliente, sem contato e " & _
+              "sem oportunidade - e o que a regra do comercial define. Contato e " & _
+              "atendimento so depois de promover a cliente, pela ficha.", _
+              vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
+
+    modLote.Gravar gravados, falhas
+    Preencher
+    cmdCadastrar.Enabled = False
+    Repintar
+
+    If falhas <> "" Then
+        MsgBox gravados & " cadastrado(s)." & vbCrLf & vbCrLf & _
+               "Nao entraram:" & vbCrLf & falhas, vbExclamation, "CRM Zapromaq"
+    Else
+        MsgBox gravados & " pre-cliente(s) cadastrado(s).", vbInformation, "CRM Zapromaq"
+    End If
+End Sub
+
+'----------------------------------------------------------
+Private Sub cmdLimpar_Click()
+    txtColar.Text = ""
+    mConferido = False
+    modLote.Analisar ""
+    Preencher
+End Sub
+
+Private Sub cmdFechar_Click()
+    Unload Me
+End Sub
+
+'----------------------------------------------------------
+' Texto novo colado invalida a conferencia anterior: sem
+' isto daria para conferir um lote e cadastrar outro.
+'----------------------------------------------------------
+Private Sub txtColar_Change()
+    If Not mConferido Then Exit Sub
+    mConferido = False
+    cmdCadastrar.Enabled = False
+    Repintar
+    lblResumo.Caption = "Texto alterado - clique em Conferir de novo."
+End Sub

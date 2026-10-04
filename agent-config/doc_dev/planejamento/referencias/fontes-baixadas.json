@@ -1,0 +1,972 @@
+{
+ "obtido_em": "2026-09-19",
+ "arquivos": [
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "userform-object.md",
+   "titulo": "UserForm",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/userform-object.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "label-control.md",
+   "titulo": "Label",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/label-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "textbox-control.md",
+   "titulo": "TextBox",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/textbox-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "combobox-control.md",
+   "titulo": "ComboBox",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/combobox-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "listbox-control.md",
+   "titulo": "ListBox",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/listbox-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "image-control.md",
+   "titulo": "Image",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/image-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "frame-control.md",
+   "titulo": "Frame",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/frame-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "scrollbar-control.md",
+   "titulo": "ScrollBar",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/scrollbar-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "commandbutton-control.md",
+   "titulo": "CommandButton",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/commandbutton-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "checkbox-control.md",
+   "titulo": "CheckBox",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/checkbox-control.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "zoom-property.md",
+   "titulo": "Zoom",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/zoom-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "picture-property.md",
+   "titulo": "Picture",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/picture-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "picturesizemode-property.md",
+   "titulo": "PictureSizeMode",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/picturesizemode-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "backstyle-property-microsoft-forms.md",
+   "titulo": "BackStyle",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/backstyle-property-microsoft-forms.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "bordercolor-property.md",
+   "titulo": "BorderColor",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/bordercolor-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "borderstyle-property.md",
+   "titulo": "BorderStyle",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/borderstyle-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "specialeffect-property.md",
+   "titulo": "SpecialEffect",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/specialeffect-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "mousemove-event.md",
+   "titulo": "MouseMove",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/mousemove-event.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "mousepointer-property.md",
+   "titulo": "MousePointer",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/mousepointer-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "add-method-microsoft-forms.md",
+   "titulo": "Controls.Add",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/add-method-microsoft-forms.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "controls-collection-microsoft-forms.md",
+   "titulo": "Controls",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/controls-collection-microsoft-forms.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "columnwidths-property.md",
+   "titulo": "ColumnWidths",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/columnwidths-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "show-method.md",
+   "titulo": "Show",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/show-method.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "change-event.md",
+   "titulo": "Change",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/change-event.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "autosize-property.md",
+   "titulo": "AutoSize",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/autosize-property.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "visible-property-microsoft-forms.md",
+   "titulo": "Visible",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/visible-property-microsoft-forms.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "value-property-microsoft-forms.md",
+   "titulo": "Value",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/value-property-microsoft-forms.md"
+  },
+  {
+   "pasta": "01-vba-msforms",
+   "arquivo": "figuras-no-controle-image.md",
+   "titulo": "Imagens no Image",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Concepts/Forms/things-you-can-do-with-a-picture-on-an-image-control.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "vba-64-bits.md",
+   "titulo": "VBA 64 bits",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Concepts/Getting-Started/64-bit-visual-basic-for-applications-overview.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "ptrsafe.md",
+   "titulo": "PtrSafe",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/ptrsafe-keyword.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "declare.md",
+   "titulo": "Declare",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/declare-statement.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "rgb.md",
+   "titulo": "RGB",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/rgb-function.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "like.md",
+   "titulo": "Like",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/like-operator.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "iif.md",
+   "titulo": "IIf",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/iif-function.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "dateadd.md",
+   "titulo": "DateAdd",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/dateadd-function.md"
+  },
+  {
+   "pasta": "02-vba-linguagem",
+   "arquivo": "datediff.md",
+   "titulo": "DateDiff",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/datediff-function.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "visual-basic-add-in-model-reference.md",
+   "titulo": "Referência",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/visual-basic-add-in-model-reference.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "import-method-vba-add-in-object-model.md",
+   "titulo": "Import",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/import-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "export-method-vba-add-in-object-model.md",
+   "titulo": "Export",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/export-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "add-method-vba-add-in-object-model.md",
+   "titulo": "Add",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/add-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "remove-method-vba-add-in-object-model.md",
+   "titulo": "Remove",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/remove-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "addfromstring-method-vba-add-in-object-model.md",
+   "titulo": "AddFromString",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/addfromstring-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "addfromfile-method-vba-add-in-object-model.md",
+   "titulo": "AddFromFile",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/addfromfile-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "insertlines-method-vba-add-in-object-model.md",
+   "titulo": "InsertLines",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/insertlines-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "deletelines-method-vba-add-in-object-model.md",
+   "titulo": "DeleteLines",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/deletelines-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "replaceline-method-vba-add-in-object-model.md",
+   "titulo": "ReplaceLine",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/User-Interface-Help/replaceline-method-vba-add-in-object-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "objects-visual-basic-add-in-model.md",
+   "titulo": "objects-visual-basic-add-in-model",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/Visual-Basic-Add-in-Model/objects-visual-basic-add-in-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "collections-visual-basic-add-in-model.md",
+   "titulo": "collections-visual-basic-add-in-model",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/Visual-Basic-Add-in-Model/collections-visual-basic-add-in-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "methods-visual-basic-add-in-model.md",
+   "titulo": "methods-visual-basic-add-in-model",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/Visual-Basic-Add-in-Model/methods-visual-basic-add-in-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "properties-visual-basic-add-in-model.md",
+   "titulo": "properties-visual-basic-add-in-model",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/Visual-Basic-Add-in-Model/properties-visual-basic-add-in-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "events-visual-basic-add-in-model.md",
+   "titulo": "events-visual-basic-add-in-model",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Language/Reference/Visual-Basic-Add-in-Model/events-visual-basic-add-in-model.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "excel-workbook-vbproject.md",
+   "titulo": "Workbook.VBProject",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.VBProject.md"
+  },
+  {
+   "pasta": "03-vbe-modelo-extensibilidade",
+   "arquivo": "confiar-acesso-modelo-objeto-vba.html.md",
+   "titulo": "Macros e acesso ao modelo VBA",
+   "fonte": "https://support.microsoft.com/en-us/office/enable-or-disable-macros-in-microsoft-365-files-12b036fd-d140-4e74-b45e-16fed1a7e5c6"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "application.ontime.md",
+   "titulo": "Excel.Application.OnTime",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Application.OnTime.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "application.enableevents.md",
+   "titulo": "Excel.Application.EnableEvents",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Application.EnableEvents.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "application.screenupdating.md",
+   "titulo": "Excel.Application.ScreenUpdating",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Application.ScreenUpdating.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "application.automationsecurity.md",
+   "titulo": "Excel.Application.AutomationSecurity",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Application.AutomationSecurity.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.open.md",
+   "titulo": "Excel.Workbook.Open",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.Open.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.beforeclose.md",
+   "titulo": "Excel.Workbook.BeforeClose",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.BeforeClose.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.beforesave.md",
+   "titulo": "Excel.Workbook.BeforeSave",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.BeforeSave.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.saveas.md",
+   "titulo": "Excel.Workbook.SaveAs",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.SaveAs.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.sheetbeforedoubleclick.md",
+   "titulo": "Excel.Workbook.SheetBeforeDoubleClick",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.SheetBeforeDoubleClick.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.sheetselectionchange.md",
+   "titulo": "Excel.Workbook.SheetSelectionChange",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.SheetSelectionChange.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.sheetchange.md",
+   "titulo": "Excel.Workbook.SheetChange",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.SheetChange.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "workbook.sheetbeforerightclick.md",
+   "titulo": "Excel.Workbook.SheetBeforeRightClick",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Workbook.SheetBeforeRightClick.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "worksheet.codename.md",
+   "titulo": "Excel.Worksheet.CodeName",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Worksheet.CodeName.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "worksheet.protect.md",
+   "titulo": "Excel.Worksheet.Protect",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Worksheet.Protect.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "shapes.addshape.md",
+   "titulo": "Excel.Shapes.AddShape",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Shapes.AddShape.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "shape.placement.md",
+   "titulo": "Excel.Shape.Placement",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Shape.Placement.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "shape.onaction.md",
+   "titulo": "Excel.Shape.OnAction",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Shape.OnAction.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "formatconditions.add.md",
+   "titulo": "Excel.FormatConditions.Add",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.FormatConditions.Add.md"
+  },
+  {
+   "pasta": "04-excel-modelo-objetos",
+   "arquivo": "window.displaygridlines.md",
+   "titulo": "Excel.Window.DisplayGridlines",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Excel.Window.DisplayGridlines.md"
+  },
+  {
+   "pasta": "05-excel-ribbon-customui",
+   "arquivo": "visao-geral-ribbon.md",
+   "titulo": "Ribbon",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Library-Reference/Concepts/overview-of-the-office-fluent-ribbon.md"
+  },
+  {
+   "pasta": "05-excel-ribbon-customui",
+   "arquivo": "ribbon-por-arquivo-open-xml.md",
+   "titulo": "customUI no pacote",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/Library-Reference/Concepts/customize-the-office-fluent-ribbon-by-using-an-open-xml-formats-file.md"
+  },
+  {
+   "pasta": "05-excel-ribbon-customui",
+   "arquivo": "iribbonui.md",
+   "titulo": "IRibbonUI",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Office.IRibbonUI.md"
+  },
+  {
+   "pasta": "05-excel-ribbon-customui",
+   "arquivo": "iribboncontrol.md",
+   "titulo": "IRibbonControl",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/api/Office.IRibbonControl.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "create-and-delete-tables-and-indexes-using-access-sql.md",
+   "titulo": "create-and-delete-tables-and-indexes-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/create-and-delete-tables-and-indexes-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "define-relationships-between-tables-using-access-sql.md",
+   "titulo": "define-relationships-between-tables-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/define-relationships-between-tables-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "modify-a-table-s-design-using-access-sql.md",
+   "titulo": "modify-a-table-s-design-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/modify-a-table-s-design-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "insert-update-and-delete-records-from-a-table-using-access-sql.md",
+   "titulo": "insert-update-and-delete-records-from-a-table-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/insert-update-and-delete-records-from-a-table-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "retrieve-records-using-access-sql.md",
+   "titulo": "retrieve-records-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/retrieve-records-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "all-distinct-distinctrow-top-predicates-microsoft-access-sql.md",
+   "titulo": "all-distinct-distinctrow-top-predicates-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/all-distinct-distinctrow-top-predicates-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "where-clause-microsoft-access-sql.md",
+   "titulo": "where-clause-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/where-clause-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "order-by-clause-microsoft-access-sql.md",
+   "titulo": "order-by-clause-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/order-by-clause-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "group-by-clause-microsoft-access-sql.md",
+   "titulo": "group-by-clause-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/group-by-clause-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "having-clause-microsoft-access-sql.md",
+   "titulo": "having-clause-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/having-clause-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "from-clause-microsoft-access-sql.md",
+   "titulo": "from-clause-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/from-clause-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "perform-joins-using-access-sql.md",
+   "titulo": "perform-joins-using-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/perform-joins-using-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "like-operator-microsoft-access-sql.md",
+   "titulo": "like-operator-microsoft-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/like-operator-microsoft-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "use-aggregate-functions-to-work-with-values-in-access-sql.md",
+   "titulo": "use-aggregate-functions-to-work-with-values-in-access-sql",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/use-aggregate-functions-to-work-with-values-in-access-sql.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "use-international-date-formats-in-sql-statements.md",
+   "titulo": "use-international-date-formats-in-sql-statements",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/use-international-date-formats-in-sql-statements.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "build-sql-statements-that-include-variables-and-controls.md",
+   "titulo": "build-sql-statements-that-include-variables-and-controls",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/VBA-Docs/main/access/Concepts/Structured-Query-Language/build-sql-statements-that-include-variables-and-controls.md"
+  },
+  {
+   "pasta": "06-access-sql-ace",
+   "arquivo": "access-database-engine-2016-redistributable.html.md",
+   "titulo": "ACE redistribuível",
+   "fonte": "https://www.microsoft.com/en-us/download/details.aspx?id=54920"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "connection-object-ado.html.md",
+   "titulo": "connection-object-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/connection-object-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "command-object-ado.html.md",
+   "titulo": "command-object-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/command-object-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "parameter-object.html.md",
+   "titulo": "parameter-object",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/parameter-object?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "createparameter-method-ado.html.md",
+   "titulo": "createparameter-method-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/createparameter-method-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "parameters-collection-ado.html.md",
+   "titulo": "parameters-collection-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/parameters-collection-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "append-method-ado.html.md",
+   "titulo": "append-method-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/append-method-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "datatypeenum.html.md",
+   "titulo": "datatypeenum",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/datatypeenum?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "execute-method-ado-command.html.md",
+   "titulo": "execute-method-ado-command",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/execute-method-ado-command?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "begintrans-committrans-and-rollbacktrans-methods-ado.html.md",
+   "titulo": "begintrans-committrans-and-rollbacktrans-methods-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/begintrans-committrans-and-rollbacktrans-methods-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "recordset-object-ado.html.md",
+   "titulo": "recordset-object-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/recordset-object-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "getrows-method-ado.html.md",
+   "titulo": "getrows-method-ado",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/getrows-method-ado?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "commandtypeenum.html.md",
+   "titulo": "commandtypeenum",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/commandtypeenum?view=sql-server-ver15"
+  },
+  {
+   "pasta": "07-ado",
+   "arquivo": "cursorlocationenum.html.md",
+   "titulo": "cursorlocationenum",
+   "fonte": "https://learn.microsoft.com/en-us/previous-versions/sql/ado/reference/ado-api/cursorlocationenum?view=sql-server-ver15"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "ole-db-odbc-and-oracle-connection-pooling.md",
+   "titulo": "ole-db-odbc-and-oracle-connection-pooling",
+   "fonte": "https://raw.githubusercontent.com/dotnet/docs/main/docs/framework/data/adonet/ole-db-odbc-and-oracle-connection-pooling.md"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "configuring-parameters-and-parameter-data-types.md",
+   "titulo": "configuring-parameters-and-parameter-data-types",
+   "fonte": "https://raw.githubusercontent.com/dotnet/docs/main/docs/framework/data/adonet/configuring-parameters-and-parameter-data-types.md"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "ole-db-data-type-mappings.md",
+   "titulo": "ole-db-data-type-mappings",
+   "fonte": "https://raw.githubusercontent.com/dotnet/docs/main/docs/framework/data/adonet/ole-db-data-type-mappings.md"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "local-transactions.md",
+   "titulo": "local-transactions",
+   "fonte": "https://raw.githubusercontent.com/dotnet/docs/main/docs/framework/data/adonet/local-transactions.md"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "retrieving-identity-or-autonumber-values.md",
+   "titulo": "retrieving-identity-or-autonumber-values",
+   "fonte": "https://raw.githubusercontent.com/dotnet/docs/main/docs/framework/data/adonet/retrieving-identity-or-autonumber-values.md"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "system.data.oledb.oledbtype.html.md",
+   "titulo": "system.data.oledb.oledbtype",
+   "fonte": "https://learn.microsoft.com/en-us/dotnet/api/system.data.oledb.oledbtype?view=netframework-4.8.1"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "system.data.oledb.oledbparameter.html.md",
+   "titulo": "system.data.oledb.oledbparameter",
+   "fonte": "https://learn.microsoft.com/en-us/dotnet/api/system.data.oledb.oledbparameter?view=netframework-4.8.1"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "system.data.oledb.oledbconnection.connectionstring.html.md",
+   "titulo": "system.data.oledb.oledbconnection.connectionstring",
+   "fonte": "https://learn.microsoft.com/en-us/dotnet/api/system.data.oledb.oledbconnection.connectionstring?view=netframework-4.8.1"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "system.data.oledb.oledbtransaction.html.md",
+   "titulo": "system.data.oledb.oledbtransaction",
+   "fonte": "https://learn.microsoft.com/en-us/dotnet/api/system.data.oledb.oledbtransaction?view=netframework-4.8.1"
+  },
+  {
+   "pasta": "08-dotnet-oledb",
+   "arquivo": "system.data.oledb.oledbenumerator.html.md",
+   "titulo": "system.data.oledb.oledbenumerator",
+   "fonte": "https://learn.microsoft.com/en-us/dotnet/api/system.data.oledb.oledbenumerator?view=netframework-4.8.1"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "ConvertTo-Json.md",
+   "titulo": "ConvertTo-Json",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Utility/ConvertTo-Json.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "ConvertFrom-Json.md",
+   "titulo": "ConvertFrom-Json",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Utility/ConvertFrom-Json.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Character_Encoding.md",
+   "titulo": "about_Character_Encoding",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Character_Encoding.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Execution_Policies.md",
+   "titulo": "about_Execution_Policies",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Execution_Policies.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_PowerShell_exe.md",
+   "titulo": "about_PowerShell_exe",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_PowerShell_exe.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Scripts.md",
+   "titulo": "about_Scripts",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Scripts.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Scopes.md",
+   "titulo": "about_Scopes",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Scopes.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Script_Blocks.md",
+   "titulo": "about_Script_Blocks",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Script_Blocks.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Try_Catch_Finally.md",
+   "titulo": "about_Try_Catch_Finally",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Try_Catch_Finally.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Automatic_Variables.md",
+   "titulo": "about_Automatic_Variables",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Automatic_Variables.md"
+  },
+  {
+   "pasta": "09-powershell-5.1",
+   "arquivo": "about_Preference_Variables.md",
+   "titulo": "about_Preference_Variables",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/PowerShell-Docs/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Preference_Variables.md"
+  },
+  {
+   "pasta": "10-edge-headless",
+   "arquivo": "chrome-headless.html.md",
+   "titulo": "Headless",
+   "fonte": "https://developer.chrome.com/docs/chromium/headless"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "segoe-mdl2-assets.md",
+   "titulo": "Segoe MDL2 Assets",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/windows-dev-docs/docs/hub/apps/design/iconography/segoe-ui-symbol-font.md"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "segoe-fluent-icons.md",
+   "titulo": "Segoe Fluent Icons",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/windows-dev-docs/docs/hub/apps/design/iconography/segoe-fluent-icons-font.md"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "getdevicecaps.md",
+   "titulo": "GetDeviceCaps",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/sdk-api/docs/sdk-api-src/content/wingdi/nf-wingdi-getdevicecaps.md"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "getdc.md",
+   "titulo": "GetDC",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/sdk-api/docs/sdk-api-src/content/winuser/nf-winuser-getdc.md"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "releasedc.md",
+   "titulo": "ReleaseDC",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/sdk-api/docs/sdk-api-src/content/winuser/nf-winuser-releasedc.md"
+  },
+  {
+   "pasta": "11-windows-icones-dpi",
+   "arquivo": "getdpiforsystem.md",
+   "titulo": "GetDpiForSystem",
+   "fonte": "https://raw.githubusercontent.com/MicrosoftDocs/sdk-api/docs/sdk-api-src/content/winuser/nf-winuser-getdpiforsystem.md"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_index.md",
+   "titulo": "index.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/index.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_changelog.md",
+   "titulo": "changelog.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/changelog.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_deprecated.md",
+   "titulo": "deprecated.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/deprecated.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_basic_index.md",
+   "titulo": "basic/index.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/index.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_basic_versioning.md",
+   "titulo": "basic/versioning.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/versioning.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_basic_transports_index.md",
+   "titulo": "basic/transports/index.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/transports/index.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_basic_transports_stdio.md",
+   "titulo": "basic/transports/stdio.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/transports/stdio.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_basic_patterns_cancellation.md",
+   "titulo": "basic/patterns/cancellation.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/patterns/cancellation.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_server_index.md",
+   "titulo": "server/index.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/index.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_server_discover.md",
+   "titulo": "server/discover.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/discover.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_server_tools.md",
+   "titulo": "server/tools.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/tools.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_server_utilities_caching.md",
+   "titulo": "server/utilities/caching.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/utilities/caching.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_server_utilities_pagination.md",
+   "titulo": "server/utilities/pagination.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/utilities/pagination.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2026-07-28_schema.ts",
+   "titulo": "schema.ts",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2026-07-28/schema.ts"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2025-11-25_changelog.md",
+   "titulo": "changelog.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/changelog.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2025-11-25_basic_lifecycle.md",
+   "titulo": "basic/lifecycle.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/lifecycle.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2025-11-25_basic_transports.md",
+   "titulo": "basic/transports.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/transports.mdx"
+  },
+  {
+   "pasta": "12-mcp-especificacao",
+   "arquivo": "2025-11-25_server_tools.md",
+   "titulo": "server/tools.mdx",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "conectar-servidores-locais.md",
+   "titulo": "MCP local no Claude Desktop",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/docs/2026-07-28/develop/connect-local-servers.mdx"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "servidores-locais-help-center.html.md",
+   "titulo": "Help Center",
+   "fonte": "https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "mcpb-manifest.md",
+   "titulo": "MCPB manifest",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/MANIFEST.md"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "mcpb-readme.md",
+   "titulo": "MCPB",
+   "fonte": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/README.md"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "agent-skills-visao-geral.md",
+   "titulo": "Skills",
+   "fonte": "https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview.md"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "agent-skills-boas-praticas.md",
+   "titulo": "Skills: boas práticas",
+   "fonte": "https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices.md"
+  },
+  {
+   "pasta": "13-claude-desktop",
+   "arquivo": "usar-skills-no-claude.html.md",
+   "titulo": "Skills no app",
+   "fonte": "https://support.claude.com/en/articles/12512180-using-skills-in-claude"
+  },
+  {
+   "pasta": "14-office-2019",
+   "arquivo": "ciclo-de-vida-office-2019.html.md",
+   "titulo": "Ciclo de vida",
+   "fonte": "https://learn.microsoft.com/en-us/lifecycle/products/microsoft-office-2019"
+  },
+  {
+   "pasta": "14-office-2019",
+   "arquivo": "novidades-excel-2019.html.md",
+   "titulo": "Novidades Excel 2019",
+   "fonte": "https://support.microsoft.com/en-us/office/what-s-new-in-excel-2019-for-windows-5a201203-1155-4055-82a5-82bf0994631f"
+  }
+ ],
+ "falhas": []
+}

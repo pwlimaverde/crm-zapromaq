@@ -1,0 +1,216 @@
+Attribute VB_Name = "ThisWorkbook"
+'==========================================================
+' CODIGO DO OBJETO DA PASTA DE TRABALHO
+' (no VBE em portugues: EstaPasta_de_trabalho)
+'
+' Existe por um motivo so: impedir que alguem trabalhe na
+' copia MODELO que fica na pasta da rede.
+'
+' REGRA QUE NAO SE QUEBRA: em modo modelo este codigo NAO
+' escreve nada no arquivo - nem celula, nem propriedade de
+' botao. Uma versao anterior marcava a aba com um aviso, e
+' bastou alguem salvar para o aviso virar permanente no
+' arquivo que todos copiam. O bloqueio e em memoria, e o
+' salvamento e cancelado.
+'==========================================================
+Option Explicit
+
+' A copia local vive em Documentos do usuario, nao na raiz do C:.
+' Estacao com politica restritiva recusa escrita em C:\, e a pasta
+' de Documentos e a que o usuario acha sozinho.
+'
+' O caminho vem do REGISTRO, nao de USERPROFILE\Documents: com o
+' OneDrive ligado, Documentos e redirecionado para dentro da pasta
+' do OneDrive e o caminho montado a mao aponta para o lugar errado.
+Private Function PastaLocal() As String
+    Dim sh As Object, d As String
+    On Error Resume Next
+    Set sh = CreateObject("WScript.Shell")
+    d = sh.SpecialFolders("MyDocuments")
+    On Error GoTo 0
+    If d = "" Then d = Environ$("USERPROFILE") & "\Documents"
+    PastaLocal = d & "\CRM Zapromaq\"
+End Function
+
+Private Sub Workbook_Open()
+    On Error Resume Next
+    Application.StatusBar = False
+    On Error GoTo 0
+
+    modConfig.gModoModelo = EstaNaRede(ThisWorkbook.Path)
+
+    If modConfig.gModoModelo Then
+        OferecerCopiaLocal
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    ThisWorkbook.Worksheets("Inicio").Activate
+    On Error GoTo 0
+
+    If Not modDB.BancoOK(True) Then
+        MsgBox "O banco não respondeu agora." & vbCrLf & vbCrLf & _
+               "Caminho: " & modConfig.CaminhoBanco() & vbCrLf & _
+               "Última consulta bem-sucedida: " & modConfig.UltimaConsulta() & vbCrLf & vbCrLf & _
+               "Confira a rede. Os números na tela são os da última atualização.", _
+               vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+
+    ' uma consulta traz versao do front e do esquema (cache de modConfig)
+    If Not modConfig.EsquemaCompativel(True, True) Then
+        MsgBox "Esta cópia do CRM não é compatível com o banco." & vbCrLf & vbCrLf & _
+               "Pegue a versão atual na pasta da rede antes de lançar qualquer coisa. " & _
+               "Gravar com versão incompatível pode corromper dados.", _
+               vbCritical, "CRM Zapromaq"
+        Exit Sub
+    End If
+
+    modConfig.ConferirVersaoCopia
+
+    ' atualizacao automatica das grades (log_alteracoes)
+    modFeed.Iniciar
+End Sub
+
+'----------------------------------------------------------
+' Em modo modelo, salvar gravaria no arquivo que todos copiam.
+'----------------------------------------------------------
+Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
+    If Not modConfig.gModoModelo Then Exit Sub
+    Cancel = True
+    MsgBox "Salvamento cancelado." & vbCrLf & vbCrLf & _
+           "Este é o arquivo MODELO, na pasta da rede. Qualquer alteração salva aqui " & _
+           "vai junto para todas as estações na próxima cópia." & vbCrLf & vbCrLf & _
+           "Para alterar o modelo, edite as fontes em SISTEMA\DADOS\fonte e rode o " & _
+           "SISTEMA\MONTAR-FRONTEND.bat.", vbExclamation, "CRM Zapromaq"
+End Sub
+
+'----------------------------------------------------------
+Private Function EstaNaRede(ByVal caminho As String) As Boolean
+    Dim fso As Object, letra As String
+
+    If Trim$(caminho) = "" Then Exit Function
+    If Left$(caminho, 2) = "\\" Then EstaNaRede = True: Exit Function
+
+    On Error Resume Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    letra = fso.GetDriveName(caminho)
+    If letra <> "" Then
+        ' 3 = unidade de rede
+        If fso.GetDrive(letra).DriveType = 3 Then EstaNaRede = True
+    End If
+    On Error GoTo 0
+End Function
+
+'----------------------------------------------------------
+Private Sub OferecerCopiaLocal()
+    Dim destino As String
+
+    destino = PastaLocal() & ThisWorkbook.Name
+
+    If MsgBox("Este " & Chr$(233) & " o arquivo MODELO, que fica na pasta da rede." & vbCrLf & vbCrLf & _
+              "Trabalhar direto por aqui " & Chr$(233) & " o que corrompia a planilha antiga: " & _
+              "duas pessoas no mesmo arquivo." & vbCrLf & vbCrLf & _
+              "O caminho normal " & Chr$(233) & " o atalho INICIAR-CRM, que atualiza e abre sua " & _
+              "c" & Chr$(243) & "pia sozinho." & vbCrLf & vbCrLf & _
+              "Quer instalar sua c" & Chr$(243) & "pia em " & PastaLocal() & " e abrir por l" & Chr$(225) & "?", _
+              vbYesNo + vbExclamation, "CRM Zapromaq  -  cópia modelo") <> vbYes Then
+        MsgBox "Certo, o arquivo continua aberto." & vbCrLf & vbCrLf & _
+               "Os botões não vão funcionar e o salvamento está bloqueado, " & _
+               "para o modelo não ser alterado sem querer." & vbCrLf & vbCrLf & _
+               "É o modo certo para conferir código ou compilar.", _
+               vbInformation, "CRM Zapromaq  -  somente leitura"
+        Exit Sub
+    End If
+
+    On Error GoTo falhou
+    If Dir(PastaLocal(), vbDirectory) = "" Then MkDir PastaLocal()
+
+    If Dir(destino) <> "" Then
+        If MsgBox("Já existe uma cópia em " & PastaLocal() & "." & vbCrLf & vbCrLf & _
+                  "Substituir pela versão da rede?", vbYesNo + vbQuestion, _
+                  "CRM Zapromaq") <> vbYes Then
+            Workbooks.Open destino
+            ThisWorkbook.Close False
+            Exit Sub
+        End If
+        SetAttr destino, vbNormal
+        Kill destino
+    End If
+
+    FileCopy ThisWorkbook.FullName, destino
+    Workbooks.Open destino
+    ThisWorkbook.Close False
+    Exit Sub
+
+falhou:
+    MsgBox "Não foi possível instalar a cópia local." & vbCrLf & vbCrLf & _
+           Err.Description & vbCrLf & vbCrLf & _
+           "Copie o arquivo manualmente para uma pasta da sua máquina e abra de lá.", _
+           vbExclamation, "CRM Zapromaq"
+End Sub
+
+'----------------------------------------------------------
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    ' sem cancelar o OnTime, o Excel reabre o arquivo para rodar a
+    ' rotina agendada
+    modFeed.Parar
+    Application.StatusBar = False
+    If modConfig.gModoModelo Then ThisWorkbook.Saved = True
+    On Error GoTo 0
+End Sub
+
+'==========================================================
+' EVENTOS DAS ABAS DE GRADE
+'
+' Ficam AQUI, no objeto da pasta de trabalho, e nao num
+' modulo por aba. Motivo pratico, medido em 17/09/2026: as
+' abas criadas por automacao saem SEM CodeName - conferido no
+' XML do .xlsm salvo, onde so a primeira aba tem o atributo.
+' Sem CodeName nao existe VBComponent de aba e nao ha onde
+' colar codigo, e a montagem falhava com "Subscrito fora do
+' intervalo" nas tres abas.
+'
+' Os eventos Workbook_Sheet* recebem a aba em Sh e fazem o
+' mesmo servico, em um lugar so. O objeto da pasta de
+' trabalho e alcancavel por $wb.CodeName, que funciona.
+'==========================================================
+Private Sub Workbook_SheetActivate(ByVal Sh As Object)
+    ' fechamento cancelado depois do BeforeClose: religa o feed
+    modFeed.Retomar
+    ' Painel desenhado na hora se estiver vazio ou velho
+    If Sh.Name = "Painel" Then modPainel.AtualizarSeVelho
+End Sub
+
+Private Sub Workbook_SheetBeforeDoubleClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    If modGrade.TabelaDaAba(Sh) = "" Then Exit Sub
+    Cancel = True
+    modGrade.AbrirFichaDaLinha Sh, Target
+End Sub
+
+'----------------------------------------------------------
+' Um evento trata cabecalho (ordena) e coluna de icone (abre
+' a ficha ou desativa/exclui). O Excel nao tem evento de
+' clique em celula: SelectionChange e o que existe.
+'----------------------------------------------------------
+Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
+    If modGrade.TabelaDaAba(Sh) = "" Then Exit Sub
+    modGrade.CliqueNaAba Sh, Target
+End Sub
+
+Private Sub Workbook_SheetBeforeRightClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    ' fora da area de dados, o menu padrao do Excel continua valendo
+    If Not modGrade.NaAreaDeDados(Sh, Target) Then Exit Sub
+    Cancel = True
+    modGrade.MenuDaLinha Sh, Target
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    If modGrade.TabelaDaAba(Sh) = "" Then Exit Sub
+    If Target.Row = modGrade.LIN_BUSCA And Target.Column = modGrade.COL_INI + 1 Then
+        modGrade.Pesquisar Sh, Target
+        Exit Sub
+    End If
+    modGrade.AvisarSomenteLeitura Sh, Target
+End Sub

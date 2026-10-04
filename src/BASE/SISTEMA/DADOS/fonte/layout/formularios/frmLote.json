@@ -1,0 +1,37 @@
+{
+  "_sobre": "Cadastro em lote de pré-clientes, no tema da ficha (Fase 5). Nomes dos controles são contrato com frmLote.txt. A grade precisa de 722 pt úteis (soma das colunas em frmLote.txt) + 14.",
+  "nome": "frmLote",
+  "codigo": "formularios/frmLote.txt",
+  "canvas": { "largura": 780, "altura": 492 },
+  "propriedades": { "Caption": "CRM Zapromaq - cadastro em lote", "BackColor": "@fundo" },
+  "fundo": [
+    { "tipo": "retangulo", "pos": [0, 0, 780, 48], "gradiente": ["@azul", "@azulMedio"] },
+    { "tipo": "retangulo", "pos": [0, 46, 780, 2], "cor": "@verde" },
+    { "tipo": "imagem", "arquivo": "assets/logo_zapromaq.png", "pos": [12, 10, 76, 28], "filtro": "branco" },
+    { "tipo": "linha", "pos": [98, 10, 1, 28], "cor": "#FFFFFF", "opacidade": 0.35 },
+    { "tipo": "retangulo", "pos": [10, 56, 760, 392], "cor": "@fundoCard", "raio": 8, "borda": "@bordaSuave", "sombra": true },
+    { "tipo": "retangulo", "pos": [0, 456, 780, 36], "cor": "@branco" },
+    { "tipo": "linha", "pos": [0, 456, 780, 1], "cor": "@bordaSuave" }
+  ],
+  "estilos": {
+    "campo":     { "Font.Name": "@padrao", "Font.Size": 9, "SpecialEffect": 0, "BorderStyle": 1, "BorderColor": "@borda", "BackColor": "@branco", "ForeColor": "@texto" },
+    "rotulo":    { "Font.Name": "@padrao", "Font.Size": 9, "BackStyle": 0, "ForeColor": "@texto2" },
+    "titulo":    { "Font.Name": "@semibold", "Font.Size": 13, "BackStyle": 0, "ForeColor": "@branco", "WordWrap": false },
+    "subtitulo": { "Font.Name": "@padrao", "Font.Size": 8, "BackStyle": 0, "ForeColor": "@textoClaro", "WordWrap": false }
+  },
+  "controles": [
+    { "nome": "lblTitulo",    "tipo": "Label",   "pos": [110, 6, 500, 20],   "texto": "Cadastro em lote de pré-clientes", "estilo": "titulo" },
+    { "nome": "lblSubtitulo", "tipo": "Label",   "pos": [110, 28, 500, 13],  "texto": "Empresas coladas da planilha de qualificação entram como pré-cliente.", "estilo": "subtitulo" },
+    { "nome": "lblAjuda",     "tipo": "Label",   "pos": [22, 64, 736, 26],   "estilo": "rotulo", "amostra": "Cole aqui o bloco copiado da planilha de qualificação, uma empresa por linha. Ordem das colunas: aderência, porte, qualificação, empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observações." },
+    { "nome": "txtColar",     "tipo": "TextBox", "pos": [22, 94, 736, 92],   "estilo": "campo", "props": { "MultiLine": true, "ScrollBars": 3, "EnterKeyBehavior": true, "Font.Name": "@fixa" } },
+    { "nome": "lblResumo",    "tipo": "Label",   "pos": [218, 199, 540, 14], "estilo": "rotulo", "amostra": "12 linha(s)  -  9 OK  -  1 suspeita(s)  -  1 duplicada(s)  -  1 com erro  -  vai cadastrar 10" },
+    { "nome": "lblDica",      "tipo": "Label",   "pos": [12, 467, 520, 14],  "estilo": "rotulo", "texto": "Duplo clique numa linha SUSPEITO alterna entre cadastrar e ignorar." }
+  ],
+  "componentes": [
+    { "tipo": "botao", "nome": "cmdConferir",  "pos": [22, 194, 96, 24],   "texto": "Conferir",  "icone": "ok",      "variante": "primario" },
+    { "tipo": "botao", "nome": "cmdLimpar",    "pos": [124, 194, 84, 24],  "texto": "Limpar",    "icone": "excluir", "variante": "neutro" },
+    { "tipo": "grade", "nome": "grdLinhas",    "pos": [22, 226, 736, 214], "amostra": "lote", "linhas": 11 },
+    { "tipo": "botao", "nome": "cmdCadastrar", "pos": [578, 462, 104, 24], "texto": "Cadastrar", "icone": "novo",    "variante": "sucesso" },
+    { "tipo": "botao", "nome": "cmdFechar",    "pos": [688, 462, 80, 24],  "texto": "Fechar",    "icone": "fechar",  "variante": "neutro" }
+  ]
+}

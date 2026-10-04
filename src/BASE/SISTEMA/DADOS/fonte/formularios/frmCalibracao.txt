@@ -1,0 +1,103 @@
+'==========================================================
+' CODIGO DO USERFORM  frmCalibracao
+'
+' Tela de calibracao visual (PLANO 4.10). Mostra todos os
+' tipos de controle nativo e todos os componentes (botao,
+' icone, selo, grade) sobre o fundo gerado. Na estacao:
+'   Alt+F8 > AbrirCalibracao
+' tirar print a 100% e a 125% e comparar com as previas
+' execucao\previa\frmCalibracao-*.png. O rodape mostra a area
+' interna real, a DPI, a area util da tela e o zoom aplicado.
+' Nao acessa o banco.
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+
+Private Sub UserForm_Initialize()
+    Dim i As Long
+    Set mUI = New clsUI
+    mUI.Preparar Me
+
+    txtTexto.Text = "METALURGICA EXEMPLO LTDA"
+    cboCombo.AddItem "Contato Inicial"
+    cboCombo.AddItem "Negocia" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
+    cboCombo.ListIndex = 0
+    txtMemo.Text = "Ligar para fechar condi" & ChrW$(&HE7) & ChrW$(&HE3) & "o de pagamento com o comprador."
+    For i = 1 To 6
+        lstLista.AddItem "AT-048" & i & "-049" & i & "  EMPRESA DE EXEMPLO " & i
+    Next i
+
+    With mUI.Grade("grdAmostra")
+        .ColumnWidths = "70;128;96"
+        .Cabecalho Array("Atendimento", "Empresa", "Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o")
+        .ColunaSelo = 3
+        .Carregar Amostra()
+        .ListIndex = 0
+    End With
+
+    modTela.Encaixar Me
+    lblMedidas.Caption = modTela.Diagnostico(Me)
+End Sub
+
+Private Function Amostra() As Variant
+    Dim d(1 To 10, 1 To 3) As String, i As Long, s As Variant
+    s = Array("Em dia", "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada", "Retomar hoje", _
+              "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o nesta semana", _
+              "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Encerrado")
+    For i = 1 To 10
+        d(i, 1) = "AT-04" & Format$(80 + i, "00") & "-04" & Format$(90 + i, "00")
+        d(i, 2) = "EMPRESA DE EXEMPLO " & i
+        d(i, 3) = s((i - 1) Mod 6)
+    Next i
+    Amostra = d
+End Function
+
+'----------------------------------------------------------
+' Contrato com os componentes (clsBotao, clsGrade)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdFechar": cmdFechar_Click
+        Case Else: Registrar "clique em " & nome & " (fundo ou icone)"
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+    Registrar "grade: linha " & (mUI.Grade(nome).ListIndex + 1) & " selecionada"
+End Sub
+
+Public Sub UI_GradeDuploClique(ByVal nome As String)
+    Registrar "grade: duplo clique na linha " & (mUI.Grade(nome).ListIndex + 1)
+End Sub
+
+Private Sub Registrar(ByVal texto As String)
+    lblMedidas.Caption = modTela.Diagnostico(Me) & vbLf & texto
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+Private Sub cmdPrimario_Click()
+    Registrar "clique em cmdPrimario (texto)"
+End Sub
+
+Private Sub cmdSucesso_Click()
+    Registrar "clique em cmdSucesso (texto)"
+End Sub
+
+Private Sub cmdNeutro_Click()
+    Registrar "clique em cmdNeutro (texto)"
+End Sub
+
+Private Sub cmdPerigo_Click()
+    ' alterna o botao desabilitado: confere a repintura de estado
+    cmdDesab.Enabled = Not cmdDesab.Enabled
+    mUI.Pintar
+    Registrar "cmdDesab.Enabled = " & cmdDesab.Enabled
+End Sub
+
+Private Sub cmdFechar_Click()
+    Unload Me
+End Sub

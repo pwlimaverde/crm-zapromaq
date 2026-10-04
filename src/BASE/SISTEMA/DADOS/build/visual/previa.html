@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  previa.html - prévia visual das telas do CRM, a partir de fonte\layout.
+
+  Abra no Edge (duplo clique) ou deixe o gerador (gerar-visual.ps1) capturar.
+  Parâmetros:  ?tela=frmCRM          qual formulário (padrão: o primeiro)
+               &modo=completo|fundo  fundo = só a decoração (vira o BMP do formulário)
+               &contornos=1          mostra o contorno e o nome de cada controle
+  Escala (125%, 150%) é feita pelo gerador com --force-device-scale-factor,
+  do mesmo jeito que o Windows amplia a tela: 1 pt do formulário = 1 pt aqui.
+  Sem internet: tudo local. Os dados vêm de execucao\previa\dados-layout.js.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Prévia - CRM Zapromaq</title>
+<link rel="stylesheet" href="previa.css">
+<script src="../../execucao/previa/dados-layout.js"></script>
+</head>
+<body>
+<div id="barra"></div>
+<div id="tela"></div>
+<pre id="relatorio"></pre>
+<script src="previa.js"></script>
+</body>
+</html>

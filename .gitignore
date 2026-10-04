@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------- produtos e dados (nunca no git)
+*.accdb
+*.laccdb
+*.mdb
+*.ldb
+*.xlsm
+*.xlsx
+*.xls
+~$*
+*.bak-*
+/src/BASE/VERSAO-FRONT.txt
+# CHANGELOG.md é escrito pelo build a cada publicação
+/src/BASE/SISTEMA/DADOS/docs/CHANGELOG.md
+
+# ---------------------------------------------------------------- gerado em execução
+/src/BASE/SISTEMA/DADOS/execucao/**
+!/src/BASE/SISTEMA/DADOS/execucao/**/
+!/src/BASE/SISTEMA/DADOS/execucao/**/.gitkeep
+/src/BASE/IA/logs/
+
+# ---------------------------------------------------------------- legado (tem dados reais; nunca no git)
+/old/
+
+# ---------------------------------------------------------------- sistema
+Thumbs.db
+desktop.ini
+__pycache__/
+*.pyc

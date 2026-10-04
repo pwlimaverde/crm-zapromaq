@@ -1,0 +1,203 @@
+{
+  "_sobre": "Abas do CRM_Zapromaq.xlsm, na ordem. visivel: -1 visível, 0 oculta, 2 muito oculta. Botões são formas arredondadas com OnAction (macro pública). Posições em pontos. A célula Início!B7 é CONTRATO com o .bat das estações: o build escreve 'Ambiente: <amb>   |   Versao <X.Y>   |   Publicada em <dd/MM/yyyy HH:mm>' e confere o padrão antes de publicar.",
+  "abas": [
+    {
+      "nome": "Inicio",
+      "visivel": -1
+    },
+    {
+      "nome": "Clientes",
+      "visivel": -1,
+      "grade": "clientes",
+      "novaFicha": "NovoCliente"
+    },
+    {
+      "nome": "Contatos",
+      "visivel": -1,
+      "grade": "contatos",
+      "novaFicha": "NovoContato"
+    },
+    {
+      "nome": "Oportunidades",
+      "visivel": -1,
+      "grade": "oportunidades",
+      "novaFicha": "NovoAtendimento"
+    },
+    {
+      "nome": "Painel",
+      "visivel": -1
+    },
+    {
+      "nome": "BasePainel",
+      "visivel": 0
+    },
+    {
+      "nome": "Config",
+      "visivel": 2
+    }
+  ],
+  "inicio": {
+    "fundo": "@fundo",
+    "logo": {
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        40,
+        14,
+        196,
+        68
+      ]
+    },
+    "titulo": {
+      "celula": "B6",
+      "texto": "CRM COMERCIAL ZAPROMAQ",
+      "tamanho": 16,
+      "cor": "@azul"
+    },
+    "versao": {
+      "celula": "B7",
+      "tamanho": 9,
+      "cor": "@texto2"
+    },
+    "botoes": {
+      "pos": [
+        40,
+        124,
+        196,
+        30
+      ],
+      "passo": 36,
+      "itens": [
+        {
+          "texto": "Clientes",
+          "macro": "GradeClientes",
+          "cor": "@azul"
+        },
+        {
+          "texto": "Contatos",
+          "macro": "GradeContatos",
+          "cor": "@tomBotao1"
+        },
+        {
+          "texto": "Oportunidades",
+          "macro": "GradeOportunidades",
+          "cor": "@tomBotao2"
+        },
+        {
+          "texto": "Cadastro em lote",
+          "macro": "CadastroEmLote",
+          "cor": "@verdeBotao"
+        },
+        {
+          "texto": "Fila da manha",
+          "macro": "FilaDaManha",
+          "cor": "@tomBotao3"
+        },
+        {
+          "texto": "Atualizar indicadores",
+          "macro": "AtualizarIndicadores",
+          "cor": "@tomBotao4"
+        },
+        {
+          "texto": "Sobre",
+          "macro": "SobreOSistema",
+          "cor": "@texto2"
+        }
+      ]
+    }
+  },
+  "grades": {
+    "logo": {
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        10,
+        6,
+        74,
+        26
+      ]
+    },
+    "botoes": {
+      "pos": [
+        12,
+        36,
+        76,
+        26
+      ],
+      "passo": 80,
+      "itens": [
+        {
+          "texto": "Atualizar",
+          "macro": "GradeAtualizar",
+          "cor": "@azul"
+        },
+        {
+          "texto": "Ver tudo",
+          "macro": "GradeVerTudo",
+          "cor": "@tomBotao2"
+        },
+        {
+          "texto": "Abrir ficha",
+          "macro": "GradeAbrirFicha",
+          "cor": "@tomBotao3"
+        },
+        {
+          "texto": "Limpar filtros",
+          "macro": "GradeLimparFiltros",
+          "cor": "@tomBotao5"
+        },
+        {
+          "texto": "Nova ficha",
+          "macro": "<NOVA>",
+          "cor": "@verdeBotao"
+        },
+        {
+          "texto": "Inicio",
+          "macro": "GradeVoltar",
+          "cor": "@texto2"
+        }
+      ]
+    },
+    "aviso": {
+      "celula": "B5",
+      "texto": "Clique em Atualizar para carregar a grade."
+    }
+  },
+  "config": {
+    "celulas": {
+      "A1": "CONFIGURACAO - nao apagar",
+      "A2": "Caminho do banco",
+      "A3": "Ambiente",
+      "A4": "Ultima consulta"
+    },
+    "banco": "B2",
+    "ambiente": "B3"
+  },
+  "painel": {
+    "_sobre": "Botões da aba Painel (o conteúdo é desenhado pelo modPainel a cada atualização, da linha 4 para baixo).",
+    "botoes": {
+      "pos": [
+        330,
+        8,
+        120,
+        26
+      ],
+      "passo": 126,
+      "itens": [
+        {
+          "texto": "Atualizar indicadores",
+          "macro": "AtualizarIndicadores",
+          "cor": "@azul"
+        },
+        {
+          "texto": "Exportar relatório",
+          "macro": "ExportarRelatorio",
+          "cor": "@verdeBotao"
+        },
+        {
+          "texto": "Inicio",
+          "macro": "GradeVoltar",
+          "cor": "@texto2"
+        }
+      ]
+    }
+  }
+}

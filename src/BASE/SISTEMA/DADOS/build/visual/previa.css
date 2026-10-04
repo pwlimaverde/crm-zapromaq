@@ -1,0 +1,44 @@
+/* previa.css - imitação dos controles MSForms (Office 2019) para a prévia.
+   Unidades em pt: 1 pt aqui = 1 pt no UserForm a 96 dpi (1,333 px). */
+html, body { margin: 0; padding: 0; background: #FFFFFF; font-family: "Segoe UI", sans-serif; }
+body.modo-completo { background: #E9EDF2; }
+#barra { font: 9pt "Segoe UI"; color: #4A5A6A; padding: 6pt 8pt; }
+body.modo-fundo #barra, body.captura #barra { display: none; }
+#tela { position: relative; overflow: hidden; }
+body.modo-completo #tela { margin: 0 8pt 8pt 8pt; box-shadow: 0 0 0 1px #9AA6B4; }
+body.captura #tela { margin: 0; box-shadow: none; }
+#relatorio { display: none; }
+body.modo-completo:not(.captura) #relatorio { display: block; font: 8pt Consolas, monospace; color: #333; margin: 0 8pt 8pt; white-space: pre-wrap; }
+
+.el { position: absolute; box-sizing: border-box; }
+.txt { white-space: nowrap; overflow: hidden; }
+.ico { font-family: "Segoe MDL2 Assets"; display: flex; align-items: center; justify-content: center; }
+
+/* ---- controles nativos (aproximação calibrada na estação) ---- */
+.c-Label { font: 9pt "Segoe UI"; line-height: 1.2; overflow: hidden; }
+.c-TextBox, .c-ComboBox, .c-ListBox { background: #FFF; border: 1px solid #C6CDD4; font: 9pt "Segoe UI"; color: #233750;
+  padding: 1pt 2pt; overflow: hidden; white-space: nowrap; }
+.c-TextBox.multi { white-space: normal; }
+.c-ComboBox::after { content: "\E70D"; font-family: "Segoe MDL2 Assets"; font-size: 6pt; position: absolute; right: 0; top: 0; bottom: 0;
+  width: 11pt; display: flex; align-items: center; justify-content: center; background: #F0F0F0; border-left: 1px solid #C6CDD4; color: #333; }
+.c-CheckBox { font: 9pt "Segoe UI"; display: flex; align-items: center; gap: 4pt; }
+.c-CheckBox::before { content: ""; width: 8pt; height: 8pt; border: 1px solid #555; background: #FFF; flex: none; }
+.c-Frame { border: 1px solid #C6CDD4; font: 9pt "Segoe UI"; }
+.c-Frame > .cap { position: absolute; top: -7pt; left: 6pt; background: inherit; padding: 0 2pt; color: #233750; }
+.c-ScrollBar { background: #F0F0F0; border: 1px solid #D4D4D4; }
+
+/* ---- componentes ---- */
+.botao { display: flex; align-items: center; justify-content: center; gap: 6pt; font: 600 9pt "Segoe UI"; }
+.botao .ico { font-size: 10pt; }
+.selo { font: 600 8pt "Segoe UI"; display: flex; align-items: center; justify-content: center; }
+.grade { background: #FFF; border: 1px solid #DDE3EA; overflow: hidden; }
+.grade .cab, .grade .lin { position: absolute; left: 0; display: flex; align-items: center; }
+.grade .cab { font: 600 8.5pt "Segoe UI"; }
+.grade .lin { font: 8.5pt "Segoe UI"; }
+.grade .cel { box-sizing: border-box; padding: 0 3pt; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.grade .rolagem { position: absolute; top: 0; bottom: 0; right: 0; background: #F0F0F0; border-left: 1px solid #DDE3EA; }
+
+/* ---- contornos de conferência ---- */
+body.contornos .el.ctl { outline: 1px dashed rgba(220, 0, 90, .6); }
+body.contornos .el.ctl::before { content: attr(data-nome); position: absolute; top: -9pt; left: 0; font: 6pt Consolas; color: #C0005A; background: rgba(255,255,255,.8); }
+.problema { outline: 2px solid #E00 !important; }

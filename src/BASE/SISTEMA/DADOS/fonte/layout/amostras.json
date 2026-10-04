@@ -1,0 +1,372 @@
+{
+  "_sobre": "Dados FICTÍCIOS só para a prévia visual (build\\visual). Nunca vão para o .xlsm nem para o banco.",
+  "oportunidades": {
+    "colunas": [
+      {
+        "titulo": "Atendimento",
+        "largura": 68
+      },
+      {
+        "titulo": "Empresa",
+        "largura": 172
+      },
+      {
+        "titulo": "Etapa",
+        "largura": 96
+      },
+      {
+        "titulo": "Valor",
+        "largura": 58,
+        "alinhamento": "direita"
+      },
+      {
+        "titulo": "Situação",
+        "largura": 84,
+        "selo": true
+      }
+    ],
+    "linhas": [
+      [
+        "AT-0489-0491",
+        "METALURGICA EXEMPLO LTDA",
+        "Contato Inicial",
+        "204.000,00",
+        "Sem próxima ação"
+      ],
+      [
+        "AT-0488-0490",
+        "INDUSTRIA D'ANGELO DE MOVEIS LTDA",
+        "Proposta em Stand By",
+        "120.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0487-0489",
+        "AGRO IMPLEMENTOS FICTICIA SA",
+        "Proposta em Stand By",
+        "295.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0485-0488",
+        "REFRIGERACAO MODELO EIRELI",
+        "Negociação",
+        "333.000,00",
+        "Ação atrasada"
+      ],
+      [
+        "AT-0484-0487",
+        "ESTRUTURAS PROSPECTO LTDA",
+        "Contato Inicial",
+        "",
+        "Retomar hoje"
+      ],
+      [
+        "AT-0483-0486",
+        "AUTOPECAS EXEMPLO LTDA",
+        "Negociação",
+        "217.000,00",
+        "Ação nesta semana"
+      ],
+      [
+        "AT-0481-0485",
+        "CALDEIRARIA FICTICIA LTDA",
+        "Perdido",
+        "320.000,00",
+        "Encerrado"
+      ],
+      [
+        "AT-0479-0484",
+        "SERRALHERIA MODELO ME",
+        "Retorno Agendado",
+        "89.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0478-0483",
+        "MOVEIS TESTE INDUSTRIA LTDA",
+        "Proposta em Stand By",
+        "365.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0476-0482",
+        "TUBOS DEMONSTRACAO SA",
+        "Retorno Agendado",
+        "380.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0474-0481",
+        "ESTAMPARIA EXEMPLO LTDA",
+        "Proposta em Análise",
+        "87.000,00",
+        "Ação nesta semana"
+      ],
+      [
+        "AT-0473-0479",
+        "EQUIPAMENTOS FICTICIOS LTDA",
+        "Proposta em Stand By",
+        "44.500,00",
+        "Em dia"
+      ],
+      [
+        "AT-0472-0478",
+        "FITNESS MODELO LTDA",
+        "Proposta em Stand By",
+        "548.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0471-0477",
+        "HOSPITALAR TESTE SA",
+        "Proposta em Stand By",
+        "590.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0470-0476",
+        "IMPLEMENTOS EXEMPLO LTDA",
+        "Proposta em Stand By",
+        "79.000,00",
+        "Em dia"
+      ],
+      [
+        "AT-0469-0475",
+        "DEMONSTRACAO METAL LTDA",
+        "Proposta em Stand By",
+        "77.000,00",
+        "Em dia"
+      ]
+    ]
+  },
+  "ficha": {
+    "secoes": [
+      {
+        "titulo": "1. Cliente e contato",
+        "campos": [
+          [
+            "Atendimento",
+            "AT-0489-0491",
+            "Contato",
+            "501"
+          ],
+          [
+            "Empresa",
+            "METALURGICA EXEMPLO LTDA",
+            "",
+            ""
+          ],
+          [
+            "Cidade",
+            "CURITIBA",
+            "UF",
+            "PR"
+          ],
+          [
+            "Cargo",
+            "DIRETORA",
+            "Telefone",
+            "(41) 99700-2102"
+          ]
+        ]
+      },
+      {
+        "titulo": "2. Negociação",
+        "campos": [
+          [
+            "Etapa",
+            "Contato Inicial",
+            "Responsável",
+            "Vendedor A"
+          ],
+          [
+            "Máquina",
+            "DOBRADEIRA CNC 3 METROS",
+            "",
+            ""
+          ],
+          [
+            "Família",
+            "Dobra de Chapas",
+            "Valor (R$)",
+            "204.000,00"
+          ]
+        ]
+      },
+      {
+        "titulo": "3. Acompanhamento",
+        "campos": [
+          [
+            "Origem",
+            "Feira",
+            "Prioridade",
+            "Alta"
+          ],
+          [
+            "Entrada",
+            "16/09/2026",
+            "Proposta",
+            ""
+          ],
+          [
+            "Observações",
+            "Ligar para fechar condição de pagamento.",
+            "",
+            "",
+            true
+          ]
+        ]
+      }
+    ]
+  },
+  "lote": {
+    "colunas": [
+      {
+        "titulo": "Linha",
+        "largura": 34
+      },
+      {
+        "titulo": "Situação",
+        "largura": 76,
+        "selo": true
+      },
+      {
+        "titulo": "Empresa",
+        "largura": 190
+      },
+      {
+        "titulo": "Cidade/UF",
+        "largura": 96
+      },
+      {
+        "titulo": "CNPJ",
+        "largura": 104
+      },
+      {
+        "titulo": "Motivo",
+        "largura": 222
+      }
+    ],
+    "linhas": [
+      [
+        "2",
+        "OK",
+        "METALURGICA EXEMPLO LTDA",
+        "CURITIBA/PR",
+        "12.345.678/0001-90",
+        ""
+      ],
+      [
+        "3",
+        "OK",
+        "CALDEIRARIA FICTICIA LTDA",
+        "JOINVILLE/SC",
+        "",
+        ""
+      ],
+      [
+        "4",
+        "SUSPEITO",
+        "SERRALHERIA MODELO ME",
+        "LONDRINA/PR",
+        "",
+        "nome parecido com SERRALHERIA MODELO"
+      ],
+      [
+        "5",
+        "DUPLICADO",
+        "INDUSTRIA D'ANGELO DE MOVEIS LTDA",
+        "BENTO GONCALVES/RS",
+        "98.765.432/0001-10",
+        "CNPJ já cadastrado"
+      ],
+      [
+        "6",
+        "ERRO",
+        "",
+        "MARINGA/PR",
+        "",
+        "empresa em branco"
+      ],
+      [
+        "7",
+        "IGNORAR",
+        "TUBOS DEMONSTRACAO SA",
+        "JAU/SP",
+        "",
+        "nome parecido com TUBOS DEMONSTRAÇÃO"
+      ],
+      [
+        "8",
+        "OK",
+        "ESTAMPARIA EXEMPLO LTDA",
+        "CAXIAS DO SUL/RS",
+        "",
+        ""
+      ]
+    ]
+  },
+  "vinculo": {
+    "colunas": [
+      {
+        "titulo": "Código",
+        "largura": 78
+      },
+      {
+        "titulo": "Contato",
+        "largura": 126
+      },
+      {
+        "titulo": "Cargo",
+        "largura": 88
+      },
+      {
+        "titulo": "Empresa",
+        "largura": 184
+      },
+      {
+        "titulo": "Cidade/UF",
+        "largura": 110
+      },
+      {
+        "titulo": "Telefone",
+        "largura": 76
+      }
+    ],
+    "linhas": [
+      [
+        "CT-0001-0001",
+        "João da Silva",
+        "Compras",
+        "METALURGICA EXEMPLO LTDA",
+        "CURITIBA/PR",
+        "(41) 99700-2102"
+      ],
+      [
+        "CT-0002-0002",
+        "Maria Souza",
+        "Diretora",
+        "INDUSTRIA D'ANGELO DE MOVEIS LTDA",
+        "BENTO GONCALVES/RS",
+        "(54) 3452-1100"
+      ],
+      [
+        "CT-0003-0003",
+        "Pedro Almeida",
+        "Engenharia",
+        "AGRO IMPLEMENTOS FICTICIA SA",
+        "CASCAVEL/PR",
+        ""
+      ],
+      [
+        "CT-0004-0004",
+        "Ana Lima",
+        "Gerente",
+        "REFRIGERACAO MODELO EIRELI",
+        "JOINVILLE/SC",
+        "(47) 99812-3344"
+      ]
+    ]
+  }
+}

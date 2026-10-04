@@ -1,0 +1,327 @@
+'==========================================================
+' CODIGO DO USERFORM  frmVinculo
+'
+' Escolha do vinculo da ficha, no lugar das InputBox do
+' legado ("digite o numero da opcao"):
+'   modo "contato" - atendimento novo, em DOIS PASSOS:
+'                    1. a empresa   2. o contato DELA
+'   modo "cliente" - contato novo: so a empresa
+'
+' Busca filtra enquanto se digita (a partir de 2 letras, ou
+' vazia = primeiros por empresa); setas + Enter ou duplo clique
+' escolhem. Nao achou: Novo cliente / Novo contato abrem a
+' ficha em modo Novo e o registro criado ja segue no fluxo.
+'
+' Uso (frmCRM):
+'   Dim f As New frmVinculo
+'   If f.Escolher("contato") Then id = f.IdEscolhido
+'   Unload f
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+Private mGrade As clsGrade
+Private mModo As String            ' "contato" ou "cliente"
+Private mPasso As String           ' "cliente" (1o passo) ou "contato" (2o)
+Private mClienteID As Long         ' empresa escolhida no 1o passo
+Private mEmpresa As String
+Private mDados As Variant          ' matriz da ultima consulta
+Private mIDs() As Long
+Private mEscolhido As Long
+Private mOk As Boolean
+Private mCarregando As Boolean
+
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Set mGrade = mUI.Grade("grdOpcoes")
+End Sub
+
+'----------------------------------------------------------
+' Mostra a tela (modal) e devolve True se algo foi escolhido.
+'----------------------------------------------------------
+Public Function Escolher(ByVal modo As String) As Boolean
+    mModo = LCase$(modo)
+    If mModo <> "cliente" Then mModo = "contato"
+    PassoCliente
+    modTela.Encaixar Me
+    Me.Show
+    Escolher = mOk
+End Function
+
+Public Property Get IdEscolhido() As Long
+    IdEscolhido = mEscolhido
+End Property
+
+'----------------------------------------------------------
+' PASSOS
+'----------------------------------------------------------
+Private Sub PassoCliente()
+    mPasso = "cliente"
+    mClienteID = 0: mEmpresa = ""
+    Me.Caption = "CRM Zapromaq  -  escolher a empresa"
+    If mModo = "contato" Then
+        lblTitulo.Caption = "Novo atendimento  " & ChrW$(&H203A) & "  1. Escolha a empresa"
+    Else
+        lblTitulo.Caption = "Escolher a empresa do contato"
+    End If
+    lblSubtitulo.Caption = "Procure pelo nome, cidade, CNPJ ou c" & ChrW$(&HF3) & "digo. Enter ou duplo clique escolhe."
+    mGrade.ColumnWidths = "52;262;140;84;124"
+    mGrade.Cabecalho Array("C" & ChrW$(&HF3) & "digo", "Empresa", "Cidade/UF", "Est" & ChrW$(&HE1) & "gio", "CNPJ")
+    Botao "cmdNovoCliente", "Novo cliente", modTema.ICO_CLIENTE, True
+    Botao "cmdNovoContato", "", 0, False
+    Botao "cmdSelecionar", IIf(mModo = "contato", "Pr" & ChrW$(&HF3) & "ximo", "Selecionar"), _
+          IIf(mModo = "contato", modTema.ICO_PROXIMO, modTema.ICO_OK), True
+    Reiniciar
+End Sub
+
+Private Sub PassoContato(ByVal idCliente As Long)
+    mPasso = "contato"
+    mClienteID = idCliente
+    mEmpresa = modDB.Nz(modDB.ConsultarValor("SELECT empresa FROM clientes WHERE id=?", "", _
+                                              Array(modDB.P(modDB.adInteger, idCliente))))
+    Me.Caption = "CRM Zapromaq  -  escolher o contato"
+    lblTitulo.Caption = "Novo atendimento  " & ChrW$(&H203A) & "  2. Escolha o contato"
+    lblSubtitulo.Caption = mEmpresa & "  " & ChrW$(&HB7) & "  Enter ou duplo clique escolhe; Voltar troca a empresa."
+    mGrade.ColumnWidths = "90;170;130;150;122"
+    mGrade.Cabecalho Array("C" & ChrW$(&HF3) & "digo", "Contato", "Cargo", "Telefone", "E-mail / cidade")
+    Botao "cmdNovoCliente", "Voltar", modTema.ICO_ANTERIOR, True
+    Botao "cmdNovoContato", "Novo contato", modTema.ICO_CONTATO, True
+    Botao "cmdSelecionar", "Selecionar", modTema.ICO_OK, True
+    Reiniciar
+    ' empresa sem contato: o proximo passo natural e cadastrar um
+    If mGrade.ListCount = 0 Then
+        If MsgBox(mEmpresa & " ainda n" & ChrW$(&HE3) & "o tem contato cadastrado." & vbCrLf & vbCrLf & _
+                  "Cadastrar o contato agora?", vbYesNo + vbQuestion, "CRM Zapromaq") = vbYes Then
+            cmdNovoContato_Click
+        End If
+    End If
+End Sub
+
+Private Sub Reiniciar()
+    mCarregando = True
+    txtProcura.Text = ""
+    mCarregando = False
+    Carregar
+    On Error Resume Next
+    txtProcura.SetFocus
+    On Error GoTo 0
+End Sub
+
+' Texto, icone e visibilidade de um botao (Label de texto + bg_ + ico_).
+Private Sub Botao(ByVal nome As String, ByVal texto As String, ByVal icone As Long, ByVal visivel As Boolean)
+    On Error Resume Next
+    Me.Controls(nome).Caption = texto
+    If icone <> 0 Then Me.Controls("ico_" & nome).Caption = modTema.Glifo(icone)
+    Me.Controls(nome).Visible = visivel
+    Me.Controls("bg_" & nome).Visible = visivel
+    Me.Controls("ico_" & nome).Visible = visivel
+    On Error GoTo 0
+End Sub
+
+'----------------------------------------------------------
+' UMA consulta por busca; a grade recebe a matriz inteira.
+'----------------------------------------------------------
+Private Sub Carregar()
+    Dim d As Variant, tela() As String, i As Long, n As Long
+    On Error GoTo falha
+    Me.MousePointer = fmMousePointerHourGlass
+    If mPasso = "cliente" Then
+        d = modCRM.ListarClientesParaVinculo(txtProcura.Text)
+    Else
+        d = modCRM.ListarContatosParaVinculo(txtProcura.Text, mClienteID)
+    End If
+    mDados = d
+    If IsEmpty(d) Then
+        mGrade.Clear
+        ReDim mIDs(0 To 0)
+        If mPasso = "contato" And Trim$(txtProcura.Text) = "" Then
+            lblStatus.Caption = "Esta empresa ainda n" & ChrW$(&HE3) & "o tem contato: use Novo contato."
+        Else
+            lblStatus.Caption = "Nada encontrado. Confira o texto ou cadastre pelo bot" & ChrW$(&HE3) & "o abaixo."
+        End If
+        Me.MousePointer = fmMousePointerDefault
+        Repintar
+        Exit Sub
+    End If
+    n = UBound(d, 1)
+    ReDim mIDs(1 To n)
+    If mPasso = "cliente" Then
+        ' id, codigo_cliente, empresa, cidade, uf, estagio, cnpj, responsavel
+        ReDim tela(1 To n, 1 To 5)
+        For i = 1 To n
+            mIDs(i) = CLng(d(i, 1))
+            tela(i, 1) = modCRM.CodigoVisualCliente(d(i, 2))
+            tela(i, 2) = modDB.Nz(d(i, 3))
+            tela(i, 3) = CidadeUF(d(i, 4), d(i, 5))
+            tela(i, 4) = modDB.Nz(d(i, 6))
+            tela(i, 5) = modValidacao.FormatarCNPJ(d(i, 7))
+        Next i
+    Else
+        ' id, codigo, nome, cargo, empresa, cidade, uf, telefone, id_cliente
+        ReDim tela(1 To n, 1 To 5)
+        For i = 1 To n
+            mIDs(i) = CLng(d(i, 1))
+            tela(i, 1) = modDB.Nz(d(i, 2))
+            tela(i, 2) = modDB.Nz(d(i, 3))
+            tela(i, 3) = modDB.Nz(d(i, 4))
+            tela(i, 4) = modValidacao.FormatarTelefone(d(i, 8))
+            tela(i, 5) = CidadeUF(d(i, 6), d(i, 7))
+        Next i
+    End If
+    mGrade.Carregar tela
+    mGrade.ListIndex = 0
+    lblStatus.Caption = n & IIf(mPasso = "cliente", " empresa(s)", " contato(s)") & " ativo(s)" & _
+                        IIf(n >= 300, "  -  mostrando os 300 primeiros: refine a busca", "")
+    Me.MousePointer = fmMousePointerDefault
+    Repintar
+    Exit Sub
+falha:
+    Me.MousePointer = fmMousePointerDefault
+    lblStatus.Caption = "Erro na consulta: " & Err.Description
+End Sub
+
+Private Function CidadeUF(ByVal cidade As Variant, ByVal uf As Variant) As String
+    CidadeUF = modDB.Nz(cidade)
+    If modDB.Nz(uf) <> "" Then CidadeUF = CidadeUF & IIf(CidadeUF = "", "", "/") & modDB.Nz(uf)
+End Function
+
+Private Sub Repintar()
+    cmdSelecionar.Enabled = (mGrade.ListIndex >= 0)
+    mUI.Pintar
+End Sub
+
+Private Function IdMarcado() As Long
+    If mGrade.ListIndex < 0 Then Exit Function
+    If mGrade.ListIndex + 1 > UBound(mIDs) Then Exit Function
+    If LBound(mIDs) = 0 Then Exit Function
+    IdMarcado = mIDs(mGrade.ListIndex + 1)
+End Function
+
+'----------------------------------------------------------
+' Busca enquanto digita: a partir de 2 letras, ou apagado.
+'----------------------------------------------------------
+Private Sub txtProcura_Change()
+    If mCarregando Then Exit Sub
+    If Len(Trim$(txtProcura.Text)) = 1 Then Exit Sub
+    Carregar
+End Sub
+
+Private Sub txtProcura_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+    Select Case KeyCode
+        Case 13                                 ' Enter escolhe a linha marcada
+            KeyCode = 0
+            cmdSelecionar_Click
+        Case 40                                 ' seta abaixo desce para a lista
+            KeyCode = 0
+            mGrade.Focar
+        Case 27                                 ' Esc
+            KeyCode = 0
+            cmdCancelar_Click
+    End Select
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsGrade/clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdProcurar":    cmdProcurar_Click
+        Case "cmdNovoCliente": cmdNovoCliente_Click
+        Case "cmdNovoContato": cmdNovoContato_Click
+        Case "cmdSelecionar":  cmdSelecionar_Click
+        Case "cmdCancelar":    cmdCancelar_Click
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+    Repintar
+End Sub
+
+Public Sub UI_GradeDuploClique(ByVal nome As String)
+    cmdSelecionar_Click
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+Private Sub cmdProcurar_Click()
+    Carregar
+End Sub
+
+Private Sub cmdSelecionar_Click()
+    Dim idReg As Long
+    idReg = IdMarcado()
+    If idReg = 0 Then Exit Sub
+    If mPasso = "cliente" And mModo = "contato" Then
+        PassoContato idReg                      ' 1o passo feito: contatos da empresa
+    Else
+        Escolhe idReg
+    End If
+End Sub
+
+Private Sub cmdCancelar_Click()
+    mOk = False
+    Me.Hide
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    ' fechar no X = cancelar; Hide (nao Unload) para quem chamou ler o resultado
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        cmdCancelar_Click
+    End If
+End Sub
+
+'----------------------------------------------------------
+' CADASTRO NA HORA
+'----------------------------------------------------------
+Private Sub cmdNovoCliente_Click()
+    Dim novo As Long
+    If mPasso = "contato" Then                  ' no 2o passo o botao e "Voltar"
+        PassoCliente
+        Exit Sub
+    End If
+    novo = CadastrarNaFicha("clientes", 0)
+    If novo = 0 Then Exit Sub
+    If mModo = "cliente" Then
+        Escolhe novo
+    Else
+        PassoContato novo                       ' empresa nova: segue para o contato dela
+    End If
+End Sub
+
+Private Sub cmdNovoContato_Click()
+    Dim novo As Long
+    If mClienteID = 0 Then Exit Sub
+    novo = CadastrarNaFicha("contatos", mClienteID)
+    If novo > 0 Then Escolhe novo
+End Sub
+
+'----------------------------------------------------------
+' Abre a ficha em modo Novo e devolve o id criado (0 se nao
+' gravou). A lista de gravados de QUEM CHAMOU e guardada e
+' devolvida: senao a grade da aba tentaria reescrever ids de
+' outra tabela ao fechar a ficha de origem.
+'----------------------------------------------------------
+Private Function CadastrarNaFicha(ByVal tabela As String, ByVal vinculo As Long) As Long
+    Dim guardados As String, ids As Variant, f As frmCRM
+    guardados = modConfig.gGravados
+    modConfig.gGravados = ""
+    Set f = New frmCRM
+    f.Abrir tabela, vinculo, 0, , True
+    Unload f
+    ids = Split(modConfig.gGravados, ",")
+    modConfig.gGravados = guardados
+    If UBound(ids) >= 0 Then
+        If IsNumeric(ids(0)) Then CadastrarNaFicha = CLng(ids(0))
+    End If
+End Function
+
+Private Sub Escolhe(ByVal idReg As Long)
+    mEscolhido = idReg
+    mOk = True
+    Me.Hide
+End Sub

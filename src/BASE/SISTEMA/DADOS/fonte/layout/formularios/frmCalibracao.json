@@ -1,0 +1,57 @@
+{
+  "_sobre": "Tela de CALIBRAÇÃO (PLANO 4.10): todos os tipos de controle nativo e todos os componentes sobre um fundo gerado. Abrir na estação (Alt+F8 > AbrirCalibracao), tirar print a 100% e a 125% e comparar com execucao\\previa\\frmCalibracao-*.png. O rótulo lblMedidas mostra a área interna real, a DPI e o zoom aplicado.",
+  "nome": "frmCalibracao",
+  "codigo": "formularios/frmCalibracao.txt",
+  "canvas": { "largura": 700, "altura": 440 },
+  "propriedades": { "Caption": "CRM Zapromaq - calibração visual", "BackColor": "@fundo" },
+  "fundo": [
+    { "tipo": "retangulo", "pos": [0, 0, 700, 44], "gradiente": ["@azul", "@azulMedio"] },
+    { "tipo": "imagem", "arquivo": "assets/logo_zapromaq.png", "pos": [14, 8, 80, 28], "filtro": "branco" },
+    { "tipo": "linha", "pos": [104, 10, 1, 24], "cor": "#FFFFFF", "opacidade": 0.35 },
+    { "tipo": "texto", "pos": [116, 8, 300, 18], "texto": "Calibração visual", "cor": "@branco", "tamanho": 12, "peso": 600 },
+    { "tipo": "texto", "pos": [116, 25, 400, 14], "texto": "Compare este print com a prévia gerada no desenvolvimento", "cor": "@textoClaro", "tamanho": 8 },
+    { "tipo": "retangulo", "pos": [10, 54, 330, 376], "cor": "@fundoCard", "raio": 8, "borda": "@bordaSuave", "sombra": true },
+    { "tipo": "texto", "pos": [24, 64, 250, 16], "texto": "Controles nativos", "cor": "@azul", "tamanho": 10, "peso": 600 },
+    { "tipo": "linha", "pos": [24, 84, 302, 1], "cor": "@bordaSuave" },
+    { "tipo": "retangulo", "pos": [350, 54, 340, 376], "cor": "@fundoCard", "raio": 8, "borda": "@bordaSuave", "sombra": true },
+    { "tipo": "texto", "pos": [364, 64, 250, 16], "texto": "Componentes", "cor": "@azul", "tamanho": 10, "peso": 600 },
+    { "tipo": "linha", "pos": [364, 84, 312, 1], "cor": "@bordaSuave" }
+  ],
+  "estilos": {
+    "rotulo": { "Font.Name": "@padrao", "Font.Size": 9, "BackStyle": 0, "ForeColor": "@texto2" },
+    "campo":  { "Font.Name": "@padrao", "Font.Size": 9, "SpecialEffect": 0, "BorderStyle": 1, "BorderColor": "@borda", "BackColor": "@branco", "ForeColor": "@texto" }
+  },
+  "controles": [
+    { "nome": "lblTexto",   "tipo": "Label",     "pos": [24, 96, 80, 14],   "texto": "Texto", "estilo": "rotulo" },
+    { "nome": "txtTexto",   "tipo": "TextBox",   "pos": [104, 93, 222, 20], "estilo": "campo", "amostra": "METALURGICA EXEMPLO LTDA" },
+    { "nome": "lblCombo",   "tipo": "Label",     "pos": [24, 124, 80, 14],  "texto": "Lista", "estilo": "rotulo" },
+    { "nome": "cboCombo",   "tipo": "ComboBox",  "pos": [104, 121, 222, 20], "estilo": "campo", "amostra": "Contato Inicial" },
+    { "nome": "chkMarca",   "tipo": "CheckBox",  "pos": [104, 149, 180, 16], "texto": "somente em aberto", "estilo": "rotulo" },
+    { "nome": "lblMemo",    "tipo": "Label",     "pos": [24, 176, 80, 14],  "texto": "Memo", "estilo": "rotulo" },
+    { "nome": "txtMemo",    "tipo": "TextBox",   "pos": [104, 173, 222, 50], "estilo": "campo", "props": { "MultiLine": true, "ScrollBars": 2 },
+      "amostra": "Ligar para fechar condição de pagamento com o comprador." },
+    { "nome": "lblLista",   "tipo": "Label",     "pos": [24, 234, 80, 14],  "texto": "ListBox", "estilo": "rotulo" },
+    { "nome": "lstLista",   "tipo": "ListBox",   "pos": [104, 231, 222, 70], "estilo": "campo", "amostra": "AT-0489-0491  METALURGICA EXEMPLO" },
+    { "nome": "fraMoldura", "tipo": "Frame",     "pos": [24, 310, 302, 74], "texto": "Frame", "estilo": "campo" },
+    { "nome": "lblMedidas", "tipo": "Label",     "pos": [24, 392, 302, 32], "estilo": "rotulo", "props": { "ForeColor": "@azul" },
+      "amostra": "Área interna 700 x 440 pt | 96 dpi | zoom 100" }
+  ],
+  "componentes": [
+    { "tipo": "botao", "nome": "cmdPrimario", "pos": [364, 96, 100, 26], "texto": "Salvar", "icone": "salvar", "variante": "primario" },
+    { "tipo": "botao", "nome": "cmdSucesso",  "pos": [470, 96, 100, 26], "texto": "Novo", "icone": "novo", "variante": "sucesso" },
+    { "tipo": "botao", "nome": "cmdNeutro",   "pos": [576, 96, 100, 26], "texto": "Editar", "icone": "editar", "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdPerigo",   "pos": [364, 128, 100, 26], "texto": "Desativar", "icone": "desativar", "variante": "perigo" },
+    { "tipo": "botao", "nome": "cmdDesab",    "pos": [470, 128, 100, 26], "texto": "Desabilitado", "icone": "ok", "variante": "primario", "desabilitado": true },
+    { "tipo": "botao", "nome": "cmdFechar",   "pos": [576, 128, 100, 26], "texto": "Fechar", "icone": "fechar", "variante": "neutro" },
+    { "tipo": "icone", "nome": "icoA", "pos": [364, 164, 22, 22], "icone": "cliente", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "icone", "nome": "icoB", "pos": [390, 164, 22, 22], "icone": "contato", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "icone", "nome": "icoC", "pos": [416, 164, 22, 22], "icone": "atendimento", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "icone", "nome": "icoD", "pos": [442, 164, 22, 22], "icone": "calendario", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "icone", "nome": "icoE", "pos": [468, 164, 22, 22], "icone": "telefone", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "icone", "nome": "icoF", "pos": [494, 164, 22, 22], "icone": "email", "cor": "@azul", "tamanho": 14 },
+    { "tipo": "selo", "nome": "seloA", "pos": [524, 165, 72, 18], "texto": "Em dia", "situacao": "Em dia" },
+    { "tipo": "selo", "nome": "seloB", "pos": [602, 165, 76, 18], "texto": "Ação atrasada", "situacao": "Ação atrasada" },
+    { "tipo": "grade", "nome": "grdAmostra", "pos": [364, 196, 312, 186], "amostra": "oportunidades", "linhas": 8 },
+    { "tipo": "icone", "nome": "icoInfo", "pos": [364, 392, 18, 18], "icone": "info", "cor": "@texto2", "tamanho": 11 }
+  ]
+}

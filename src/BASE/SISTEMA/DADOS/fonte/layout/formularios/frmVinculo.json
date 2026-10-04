@@ -1,0 +1,37 @@
+{
+  "_sobre": "Escolha do vínculo (contato para atendimento novo; empresa para contato novo), no tema da ficha. Substitui as caixas InputBox do legado. Nomes dos controles são contrato com frmVinculo.txt. A grade precisa de 662 pt úteis (colunas em frmVinculo.txt) + 14.",
+  "nome": "frmVinculo",
+  "codigo": "formularios/frmVinculo.txt",
+  "canvas": { "largura": 720, "altura": 430 },
+  "propriedades": { "Caption": "CRM Zapromaq - escolher", "BackColor": "@fundo" },
+  "fundo": [
+    { "tipo": "retangulo", "pos": [0, 0, 720, 48], "gradiente": ["@azul", "@azulMedio"] },
+    { "tipo": "retangulo", "pos": [0, 46, 720, 2], "cor": "@verde" },
+    { "tipo": "imagem", "arquivo": "assets/logo_zapromaq.png", "pos": [12, 10, 76, 28], "filtro": "branco" },
+    { "tipo": "linha", "pos": [98, 10, 1, 28], "cor": "#FFFFFF", "opacidade": 0.35 },
+    { "tipo": "retangulo", "pos": [10, 56, 700, 318], "cor": "@fundoCard", "raio": 8, "borda": "@bordaSuave", "sombra": true },
+    { "tipo": "retangulo", "pos": [0, 384, 720, 46], "cor": "@branco" },
+    { "tipo": "linha", "pos": [0, 384, 720, 1], "cor": "@bordaSuave" }
+  ],
+  "estilos": {
+    "campo":     { "Font.Name": "@padrao", "Font.Size": 10, "SpecialEffect": 0, "BorderStyle": 1, "BorderColor": "@borda", "BackColor": "@branco", "ForeColor": "@texto" },
+    "rotuloPeq": { "Font.Name": "@padrao", "Font.Size": 8, "BackStyle": 0, "ForeColor": "@texto2" },
+    "titulo":    { "Font.Name": "@semibold", "Font.Size": 13, "BackStyle": 0, "ForeColor": "@branco", "WordWrap": false },
+    "subtitulo": { "Font.Name": "@padrao", "Font.Size": 8, "BackStyle": 0, "ForeColor": "@textoClaro", "WordWrap": false }
+  },
+  "controles": [
+    { "nome": "lblTitulo",    "tipo": "Label",   "pos": [110, 6, 500, 20],   "texto": "Escolher o contato do atendimento", "estilo": "titulo" },
+    { "nome": "lblSubtitulo", "tipo": "Label",   "pos": [110, 28, 560, 13],  "texto": "Procure pelo nome, empresa, código ou cidade. Enter ou duplo clique escolhe.", "estilo": "subtitulo" },
+    { "nome": "txtProcura",   "tipo": "TextBox", "pos": [22, 68, 560, 22],   "estilo": "campo", "amostra": "" },
+    { "nome": "lblDica",      "tipo": "Label",   "pos": [22, 94, 676, 13],   "texto": "A lista filtra enquanto você digita. Não achou? Cadastre na hora pelos botões abaixo.", "estilo": "rotuloPeq" },
+    { "nome": "lblStatus",    "tipo": "Label",   "pos": [22, 352, 676, 14],  "estilo": "rotuloPeq", "amostra": "4 contato(s) ativo(s)" }
+  ],
+  "componentes": [
+    { "tipo": "botao", "nome": "cmdProcurar",    "pos": [588, 68, 110, 22],  "texto": "Procurar",     "icone": "buscar",   "variante": "primario" },
+    { "tipo": "grade", "nome": "grdOpcoes",      "pos": [22, 112, 676, 236], "amostra": "vinculo", "linhas": 12 },
+    { "tipo": "botao", "nome": "cmdNovoCliente", "pos": [12, 394, 130, 26],  "texto": "Novo cliente", "icone": "cliente",  "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdNovoContato", "pos": [148, 394, 130, 26], "texto": "Novo contato", "icone": "contato",  "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdSelecionar",  "pos": [478, 394, 120, 26], "texto": "Selecionar",   "icone": "ok",       "variante": "sucesso" },
+    { "tipo": "botao", "nome": "cmdCancelar",    "pos": [604, 394, 104, 26], "texto": "Cancelar",     "icone": "cancelar", "variante": "neutro" }
+  ]
+}

@@ -1,0 +1,653 @@
+{
+  "_sobre": "Ficha principal (clientes, contatos, oportunidades), redesenhada a partir do mockup (old/MIGRACAO-CRM-EDITADO/12 - DESIGNER/referencia/mockup_oportunidades.png). Posições em pontos sobre o canvas. Os NOMES dos controles são contrato com frmCRM.txt: renomear quebra o código. Os campos de dados NÃO estão aqui: são criados em execução dentro de fraCampos a partir de modSchema. A grade precisa de 478 pt úteis (soma das colunas de modSchema.ColunasDe) + 12 da barra + 2 da borda = 492 no mínimo.",
+  "nome": "frmCRM",
+  "codigo": "formularios/frmCRM.txt",
+  "canvas": {
+    "largura": 994,
+    "altura": 466
+  },
+  "propriedades": {
+    "Caption": "CRM Zapromaq",
+    "BackColor": "@fundo"
+  },
+  "fundo": [
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        0,
+        994,
+        48
+      ],
+      "gradiente": [
+        "@azul",
+        "@azulMedio"
+      ]
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        46,
+        994,
+        2
+      ],
+      "cor": "@verde"
+    },
+    {
+      "tipo": "imagem",
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        12,
+        10,
+        76,
+        28
+      ],
+      "filtro": "branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        98,
+        10,
+        1,
+        28
+      ],
+      "cor": "#FFFFFF",
+      "opacidade": 0.35
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        10,
+        56,
+        520,
+        368
+      ],
+      "cor": "@fundoCard",
+      "raio": 8,
+      "borda": "@bordaSuave",
+      "sombra": true
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        538,
+        56,
+        446,
+        368
+      ],
+      "cor": "@fundoCard",
+      "raio": 8,
+      "borda": "@bordaSuave",
+      "sombra": true
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        550,
+        64,
+        28,
+        28
+      ],
+      "cor": "@verdeEscuro",
+      "raio": 6
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        550,
+        98,
+        422,
+        1
+      ],
+      "cor": "@bordaSuave"
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        430,
+        994,
+        36
+      ],
+      "cor": "@branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        0,
+        430,
+        994,
+        1
+      ],
+      "cor": "@bordaSuave"
+    }
+  ],
+  "estilos": {
+    "campo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "SpecialEffect": 0,
+      "BorderStyle": 1,
+      "BorderColor": "@borda",
+      "BackColor": "@branco",
+      "ForeColor": "@texto"
+    },
+    "rotulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "BackStyle": 0,
+      "ForeColor": "@texto2"
+    },
+    "rotuloPeq": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@texto2"
+    },
+    "titulo": {
+      "Font.Name": "@semibold",
+      "Font.Size": 13,
+      "BackStyle": 0,
+      "ForeColor": "@branco",
+      "WordWrap": false
+    },
+    "subtitulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "tituloCard": {
+      "Font.Name": "@semibold",
+      "Font.Size": 11,
+      "BackStyle": 0,
+      "ForeColor": "@azul",
+      "WordWrap": false
+    }
+  },
+  "controles": [
+    {
+      "nome": "lblTitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        6,
+        440,
+        20
+      ],
+      "texto": "Oportunidades  ›  Atendimentos",
+      "estilo": "titulo"
+    },
+    {
+      "nome": "lblSubtitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        28,
+        440,
+        13
+      ],
+      "texto": "Gerencie seus atendimentos e acompanhe o progresso das oportunidades.",
+      "estilo": "subtitulo"
+    },
+    {
+      "nome": "txtBusca",
+      "tipo": "TextBox",
+      "pos": [
+        22,
+        68,
+        410,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Font.Size": 10
+      },
+      "amostra": ""
+    },
+    {
+      "nome": "lblFiltro1",
+      "tipo": "Label",
+      "pos": [
+        22,
+        98,
+        158,
+        12
+      ],
+      "texto": "Etapa",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "cboFiltro1",
+      "tipo": "ComboBox",
+      "pos": [
+        22,
+        111,
+        160,
+        20
+      ],
+      "estilo": "campo",
+      "amostra": "(todas)"
+    },
+    {
+      "nome": "lblFiltro2",
+      "tipo": "Label",
+      "pos": [
+        190,
+        98,
+        158,
+        12
+      ],
+      "texto": "Responsável",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "cboFiltro2",
+      "tipo": "ComboBox",
+      "pos": [
+        190,
+        111,
+        160,
+        20
+      ],
+      "estilo": "campo",
+      "amostra": "(todos)"
+    },
+    {
+      "nome": "lblFiltro3",
+      "tipo": "Label",
+      "pos": [
+        358,
+        98,
+        158,
+        12
+      ],
+      "texto": "Origem",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "cboFiltro3",
+      "tipo": "ComboBox",
+      "pos": [
+        358,
+        111,
+        160,
+        20
+      ],
+      "estilo": "campo",
+      "amostra": "(todas)"
+    },
+    {
+      "nome": "chkAbertas",
+      "tipo": "CheckBox",
+      "pos": [
+        22,
+        152,
+        150,
+        16
+      ],
+      "texto": "Somente em aberto",
+      "estilo": "rotulo",
+      "props": {
+        "ForeColor": "@texto"
+      }
+    },
+    {
+      "nome": "lblSituacao",
+      "tipo": "Label",
+      "pos": [
+        190,
+        136,
+        158,
+        12
+      ],
+      "texto": "Situação",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "cboSituacao",
+      "tipo": "ComboBox",
+      "pos": [
+        190,
+        149,
+        160,
+        20
+      ],
+      "estilo": "campo",
+      "amostra": "(todas)"
+    },
+    {
+      "nome": "lblOrdem",
+      "tipo": "Label",
+      "pos": [
+        358,
+        136,
+        160,
+        12
+      ],
+      "texto": "Ordenar por",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "cboOrdem",
+      "tipo": "ComboBox",
+      "pos": [
+        358,
+        149,
+        160,
+        20
+      ],
+      "estilo": "campo",
+      "amostra": "Atendimento (mais novo)"
+    },
+    {
+      "nome": "lblStatus",
+      "tipo": "Label",
+      "pos": [
+        22,
+        406,
+        496,
+        14
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "467 registro(s)   |   Consulta de 10:15:27"
+    },
+    {
+      "nome": "lblFichaTitulo",
+      "tipo": "Label",
+      "pos": [
+        586,
+        62,
+        262,
+        18
+      ],
+      "texto": "Dados da oportunidade",
+      "estilo": "tituloCard"
+    },
+    {
+      "nome": "lblFichaSub",
+      "tipo": "Label",
+      "pos": [
+        586,
+        80,
+        262,
+        13
+      ],
+      "texto": "Cliente, contato e andamento do atendimento.",
+      "estilo": "rotuloPeq"
+    },
+    {
+      "nome": "fraCampos",
+      "tipo": "Frame",
+      "pos": [
+        546,
+        104,
+        430,
+        314
+      ],
+      "texto": "",
+      "props": {
+        "BorderStyle": 0,
+        "SpecialEffect": 0,
+        "BackColor": "@branco"
+      },
+      "amostra": "ficha"
+    },
+    {
+      "nome": "lblModo",
+      "tipo": "Label",
+      "pos": [
+        12,
+        441,
+        172,
+        14
+      ],
+      "estilo": "rotulo",
+      "props": {
+        "Font.Name": "@semibold",
+        "ForeColor": "@azul"
+      },
+      "amostra": "Registro: AT-0489-0491"
+    },
+    {
+      "nome": "lblPos",
+      "tipo": "Label",
+      "pos": [
+        220,
+        441,
+        64,
+        14
+      ],
+      "estilo": "rotulo",
+      "props": {
+        "TextAlign": 2,
+        "ForeColor": "@texto"
+      },
+      "amostra": "1 de 467"
+    }
+  ],
+  "componentes": [
+    {
+      "tipo": "botao",
+      "nome": "cmdNovo",
+      "pos": [
+        578,
+        11,
+        72,
+        26
+      ],
+      "texto": "Novo",
+      "icone": "novo",
+      "variante": "claro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdEditar",
+      "pos": [
+        656,
+        11,
+        66,
+        26
+      ],
+      "texto": "Editar",
+      "icone": "editar",
+      "variante": "claro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdSalvar",
+      "pos": [
+        728,
+        11,
+        66,
+        26
+      ],
+      "texto": "Salvar",
+      "icone": "salvar",
+      "variante": "sucesso"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdSalvarProx",
+      "pos": [
+        800,
+        11,
+        98,
+        26
+      ],
+      "texto": "Salvar e próx.",
+      "icone": "salvarProximo",
+      "variante": "sucessoClaro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdCancelar",
+      "pos": [
+        904,
+        11,
+        78,
+        26
+      ],
+      "texto": "Cancelar",
+      "icone": "cancelar",
+      "variante": "perigoForte"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdBuscar",
+      "pos": [
+        438,
+        68,
+        80,
+        22
+      ],
+      "texto": "Buscar",
+      "icone": "buscar",
+      "variante": "primario"
+    },
+    {
+      "tipo": "grade",
+      "nome": "grdReg",
+      "pos": [
+        22,
+        176,
+        496,
+        226
+      ],
+      "amostra": "oportunidades",
+      "linhas": 12
+    },
+    {
+      "tipo": "icone",
+      "nome": "icoFicha",
+      "pos": [
+        550,
+        64,
+        28,
+        28
+      ],
+      "icone": "atendimento",
+      "cor": "@branco",
+      "tamanho": 14
+    },
+    {
+      "tipo": "selo",
+      "nome": "seloStatus",
+      "pos": [
+        852,
+        67,
+        120,
+        18
+      ],
+      "texto": "Em dia",
+      "situacao": "Em dia"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdAnterior",
+      "pos": [
+        188,
+        436,
+        28,
+        24
+      ],
+      "texto": "",
+      "icone": "anterior",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdProximo",
+      "pos": [
+        288,
+        436,
+        28,
+        24
+      ],
+      "texto": "",
+      "icone": "proximo",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdVinculo",
+      "pos": [
+        328,
+        436,
+        90,
+        24
+      ],
+      "texto": "Procurar",
+      "icone": "vinculo",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdAtendimento",
+      "pos": [
+        424,
+        436,
+        104,
+        24
+      ],
+      "texto": "Promover",
+      "icone": "promover",
+      "variante": "sucesso"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdRel1",
+      "pos": [
+        596,
+        436,
+        92,
+        24
+      ],
+      "texto": "Cliente",
+      "icone": "cliente",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdRel2",
+      "pos": [
+        694,
+        436,
+        92,
+        24
+      ],
+      "texto": "Contato",
+      "icone": "contato",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdStatus",
+      "pos": [
+        792,
+        436,
+        94,
+        24
+      ],
+      "texto": "Desativar",
+      "icone": "desativar",
+      "variante": "perigo"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdFechar",
+      "pos": [
+        892,
+        436,
+        90,
+        24
+      ],
+      "texto": "Fechar",
+      "icone": "fechar",
+      "variante": "neutro"
+    }
+  ]
+}

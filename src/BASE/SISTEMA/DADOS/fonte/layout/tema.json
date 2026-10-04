@@ -1,0 +1,149 @@
+{
+  "_sobre": "Tema do CRM: cores, fontes e estados. Hex #RRGGBB; o build e o gerador visual convertem (Excel: R + G*256 + B*65536). Paleta da marca extraída do logo institucional (17/09/2026). Alterar aqui muda a prévia, os fundos gerados e o módulo modTema do VBA - rode o gerador (build\\GERAR-VISUAL) depois.",
+  "cores": {
+    "azul": "#172A67",
+    "azul2": "#153F71",
+    "azulMedio": "#1F4E9C",
+    "azulClaro": "#E8EEF8",
+    "verde": "#58B030",
+    "verdeEscuro": "#3E8E22",
+    "branco": "#FFFFFF",
+    "fundo": "#F5F7F9",
+    "fundoCard": "#FFFFFF",
+    "texto": "#233750",
+    "texto2": "#637485",
+    "textoClaro": "#C9D5E8",
+    "borda": "#C6CDD4",
+    "bordaSuave": "#DDE3EA",
+    "zebra": "#F7F9FC",
+    "selecao": "#DCE8FA",
+    "selecaoTexto": "#0F2E6B",
+    "desabilitado": "#EEF1F5",
+    "desabilitadoTexto": "#9AA6B4",
+    "perigo": "#C0392B",
+    "alerta": "#B86E00",
+    "info": "#0B5CAD",
+    "tomBotao1": "#1F387C",
+    "tomBotao2": "#2D4A8C",
+    "tomBotao3": "#3E5E9C",
+    "tomBotao4": "#5474AC",
+    "tomBotao5": "#6E8CBC",
+    "verdeBotao": "#4C9646"
+  },
+  "fontes": {
+    "padrao": "Segoe UI",
+    "semibold": "Segoe UI Semibold",
+    "fixa": "Consolas",
+    "icones": "Segoe MDL2 Assets"
+  },
+  "botoes": {
+    "_sobre": "Variantes de botão (componente 'botao'): fundo, texto e fundo ao passar o mouse. claro/sucessoClaro/perigoForte são para a faixa azul do cabeçalho, onde o azul sobre azul não destaca.",
+    "primario": {
+      "fundo": "#172A67",
+      "texto": "#FFFFFF",
+      "hover": "#24418F"
+    },
+    "sucesso": {
+      "fundo": "#3E8E22",
+      "texto": "#FFFFFF",
+      "hover": "#4FA82F"
+    },
+    "neutro": {
+      "fundo": "#FFFFFF",
+      "texto": "#172A67",
+      "hover": "#E8EEF8",
+      "borda": "#C6CDD4"
+    },
+    "perigo": {
+      "fundo": "#FFFFFF",
+      "texto": "#C0392B",
+      "hover": "#FBEAEA",
+      "borda": "#E5B6B0"
+    },
+    "cabecalho": {
+      "fundo": "#23407E",
+      "texto": "#FFFFFF",
+      "hover": "#2F55A3"
+    },
+    "rodape": {
+      "fundo": "#FFFFFF",
+      "texto": "#172A67",
+      "hover": "#E8EEF8"
+    },
+    "claro": {
+      "fundo": "#FFFFFF",
+      "texto": "#172A67",
+      "hover": "#E8EEF8"
+    },
+    "sucessoClaro": {
+      "fundo": "#58B030",
+      "texto": "#FFFFFF",
+      "hover": "#6BC443"
+    },
+    "perigoForte": {
+      "fundo": "#C0392B",
+      "texto": "#FFFFFF",
+      "hover": "#D8543F"
+    }
+  },
+  "situacoes": {
+    "_sobre": "Cor do selo de situação na grade e na ficha (texto sempre junto: cor nunca é o único sinal). OK..IGNORAR: situação da linha no cadastro em lote.",
+    "Ação atrasada": {
+      "texto": "#9C2B2B",
+      "fundo": "#FBE2E2"
+    },
+    "Retomar hoje": {
+      "texto": "#8A5A00",
+      "fundo": "#FDE9C8"
+    },
+    "Ação nesta semana": {
+      "texto": "#6B3A10",
+      "fundo": "#FFF6EC"
+    },
+    "Em dia": {
+      "texto": "#2C6B3A",
+      "fundo": "#E6F4E4"
+    },
+    "Sem próxima ação": {
+      "texto": "#5F6B76",
+      "fundo": "#EFF1F2"
+    },
+    "Sem etapa definida": {
+      "texto": "#C0392B",
+      "fundo": "#FBEAEA"
+    },
+    "Encerrado": {
+      "texto": "#8A949E",
+      "fundo": "#F1F3F5"
+    },
+    "OK": {
+      "texto": "#2C6B3A",
+      "fundo": "#E6F4E4"
+    },
+    "SUSPEITO": {
+      "texto": "#8A5A00",
+      "fundo": "#FDE9C8"
+    },
+    "DUPLICADO": {
+      "texto": "#5F6B76",
+      "fundo": "#EFF1F2"
+    },
+    "ERRO": {
+      "texto": "#9C2B2B",
+      "fundo": "#FBE2E2"
+    },
+    "IGNORAR": {
+      "texto": "#8A949E",
+      "fundo": "#F1F3F5"
+    },
+    "GRAVADO": {
+      "texto": "#1F4E9C",
+      "fundo": "#E8EEF8"
+    }
+  },
+  "moldura": {
+    "_sobre": "Diferença entre Width/Height do UserForm e a área interna (InsideWidth/InsideHeight) no Excel 2019 a 96 dpi: bordas e barra de título. O build soma isto ao 'canvas' de cada tela. Conferir na tela de calibração (rodapé) e ajustar.",
+    "largura": 6,
+    "altura": 28
+  }
+}
