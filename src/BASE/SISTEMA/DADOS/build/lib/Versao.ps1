@@ -15,6 +15,39 @@ function Get-VersaoAtual([string]$pastaDados) {
     return $v
 }
 
+# Versão publicada na raiz de BASE (VERSAO-FRONT.txt, escrito pelo build ao publicar).
+# $null se o arquivo não existe ou não começa por X.Y.
+function Get-VersaoPublicada([string]$raiz) {
+    $arq = Join-Path $raiz 'VERSAO-FRONT.txt'
+    if (-not (Test-Path -LiteralPath $arq)) { return $null }
+    $linha = @([System.IO.File]::ReadAllLines($arq))[0]
+    if ($null -eq $linha) { return $null }
+    $linha = $linha.Trim()
+    if ($linha -notmatch '^\d+\.\d+$') { return $null }
+    return $linha
+}
+
+# -1, 0 ou 1, comparando número a número (1.10 > 1.9)
+function Compare-Versao([string]$a, [string]$b) {
+    $pa = $a.Split('.'); $pb = $b.Split('.')
+    for ($i = 0; $i -lt 2; $i++) {
+        if ([int]$pa[$i] -gt [int]$pb[$i]) { return 1 }
+        if ([int]$pa[$i] -lt [int]$pb[$i]) { return -1 }
+    }
+    return 0
+}
+
+# A versão de onde a próxima parte: a MAIOR entre VERSAO.txt e a publicada.
+# A BASE pode chegar à rede num pacote com VERSAO.txt mais antigo que a última
+# publicação feita lá; recomeçar dele repetiria um número já publicado e o
+# INICIAR-CRM das estações acharia que não há nada novo.
+function Get-VersaoDePartida([string]$pastaDados, [string]$raiz) {
+    $doArquivo = Get-VersaoAtual $pastaDados
+    $publicada = Get-VersaoPublicada $raiz
+    if ($publicada -and (Compare-Versao $publicada $doArquivo) -gt 0) { return $publicada }
+    return $doArquivo
+}
+
 # 1.4 -> 1.5 ; 1.9 -> 1.10 (casa final numérica, nunca "2.0" sozinho)
 function Get-ProximaVersao([string]$versao) {
     if ($versao -notmatch '^(\d+)\.(\d+)$') { throw ('Versão inválida: ' + $versao) }

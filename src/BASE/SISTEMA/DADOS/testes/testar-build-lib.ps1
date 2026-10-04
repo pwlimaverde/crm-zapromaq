@@ -22,6 +22,23 @@ Conferir '2.0 -> 2.1' ((Get-ProximaVersao '2.0') -eq '2.1')
 $erro = $null; try { Get-ProximaVersao 'x' | Out-Null } catch { $erro = $_ }
 Conferir 'versão inválida recusada' ($null -ne $erro)
 Conferir 'VERSAO.txt do projeto é X.Y' ((Get-VersaoAtual $dados) -match '^\d+\.\d+$')
+Conferir '1.10 maior que 1.9' ((Compare-Versao '1.10' '1.9') -eq 1)
+Conferir '1.5 igual a 1.5' ((Compare-Versao '1.5' '1.5') -eq 0)
+Conferir '1.5 menor que 2.0' ((Compare-Versao '1.5' '2.0') -eq -1)
+# versão de partida: VERSAO.txt x VERSAO-FRONT.txt publicada na raiz
+$tmpV = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-versao-' + $PID)
+$tmpDados = Join-Path $tmpV 'SISTEMA\DADOS'
+New-Item -ItemType Directory -Path $tmpDados -Force | Out-Null
+try {
+    Set-VersaoArquivo $tmpDados '1.5'
+    Conferir 'sem VERSAO-FRONT.txt parte do VERSAO.txt' ((Get-VersaoDePartida $tmpDados $tmpV) -eq '1.5')
+    [System.IO.File]::WriteAllText((Join-Path $tmpV 'VERSAO-FRONT.txt'), "1.7`r`nAmbiente: PRODUCAO`r`n")
+    Conferir 'publicada maior vence (pacote com VERSAO.txt antigo)' ((Get-VersaoDePartida $tmpDados $tmpV) -eq '1.7')
+    Set-VersaoArquivo $tmpDados '1.8'
+    Conferir 'VERSAO.txt maior vence' ((Get-VersaoDePartida $tmpDados $tmpV) -eq '1.8')
+    [System.IO.File]::WriteAllText((Join-Path $tmpV 'VERSAO-FRONT.txt'), "lixo`r`n")
+    Conferir 'VERSAO-FRONT.txt inválido é ignorado' ((Get-VersaoDePartida $tmpDados $tmpV) -eq '1.8')
+} finally { Remove-Item -LiteralPath $tmpV -Recurse -Force -ErrorAction SilentlyContinue }
 
 $mod = [System.IO.File]::ReadAllText((Join-Path $dados 'fonte\modulos\modConfig.bas'), [System.Text.Encoding]::GetEncoding(1252))
 $novo = Set-VersaoNoModConfig $mod '9.99'
