@@ -22,7 +22,7 @@
     "dificil": { "modelo": "opus", "rotulo": "Opus", "atalho": "profundo" }
   },
   "nivel_em_falha": "rotina",
-  "skills_fora_do_jev": ["using-agent-skills", "context-engineering"],
+  "skills_fora_do_jev": ["using-agent-skills", "context-engineering", "ciclo"],
   "comando_para_skill": {
     "spec": "spec-driven-development",
     "plan": "planning-and-task-breakdown",
@@ -31,7 +31,8 @@
     "review": "code-review-and-quality",
     "code-simplify": "code-simplification",
     "ship": "shipping-and-launch",
-    "constraints": "constraint-driven-development"
+    "constraints": "constraint-driven-development",
+    "ciclo": "ciclo"
   },
   "especialistas_nativos": {
     "general-purpose": "Generic agent for research, implementation and multi-step tasks that fit no specialist",

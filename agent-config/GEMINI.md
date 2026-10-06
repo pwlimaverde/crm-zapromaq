@@ -27,7 +27,7 @@ O workspace ativo é `agent-config/` e o trabalho incide sobre a pasta raiz do r
 
 ## 3. O Ciclo de Desenvolvimento e Habilidades (Skills)
 
-Todo trabalho segue o ciclo estruturado, que pode ser orquestrado de ponta a ponta via `/ciclo` (skill `development-lifecycle`):
+Todo trabalho segue o ciclo estruturado, que pode ser orquestrado de ponta a ponta via `/ciclo` (skill `ciclo`):
 ```
 DEFINIR      PLANEJAR     CONSTRUIR    VERIFICAR    REVISAR      SIMPLIFICAR      ENTREGAR
 /spec   ->   /plan   ->   /build  ->   /test   ->   /review  ->  /code-simplify -> /ship
@@ -35,7 +35,7 @@ DEFINIR      PLANEJAR     CONSTRUIR    VERIFICAR    REVISAR      SIMPLIFICAR    
 ```
 
 As habilidades especializadas do projeto estão em [agent-config/.claude/skills/](file:///c:/PROJETOS/VBA/crm-zapromaq/agent-config/.claude/skills/) e são carregadas sob demanda:
-- `development-lifecycle` (orquestrador mestre de ponta a ponta para `/ciclo`)
+- `ciclo` (orquestrador mestre de ponta a ponta para `/ciclo`)
 - `spec-driven-development` (para `/spec`)
 - `planning-and-task-breakdown` (para `/plan`)
 - `test-driven-development` / `incremental-implementation` (para `/build`)
