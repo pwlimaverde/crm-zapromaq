@@ -1,161 +1,219 @@
 ---
 name: ciclo
-description: Orquestra o ciclo completo de desenvolvimento de ponta a ponta (diagnóstico prévio de skills/agentes, planejamento envelopado em fatias, execução autônoma passo a passo com TDD e autocorreção, revisão modular por personas e portão formal de finalização/merge/push). Acionável via /ciclo.
+description: Orquestra uma funcionalidade ou correção de ponta a ponta neste projeto (diagnóstico, spec e plano em fatias, TDD fatia por fatia com autocorreção limitada, verificação, revisão por personas e integração em develop), com dois portões de aprovação humana. Use quando o usuário pedir /ciclo ou quiser que uma demanda seja conduzida do diagnóstico ao merge sem chamar cada comando. Não use para correção pequena e bem definida (/spec curto + /build) nem para publicar na empresa (/ship).
 ---
 
-# Development Lifecycle (Orquestrador de Desenvolvimento)
+# Ciclo (orquestrador de desenvolvimento)
 
-## Visão Geral
+## Visão geral
 
-Esta skill orquestra o ciclo completo de desenvolvimento de software no projeto **CRM Zapromaq**, unificando as habilidades de engenharia (*agent-skills*) e as restrições arquiteturais em um fluxo guiado, autônomo e seguro.
+Conduz uma demanda do **CRM Zapromaq** pelo processo inteiro de `DIRETRIZES-IA.md`
+(`/spec → /plan → /build → /test → /review → /code-simplify → /ship`, nível "integrar") sem
+exigir um comando por etapa. São **5 estágios com 2 portões** de aprovação humana; entre eles
+o agente trabalha sozinho, mas **dentro** das paradas obrigatórias do projeto, que valem sempre.
 
-Em vez de exigir a chamada manual de cada etapa (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/code-simplify`, `/ship`), o orquestrador conduz o processo através de **fases claras com portões de aprovação (gates) estratégicos**, dando autonomia total ao agente para corrigir problemas durante a construção sem interromper o usuário desnecessariamente.
+Esta skill não repete o que as outras já dizem: ela indica **qual** usar em cada estágio e
+**onde** parar. As regras do projeto moram em `CLAUDE.md`, `specs/PROJETO.md` e
+`specs/stacks/*.md`.
 
----
+Caminhos relativos a `agent-config/` (onde o Claude Code é aberto); a raiz do git é `..`.
 
-## Os 5 Estágios do Ciclo de Desenvolvimento
+## Quando usar
+
+- O usuário digitou `/ciclo <demanda>` ou pediu para conduzir a demanda "de ponta a ponta".
+- Funcionalidade nova ou correção que pede spec, várias fatias e revisão.
+
+**Quando não usar**
+
+- Correção pequena e bem definida: `/spec` curto (objetivo + critério de aceite + teste) e `/build`.
+- Plano já aprovado, só falta executar: `/build auto`.
+- Publicar na empresa (release, pacote, `MONTAR-FRONTEND.bat`): `/ship`. O `ciclo` termina
+  com a branch integrada em `develop`, não com versão publicada.
+
+## Os 5 estágios
 
 ```
-[Entrada do Usuário]
-         │
-         ▼
-[Fase 1: Diagnóstico e Mapeamento de Agentes/Skills]
-         │
-         ▼
-[Fase 2: Envelopamento do Plano em Fatias (plan.md / todo.md)]
-         │
-         ▼
- 🛑 GATE 1: Aprovação Explícita do Plano pelo Usuário
-         │
-         ▼
-[Fase 3: Execução Passo a Passo Autônoma]
-         ├─ GitFlow: git flow feature start <nome> | bugfix/
-         ├─ Para cada fatia:
-         │   ├─ Teste que falha primeiro (RED)
-         │   ├─ Código mínimo (GREEN)
-         │   ├─ Autocorreção autônoma em caso de falha (sem interrupção)
-         │   └─ Commit atômico (só avança se validada 100%)
-         ▼
-[Fase 4: Verificação Integral e Revisão Modular por Personas]
-         ├─ Prova real de execução: verificar-tudo.ps1
-         ├─ Revisor 1: code-reviewer.md
-         ├─ Revisor 2: security-auditor.md
-         ├─ Revisor 3: test-engineer.md
-         └─ Simplificação: code-simplification
-         ▼
-[Fase 5: Relatório Consolidado de Entrega]
-         │
-         ▼
- 🛑 GATE 2: Questionamento Formal de Finalização
-         │  "Posso finalizar a branch, realizar o merge no develop e o push?"
-         ▼
-[Execução de finalizar-branch.ps1 -Enviar e Fechamento]
+[demanda do usuário]
+        │
+        ▼
+Estágio 1  Diagnóstico: contexto, BASE da rede em dia?, ambiguidades, skills e agentes
+        │
+        ▼
+Estágio 2  Spec e plano persistidos em specs/funcionalidades/NNN-nome/
+        │
+        ▼
+🛑 GATE 1  aprovação explícita da spec e do plano
+        │
+        ▼
+Estágio 3  Branch git-flow + fatia por fatia: RED → GREEN → regressão → commit
+        │     (autocorreção limitada; paradas obrigatórias continuam valendo)
+        ▼
+Estágio 4  verificar-tudo no nível certo + revisão por personas + simplificação
+        │
+        ▼
+Estágio 5  Relatório de entrega (com itens 🖥)
+        │
+        ▼
+🛑 GATE 2  "Posso finalizar a branch, fazer o merge em develop e o push?"
+        │
+        ▼
+        ferramentas\finalizar-branch.ps1 -Enviar
 ```
 
----
+## Paradas obrigatórias (valem em todos os estágios)
 
-## Detalhamento dos Estágios
+O fluxo autônomo **nunca** passa por cima de `DIRETRIZES-IA.md` › "Quando a IA para e chama o
+humano" nem de `specs/PROJETO.md` › Limites › "Perguntar antes". Em resumo:
 
-### Estágio 1: Diagnóstico e Mapeamento de Agentes/Skills
+1. Teste quebrado **sem correção óbvia** (ver a autocorreção no Estágio 3).
+2. Spec ambígua, conflito de regra ou decisão de negócio/interface.
+3. Ação irreversível ou sensível: migração **estrutural** do banco, qualquer toque no banco de
+   produção, `MONTAR-FRONTEND.bat` sem `-Teste`, push na `main`, pacote para a empresa
+   (`empacotar-base.ps1`), mudança de contrato (`Início!B7`, `VERSAO-FRONT.txt`, nomes de
+   controle, ferramentas MCP, códigos `CT-`/`AT-`), ferramenta nova de desenvolvimento.
 
-Ao receber a demanda do usuário:
-1. **Consulte a hierarquia canônica de contexto:**
-   - `agent-config/CLAUDE.md` e `agent-config/GEMINI.md` (regras centrais e restrições)
-   - `agent-config/specs/PROJETO.md` (objetivo, definição de pronto, TDD por stack)
-   - `agent-config/specs/stacks/*.md` (especificações das stacks afetadas: `front-vba`, `banco-access`, `build-operacao-powershell`, etc.)
-   - `agent-config/doc_dev/planejamento/PLANO.md` (decisões históricas e roadmap)
-2. **Avalie o escopo e identifique ambiguidades:** se houver requisitos fundamentais ausentes ou conflitos de regra de negócio, esclareça antes de formalizar o plano (usando `interview-me` ou perguntas diretas).
-3. **Mapeie explicitamente os Agentes e Skills que atuarão no ciclo:**
-   - **Especificação / Requisitos:** `spec-driven-development`
-   - **Planejamento:** `planning-and-task-breakdown`, `constraint-driven-development`
-   - **Construção e TDD:** `test-driven-development`, `incremental-implementation` (+ `source-driven-development` para APIs/docs oficiais)
-   - **Depuração e Autocorreção:** `debugging-and-error-recovery`
-   - **Verificação:** `verificar-tudo.ps1`
-   - **Revisão Modular:** personas `code-reviewer`, `security-auditor`, `test-engineer` e skill `code-simplification`
-   - **Entrega / Git:** `git-workflow-and-versioning`, `shipping-and-launch`
+Nesses casos, pare, explique e entregue o comando pronto para o humano decidir/rodar.
+Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 
----
+## Detalhamento
 
-### Estágio 2: Envelopamento e Persistência do Plano
+### Estágio 1 — Diagnóstico
 
-1. **Defina a numeração e diretório da funcionalidade:**
-   - Local: `agent-config/specs/funcionalidades/NNN-nome/` (baseado no último número existente).
-2. **Gere os três artefatos canônicos:**
-   - `SPEC.md`: problema a resolver, critérios de aceite objetivos, limites e restrições inegociáveis.
-   - `plan.md`: quebra em fatias verticais finas, dependências, estratégia de teste para cada fatia e marcação de itens que exigem a estação física (`🖥 estação`).
-   - `todo.md`: lista de verificação passo a passo com caixas de checagem.
-3. **Apresente o plano envelopado no chat:**
-   - Exiba o diagnóstico, o mapeamento de agentes/skills convocados e o checklist das fatias.
-4. **🛑 GATE 1 — Parada Obrigatória de Aprovação:**
-   - **Aguarde a validação explícita do usuário.**
-   - Não inicie a codificação nem crie branches antes da confirmação afirmativa do usuário ("aprovado", "pode iniciar", "ok").
+1. **Contexto, nesta ordem:** `CLAUDE.md` → `specs/PROJETO.md` → `specs/stacks/<stack>.md` das
+   camadas tocadas → `doc_dev/planejamento/PLANO.md` (decisões, correções, pendências).
+2. **BASE da rede em dia?** A versão da rede tem prioridade (`PROJETO.md` › Limites, D15).
+   Pergunte se houve ajuste na empresa desde o último ciclo; se houve, a BASE de lá volta ao
+   repositório **antes** de qualquer mudança (`trazer-da-rede.ps1` ou comparação em três vias).
+3. **Ambiguidades:** requisito ausente ou conflito de regra → `interview-me` ou perguntas
+   diretas (1–2 por vez, pt-BR), antes de escrever a spec.
+4. **Mapa de skills e agentes do ciclo** (apresentar no GATE 1):
 
----
+   | Estágio | Skills / agentes |
+   |---|---|
+   | Spec | `spec-driven-development` (`interview-me` se vago) |
+   | Plano | `planning-and-task-breakdown` |
+   | Construção | `incremental-implementation`, `test-driven-development`; `source-driven-development` para recurso de VBA/ACE/PowerShell/MCP (referências offline em `doc_dev/planejamento/referencias/`) |
+   | Falhas | `debugging-and-error-recovery` |
+   | Verificação | `ferramentas\verificar-tudo.ps1` |
+   | Revisão | agentes `code-reviewer`, `security-auditor`, `test-engineer`; skill `code-simplification` |
+   | Entrega | `git-workflow-and-versioning`; `shipping-and-launch` só no nível "integrar" |
 
-### Estágio 3: Execução Passo a Passo Autônoma (TDD + Autocorreção)
+### Estágio 2 — Spec e plano persistidos
 
-Uma vez aprovado o plano:
-1. **Abertura da branch no GitFlow:**
-   - Se nova funcionalidade: `git flow feature start <nome>` (ou crie a branch `feature/<nome>` a partir de `develop`).
-   - Se correção: `git flow bugfix start <nome>`.
-2. **Execução sequencial fatia por fatia:**
-   - Para cada fatia descrita no `plan.md`:
-     1. **RED:** Escreva o teste que falha primeiro cobrindo a alteração proposta, conforme a matriz de TDD de `specs/PROJETO.md`:
-        - Lógica VBA: `modAutoteste.bas` (`Confere`)
-        - Regra estática / encoding: `verificar.py`
-        - Build / versão: `testar-build-lib.ps1`
-        - Banco / MCP: `testar-mcp.ps1` / `testar-mcp-dev.ps1`
-     2. **GREEN:** Implemente o código estritamente necessário para fazer o teste passar.
-     3. **REGRESSÃO:** Execute os testes existentes para garantir que nada foi quebrado.
-     4. **COMMIT ATÔMICO:** Faça o commit no Git com mensagem descritiva em pt-BR explicando o motivo da mudança.
-3. **Loop Fechado de Autocorreção (Sem Interrupções Desnecessárias):**
-   - Se um teste quebrar, o build falhar ou ocorrer um erro de sintaxe/linter:
-     - **NÃO pare para pedir autorização para corrigir.**
-     - Ative a lógica de `debugging-and-error-recovery`: examine as mensagens de erro, localize o ponto da falha, aplique a correção necessária e reexecute o teste.
-     - Repita o ciclo até que a fatia esteja 100% verde.
-4. **Critério Inegociável de Avanço:**
-   - **SÓ avance para a próxima fatia após a fatia anterior estar validada e commitada.**
-5. **Critérios de Parada Excepcional na Fase 3:**
-   - Apenas interrompa o fluxo autônomo se:
-     - Encontrar uma ambiguidade irresolúvel nas regras de negócio;
-     - Deparar-se com uma ação destrutiva ou irreversível (ex.: migração estrutural de banco de dados);
-     - Atingir um item explicitamente marcado como `🖥 estação` (que requer validação física no Excel 2019 / rede).
+1. Pasta `specs/funcionalidades/NNN-nome/` (NNN = último número + 1), a partir de `_modelo/`
+   (ver `specs/funcionalidades/README.md`).
+2. Artefatos:
+   - `SPEC.md` — problema, critérios de aceite objetivos, escopo, limites e referências às
+     specs de stack.
+   - `plan.md` — fatias verticais finas, dependências, teste que falha primeiro de cada fatia
+     (tabela "TDD por stack" de `PROJETO.md`) e itens que só se conferem na estação (`🖥`).
+   - `todo.md` — caixas de checagem, uma por tarefa.
+3. Mostre no chat: diagnóstico, mapa de skills/agentes e o checklist das fatias.
+4. **🛑 GATE 1** — aguarde aprovação explícita ("aprovado", "pode iniciar"). Antes disso, não
+   crie branch nem escreva código. Pedido de ajuste → revise os arquivos e volte ao GATE 1.
 
----
+### Estágio 3 — Execução fatia por fatia
 
-### Estágio 4: Verificação Integral e Revisão Modular por Personas
+1. **Branch:** `git flow feature start <nome>` (correção: `git flow bugfix start <nome>`).
+   O primeiro commit da branch leva `SPEC.md`, `plan.md` e `todo.md`.
+2. **Para cada fatia do `plan.md`:**
+   1. **RED** — o teste que falha primeiro, pela tabela de `PROJETO.md`:
+      lógica VBA → `Confere` em `modAutoteste.bas`; regra estática/encoding → `verificar.py`;
+      build/versão/B7 → `Conferir` em `testar-build-lib.ps1`; banco/SQL/MCP → `testar-mcp.ps1`;
+      MCP de desenvolvimento → `testar-mcp-dev.ps1`; aparência → prévia + item 🖥.
+      Confirme que ele **falha** pelo motivo esperado.
+   2. **GREEN** — o código mínimo que o faz passar.
+   3. **Regressão** — `ferramentas\verificar-tudo.ps1 -Rapido` (e o teste específico da stack).
+   4. **Commit** — só os arquivos da fatia, mensagem em pt-BR com o porquê e as linhas de
+      atribuição da sessão; marque a tarefa no `todo.md`.
+   5. Só passe para a próxima fatia com a anterior verde e commitada.
+3. **Autocorreção limitada:**
+   - Erro com causa óbvia (sintaxe, encoding, caminho, nome trocado, teste mal escrito na
+     própria fatia): corrija sozinho com `debugging-and-error-recovery` e reexecute, sem
+     interromper o usuário — **até 3 tentativas por falha**.
+   - Sem causa óbvia, ou estourou o limite: **pare e pergunte**, mostrando o erro, o que foi
+     tentado e a hipótese atual.
+   - **Nunca** fique verde pulando, apagando ou enfraquecendo teste, checagem do `verificar.py`,
+     `Confere`/`Conferir` ou nível do `verificar-tudo`.
+4. **Itens 🖥** (Excel 2019 / rede) não param o fluxo: implemente o que dá para provar aqui e
+   anote o item para o relatório do Estágio 5.
 
-Com todas as fatias de código concluídas:
-1. **Verificação Real Completa:**
-   - Execute a suíte de testes do projeto:
-     ```powershell
-     powershell -File agent-config\ferramentas\verificar-tudo.ps1 -Completo
-     ```
-   - A saída limpa (sem erros) é a prova obrigatória de conclusão técnica.
-2. **Revisão Modular por Personas (Agentes):**
-   - Convoque sequencialmente os perfis especializados definidos em `agent-config/.claude/agents/`:
-     - **Persona 1 — `code-reviewer`:** Avalia legibilidade, adesão às convenções (inglês nos identificadores, português nos comentários), respeito ao princípio DRY, modularidade e ausência de código morto.
-     - **Persona 2 — `security-auditor`:** Audita sanitização de entradas, queries parametrizadas (zero SQL concatenado), integridade das transações de gravação (`log_alteracoes`), ausência de segredos/hardcoded e conformidade com ambiente 100% offline.
-     - **Persona 3 — `test-engineer`:** Audita os testes criados, verificando se cobrem casos de borda, se não contêm falsos positivos e se não burlam as checagens reais.
-     - **Passada de Simplificação (`code-simplification`):** Examina se a solução pode ser reduzida e simplificada sem alterar comportamento.
-3. **Ajustes pós-revisão:** Aplique correções imediatas de eventuais achados críticos identificados pelos revisores e revalide com `verificar-tudo.ps1`.
+### Estágio 4 — Verificação e revisão
 
----
+1. **Verificação no nível da definição de pronto** (`PROJETO.md`):
+   ```powershell
+   powershell -File ferramentas\verificar-tudo.ps1            # padrão
+   powershell -File ferramentas\verificar-tudo.ps1 -Completo  # se tocou fonte\, build\ ou layout
+   ```
+   A saída sem falha é a prova; ela vai no relatório.
+2. **Revisão por personas** (agentes de `.claude/agents/`; podem rodar em paralelo, cada um
+   com o diff da branch e a `SPEC.md`):
+   - `code-reviewer` — cinco eixos + seção **Revisão** das specs de stack tocadas; nomes e
+     comentários em pt-BR (`PROJETO.md` › Estilo); sem código morto.
+   - `security-auditor` — SQL parametrizado, data como parâmetro, versão otimista, log na
+     mesma transação (`modDB.LogEm`), nenhum dado real (repositório público), 100% offline.
+   - `test-engineer` — os testes provam o comportamento? casos de borda, falsos positivos,
+     checagem contornada.
+   - `code-simplification` — reduzir sem mudar comportamento, respeitando `simplify-ignore` e
+     as decisões registradas.
+3. **Achados:** críticos e importantes são corrigidos (cada correção com teste e commit) e o
+   `verificar-tudo` roda de novo; opcionais vão para o relatório para o usuário decidir.
 
-### Estágio 5: Resumo Executivo e Portão de Finalização (Merge & Push)
+### Estágio 5 — Relatório e GATE 2
 
-1. **Gere o relatório consolidado de entrega contendo:**
-   - Resumo das mudanças implementadas;
-   - Lista de arquivos criados e modificados;
-   - Evidência dos testes (status de `verificar-tudo.ps1`);
-   - Parecer consolidado das 3 personas de revisão;
-   - Identificação da branch atual e histórico de commits atômicos realizados.
-2. **🛑 GATE 2 — Questionamento Formal de Finalização:**
-   - Pergunte claramente ao usuário:
-     > *"Todas as etapas foram desenvolvidas, testadas e auditadas com sucesso. Posso finalizar a branch, realizar o merge no `develop` e efetuar o push para o repositório remoto?"*
-3. **Execução do Fechamento e Envio:**
-   - Após a autorização explícita do usuário:
-     ```powershell
-     powershell -File agent-config\ferramentas\finalizar-branch.ps1 -Enviar
-     ```
-   - Confirme a conclusão do merge no `develop`, a remoção limpa da branch local de trabalho e o push no repositório.
+1. **Antes do relatório**, feche a definição de pronto:
+   - spec de stack atualizada se a stack mudou; `PLANO.md` se mudou fase/decisão/pendência;
+   - `todo.md` todo marcado.
+2. **Relatório de entrega:**
+   - resumo das mudanças e arquivos criados/alterados;
+   - saída do `verificar-tudo` (nível usado);
+   - parecer das personas e o que foi corrigido;
+   - branch e lista de commits;
+   - **itens 🖥** que o usuário precisa conferir na estação — "pronto aqui" não é "pronto na
+     empresa".
+3. **🛑 GATE 2** — pergunte:
+   > *"Tudo desenvolvido, testado e revisado. Posso finalizar a branch, fazer o merge em
+   > `develop` e o push para o repositório remoto?"*
+4. **Com a autorização:**
+   ```powershell
+   powershell -File ferramentas\finalizar-branch.ps1 -Enviar
+   ```
+   Confirme o merge `--no-ff` em `develop`, a remoção da branch (local e remota) e o push.
+   Depois, carimbe o topo da `SPEC.md`:
+   `> Concluída em dd/mm/aaaa — merge <commit>` (a versão publicada entra quando o `/ship`
+   publicar), num commit numa `bugfix/` ou na próxima branch — nunca direto em `develop`.
+
+## Exemplos
+
+```
+/ciclo adicionar o campo "segmento" (lista) na ficha de clientes
+/ciclo corrigir o filtro da grade de oportunidades que ignora a situação "Perdida"
+/ciclo nova ferramenta MCP para listar oportunidades paradas há mais de 30 dias
+```
+
+## Racionalizações comuns
+
+| Racionalização | Realidade |
+|---|---|
+| "O teste está atrapalhando, vou relaxar a asserção" | Enfraquecer o teste é proibido; pare e pergunte. |
+| "É só mais uma tentativa" (4ª, 5ª...) | Passou de 3 sem causa óbvia: pare e mostre o que sabe. |
+| "A spec está clara o bastante, dispenso o GATE 1" | O GATE 1 é obrigatório, mesmo para spec curta. |
+| "verificar-tudo -Rapido basta" | O nível final segue a definição de pronto (padrão ou `-Completo`). |
+| "O item 🖥 passou aqui no 365" | Esta máquina não é a estação com Excel 2019; liste o item. |
+
+## Sinais de alerta
+
+- Código escrito antes do GATE 1 ou commit em `develop`/`main`.
+- Fatia sem teste que falhou antes.
+- Mudança em teste/checagem no mesmo commit que "conserta" a falha que ele apontava.
+- Relatório sem a saída do `verificar-tudo` ou sem a lista 🖥.
+- Toque em contrato (B7, nomes de controle, ferramentas MCP, `CT-`/`AT-`) sem pergunta.
+
+## Verificação
+
+- [ ] GATE 1 aprovado antes de qualquer branch ou código.
+- [ ] Cada fatia: teste falhou → passou → `-Rapido` verde → commit.
+- [ ] `verificar-tudo` no nível certo, sem falha, com a saída no relatório.
+- [ ] Revisão das três personas + simplificação, achados críticos/importantes resolvidos.
+- [ ] Specs de stack, `PLANO.md` e `todo.md` em dia; itens 🖥 listados.
+- [ ] GATE 2 autorizado antes do `finalizar-branch.ps1 -Enviar`.
