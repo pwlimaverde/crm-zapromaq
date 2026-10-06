@@ -1,5 +1,5 @@
 ---
-name: development-lifecycle
+name: ciclo
 description: Orquestra o ciclo completo de desenvolvimento de ponta a ponta (diagnóstico prévio de skills/agentes, planejamento envelopado em fatias, execução autônoma passo a passo com TDD e autocorreção, revisão modular por personas e portão formal de finalização/merge/push). Acionável via /ciclo.
 ---
 

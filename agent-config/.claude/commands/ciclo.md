@@ -3,7 +3,7 @@ description: "Orquestra o ciclo completo de desenvolvimento de ponta a ponta (di
 argument-hint: "<funcionalidade ou correção a ser feita>"
 ---
 
-Invoque a skill `development-lifecycle` para conduzir a demanda informada em `$ARGUMENTS`.
+Invoque a skill `ciclo` para conduzir a demanda informada em `$ARGUMENTS`.
 
 Siga estritamente o ciclo de 5 estágios:
 1. **Diagnóstico e Mapeamento:** Avalie o impacto com base nas especificações do projeto (`CLAUDE.md`, `specs/PROJETO.md`, specs das stacks) e mapeie as skills e agentes que atuarão em cada fase.
