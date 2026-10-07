@@ -732,6 +732,21 @@ End Function
 ' deixaria o atendimento apontando para duas empresas.
 ' idClienteAtual = 0: atendimento novo, ainda sem empresa.
 '----------------------------------------------------------
+'----------------------------------------------------------
+' Quando o botao de um campo de vinculo da ficha fica ativo.
+' Sempre so na edicao. O do contato, so em atendimento JA
+' GRAVADO: o novo escolhe empresa e contato pelo Procurar, em
+' dois passos.
+'----------------------------------------------------------
+Public Function BotaoVinculoAtivo(ByVal nomeCampo As String, ByVal editando As Boolean, _
+                                  ByVal novo As Boolean, ByVal idContato As Long) As Boolean
+    If Not editando Then Exit Function
+    Select Case nomeCampo
+        Case "id_contato": BotaoVinculoAtivo = Not novo
+        Case Else:         BotaoVinculoAtivo = True
+    End Select
+End Function
+
 Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
     If idClienteAtual = 0 Then Exit Function
     If idClienteNovo = idClienteAtual Then Exit Function

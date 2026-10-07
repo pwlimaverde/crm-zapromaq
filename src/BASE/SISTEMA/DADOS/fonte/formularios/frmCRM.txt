@@ -42,6 +42,8 @@ Private mEditando As Boolean
 ' vinculo quando a ficha tiver dois campos K (atendimento anterior).
 Private mVinculos As Object
 Private mCamposK As Variant        ' campos K da tabela (modSchema.CamposK)
+Private mClienteRegistro As Long   ' empresa (id_cliente) do registro exibido
+Private mContatoLido As Long       ' id_contato lido ao entrar em edicao
 Private mAtivo As Boolean          ' registro exibido esta ativo?
 Private mConjunto As Variant       ' ids vindos da grade, na ordem da tela
 Private mPos As Long               ' posicao atual dentro de mConjunto
@@ -103,7 +105,7 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
         cmdNovo_Click
         mAbrindoComVinculo = False
         DefinirValor CampoPrincipal(), "K", vinculoInicial
-        AtualizarResumos
+        VinculoEscolhido CampoPrincipal()
     ElseIf novo Then
         cmdNovo_Click
     Else
@@ -312,6 +314,12 @@ Private Sub MontarCampos()
             Chapado ctl
 
             If tipo = "K" Then
+                ' O id e curto: o campo encolhe e o botao do vinculo fica
+                ' ao lado dele (trocar o contato sem refazer a busca da
+                ' empresa - item 6). Criado aqui, junto com o campo.
+                ctl.Width = L_CAMPO - 40
+                BotaoDoVinculo "kb_" & campo, ctl.Left + ctl.Width + 3, y + 1, _
+                               modTema.ICO_EDITAR, "Trocar " & LCase$(rotulo)
                 ' o resumo do vinculo ocupa a linha inteira embaixo
                 Set lb = fraCampos.Controls.Add("Forms.Label.1", "r_" & campo, True)
                 lb.Left = X_COL0: lb.Top = y + 21: lb.Width = util: lb.Height = 14
@@ -332,6 +340,43 @@ Private Sub MontarCampos()
 
     fraCampos.ScrollHeight = y + 30
     fraCampos.ScrollBars = fmScrollBarsVertical
+End Sub
+
+'----------------------------------------------------------
+' Botao pequeno de um campo de vinculo (fundo + glifo), criado em
+' tempo de execucao dentro de fraCampos. Nao existe no layout: o
+' clique chega por UI_Acao("kb_<campo>"), via clsUI.LigarBotao.
+'----------------------------------------------------------
+Private Sub BotaoDoVinculo(ByVal nome As String, ByVal esq As Single, ByVal topo As Single, _
+                           ByVal icone As Long, ByVal dica As String)
+    Dim fundo As MSForms.Label, texto As MSForms.Label
+    Set fundo = fraCampos.Controls.Add("Forms.Label.1", "bg_" & nome, True)
+    fundo.Left = esq: fundo.Top = topo: fundo.Width = 16: fundo.Height = 16
+    fundo.BackStyle = 1                        ' fmBackStyleOpaque
+    fundo.ControlTipText = dica
+    Set texto = fraCampos.Controls.Add("Forms.Label.1", nome, True)
+    texto.Left = esq: texto.Top = topo + 3: texto.Width = 16: texto.Height = 12
+    texto.BackStyle = 0                        ' fmBackStyleTransparent
+    texto.TextAlign = 2                        ' fmTextAlignCenter
+    texto.Font.Name = modTema.FONTE_ICONES
+    texto.Font.Size = 8
+    texto.Font.Charset = 2                     ' simbolo (ver clsUI: glifo)
+    texto.Caption = modTema.Glifo(icone)
+    texto.ControlTipText = dica
+    mUI.LigarBotao fundo, texto, Nothing, "neutro"
+End Sub
+
+' Liga e desliga os botoes dos vinculos conforme o modo da ficha.
+Private Sub AjustarBotoesVinculo()
+    Dim k As Variant
+    If Not IsArray(mCamposK) Then Exit Sub
+    On Error Resume Next
+    For Each k In mCamposK
+        fraCampos.Controls("kb_" & k).Enabled = modCRM.BotaoVinculoAtivo(CStr(k), mEditando, mNovo, _
+                                                                        VinculoDe("id_contato"))
+    Next k
+    On Error GoTo 0
+    Repintar
 End Sub
 
 '----------------------------------------------------------
@@ -685,6 +730,11 @@ Public Sub UI_Acao(ByVal nome As String)
         Case "cmdRel2":        cmdRel2_Click
         Case "cmdStatus":      cmdStatus_Click
         Case "cmdFechar":      cmdFechar_Click
+        Case Else
+            ' botoes dos campos de vinculo, criados em MontarCampos
+            ' VBA.Mid$, nao Mid$: o VBA nao diferencia maiusculas e Mid
+            ' seria a variavel mID deste formulario
+            If Left$(nome, 3) = "kb_" Then TrocarVinculo VBA.Mid$(nome, 4)
     End Select
 End Sub
 
@@ -772,6 +822,7 @@ Private Sub ExibirRegistro(ByVal linha As Long)
     mID = CLng(Campo(linha, "id"))
     mVersao = CLng(modDB.Nz(Campo(linha, "versao"), "1"))
     mNovo = False
+    mClienteRegistro = CLng(modDB.Nz(Campo(linha, "id_cliente"), "0"))
 
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
@@ -858,6 +909,7 @@ Private Sub ModoLeitura()
     AjustarBotaoAcao
     AjustarBotaoStatus
     AjustarBotoesRelacao
+    AjustarBotoesVinculo
     AtualizarNavegacao
 End Sub
 
@@ -914,6 +966,7 @@ Private Sub ModoEdicao()
     cmdStatus.Enabled = False
     On Error GoTo 0
     AjustarBotoesRelacao
+    AjustarBotoesVinculo
     AtualizarNavegacao
 End Sub
 
@@ -963,7 +1016,7 @@ End Sub
 
 Private Sub cmdNovo_Click()
     Dim i As Long, spec As Variant
-    mNovo = True: mID = 0: mVersao = 0
+    mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         DefinirValor CStr(spec(0)), CStr(spec(2)), Null
@@ -1009,6 +1062,7 @@ Private Sub cmdEditar_Click()
         End If
     Next i
     mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
+    mContatoLido = VinculoDe("id_contato")
 
     ModoEdicao
     lblStatus.Caption = "Editando. Versão " & mVersao & " lida às " & Format$(Now, "hh:nn:ss") & "."
@@ -1061,13 +1115,14 @@ Private Sub cmdSalvar_Click()
         Case "contatos":      critica = modValidacao.CriticarContato(d)
         Case "oportunidades": critica = modValidacao.CriticarOportunidade(d)
     End Select
+    If critica = "" Then critica = CriticarVinculos()
     If critica <> "" Then
         MsgBox critica, vbExclamation, "CRM Zapromaq"
         Exit Sub
     End If
 
     If mTabela = "oportunidades" Then
-        aviso = modValidacao.AvisarOportunidade(d)
+        aviso =modValidacao.AvisarOportunidade(d)
         If aviso <> "" Then
             If MsgBox(aviso, vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
         End If
@@ -1201,8 +1256,75 @@ End Function
 ' VINCULO - busca por nome, nao por id
 '==========================================================
 Private Sub cmdVinculo_Click()
-    EscolherVinculo CampoPrincipal()
+    TrocarVinculo CampoPrincipal()
 End Sub
+
+'----------------------------------------------------------
+' Botao do campo de vinculo (kb_<campo>) ou Procurar. Contato de
+' atendimento JA GRAVADO: so os contatos da mesma empresa, direto
+' no passo 2 - o atendimento nao troca de empresa. Atendimento
+' novo: empresa e contato, em dois passos.
+'----------------------------------------------------------
+Private Sub TrocarVinculo(ByVal nomeCampo As String)
+    If Not mEditando Then Exit Sub
+    If nomeCampo = "id_contato" And Not mNovo And mClienteRegistro <> 0 Then
+        TrocarContato
+    Else
+        EscolherVinculo nomeCampo
+    End If
+End Sub
+
+Private Sub TrocarContato()
+    Dim f As frmVinculo
+    Set f = New frmVinculo
+    If f.EscolherContatoDe(mClienteRegistro) Then
+        DefinirValor "id_contato", "K", f.IdEscolhido
+        VinculoEscolhido "id_contato"
+    End If
+    Unload f
+End Sub
+
+'----------------------------------------------------------
+' Depois de escolher um vinculo: o resumo dele e, no contato do
+' atendimento, os dados somente leitura (empresa, cargo, telefone,
+' e-mail) - tudo de UMA consulta.
+'----------------------------------------------------------
+Private Sub VinculoEscolhido(ByVal nomeCampo As String)
+    If nomeCampo = "id_contato" And mTabela = "oportunidades" Then
+        AposEscolherContato
+    Else
+        ResumoDoVinculo nomeCampo, 0
+    End If
+    AjustarBotoesVinculo
+End Sub
+
+Private Sub AposEscolherContato()
+    Dim d As Object, k As Variant
+    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+    For Each k In Array("empresa", "cidade", "uf", "cargo", "telefone", "email")
+        If d Is Nothing Then DefinirValor CStr(k), "R", Null Else DefinirValor CStr(k), "R", d(CStr(k))
+    Next k
+    If d Is Nothing Then
+        MostrarResumo "id_contato", ""
+    Else
+        MostrarResumo "id_contato", modCRM.TextoResumoContato(d("nome"), d("cargo"), d("empresa"), _
+                                                              d("cidade"), d("uf"), d("estagio"))
+    End If
+End Sub
+
+'----------------------------------------------------------
+' Checagem dos vinculos ao salvar (a tela ja limita a escolha;
+' esta e a segunda barreira). Contato trocado num atendimento
+' gravado tem de ser da mesma empresa.
+'----------------------------------------------------------
+Private Function CriticarVinculos() As String
+    Dim d As Object
+    If mTabela <> "oportunidades" Or mNovo Then Exit Function
+    If VinculoDe("id_contato") = mContatoLido Then Exit Function
+    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+    If d Is Nothing Then CriticarVinculos = "O contato escolhido n" & ChrW$(&HE3) & "o existe mais.": Exit Function
+    CriticarVinculos = modCRM.CriticarTrocaContato(mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
+End Function
 
 ' O id guardado do vinculo (0 = vazio).
 Private Function VinculoDe(ByVal nomeCampo As String) As Long
@@ -1230,7 +1352,7 @@ Private Sub EscolherVinculo(ByVal nomeCampo As String)
     Set f = New frmVinculo
     If f.Escolher(modo) Then
         DefinirValor nomeCampo, "K", f.IdEscolhido
-        AtualizarResumos
+        VinculoEscolhido nomeCampo
     End If
     Unload f
 End Sub
@@ -1251,7 +1373,7 @@ End Sub
 Private Sub ResumoDoVinculo(ByVal nomeCampo As String, ByVal linha As Long)
     ' a variavel NAO pode se chamar campo: o VBA nao diferencia maiusculas
     ' e ela esconderia a funcao Campo() ("Era esperada uma matriz")
-    Dim lb As MSForms.Control, txt As String, idV As Long
+    Dim txt As String, idV As Long
 
     idV = VinculoDe(nomeCampo)
     Select Case nomeCampo
@@ -1271,8 +1393,14 @@ Private Sub ResumoDoVinculo(ByVal nomeCampo As String, ByVal linha As Long)
             End If
     End Select
 
-    If txt = "" And idV <> 0 Then txt = "** vínculo não encontrado **"
-    If idV = 0 Then txt = "(use Procurar para escolher)"
+    MostrarResumo nomeCampo, txt
+End Sub
+
+' Texto do resumo embaixo do campo de vinculo (vazio = nao achou).
+Private Sub MostrarResumo(ByVal nomeCampo As String, ByVal txt As String)
+    Dim lb As MSForms.Control
+    If txt = "" And VinculoDe(nomeCampo) <> 0 Then txt = "** vínculo não encontrado **"
+    If VinculoDe(nomeCampo) = 0 Then txt = "(use Procurar para escolher)"
 
     On Error Resume Next
     Set lb = fraCampos.Controls("r_" & nomeCampo)

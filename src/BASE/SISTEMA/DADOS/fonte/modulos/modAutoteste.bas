@@ -72,6 +72,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
     Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
     Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
+    ' botao de cada campo de vinculo: so na edicao; o do contato so em
+    ' atendimento ja gravado (o novo escolhe empresa e contato em 2 passos)
+    Confere "botao contato na edicao", modCRM.BotaoVinculoAtivo("id_contato", True, False, 5), True
+    Confere "botao contato no atendimento novo", modCRM.BotaoVinculoAtivo("id_contato", True, True, 0), False
+    Confere "botao contato em leitura", modCRM.BotaoVinculoAtivo("id_contato", False, False, 5), False
+    Confere "botao empresa do contato novo", modCRM.BotaoVinculoAtivo("id_cliente", True, True, 0), True
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True
@@ -142,10 +148,13 @@ End Sub
 ' na estacao (itens marcados na spec).
 '----------------------------------------------------------
 Private Sub ContratoFormularios()
-    Dim fv As frmVinculo
+    Dim fv As frmVinculo, ui As clsUI
     If False Then
         Set fv = New frmVinculo
         Call fv.EscolherContatoDe(0)
+        ' botao criado em tempo de execucao (campos de vinculo da ficha)
+        Set ui = New clsUI
+        ui.LigarBotao Nothing, Nothing, Nothing, "neutro"
     End If
 End Sub
 

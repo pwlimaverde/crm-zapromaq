@@ -38,9 +38,12 @@ Private mUI As clsUI
 Private mVariante As String
 Private mRealcado As Boolean
 Private mEstado As Long                    ' -1 nunca pintado; 0 desabilitado; 1 habilitado
+Private mRepassarTexto As Boolean          ' botao criado em execucao (clsUI.LigarBotao)
 
 Public Sub Ligar(ByVal frm As Object, ByVal ui As clsUI, ByVal fundo As MSForms.Label, _
-                 ByVal texto As MSForms.Label, ByVal icone As MSForms.Label, ByVal variante As String)
+                 ByVal texto As MSForms.Label, ByVal icone As MSForms.Label, ByVal variante As String, _
+                 Optional ByVal repassarTexto As Boolean = False)
+    mRepassarTexto = repassarTexto
     Set mForm = frm
     Set mUI = ui
     Set mFundo = fundo
@@ -112,6 +115,12 @@ End Sub
 
 Private Sub mIcone_Click()
     Acionar
+End Sub
+
+' So no botao criado em execucao: no do designer o clique no texto
+' ja dispara o <nome>_Click do formulario, e repassar chamaria duas vezes.
+Private Sub mTexto_Click()
+    If mRepassarTexto Then Acionar
 End Sub
 
 Private Sub mFundo_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
