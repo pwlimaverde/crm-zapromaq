@@ -33,7 +33,8 @@ Durante um ciclo, **esta skill prevalece** sobre qualquer indicação do roteado
 (`[seletor de skill] …` ou `[roteador] … Delegue ao subagente …`). Depois do `/ciclo`, o
 roteador não trata a mensagem seguinte como continuação: uma resposta curta como "aprovado"
 pode receber outra skill indicada ou uma ordem de delegação. Ignore-as enquanto o ciclo estiver
-em andamento e **não delegue a outro agente** as respostas de portão (o agente delegado não
+em andamento — do `/ciclo` até o fim do Estágio 5, ou até o usuário dizer que encerra o ciclo ou
+mudar claramente de assunto — e **não delegue a outro agente** as respostas de portão (o agente delegado não
 fala com o usuário). Ao pedir aprovação, sugira ao usuário responder começando com `>>`
 (ex.: `>> aprovado`), que faz o roteador deixar a mensagem passar direto.
 
@@ -222,7 +223,7 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 /ciclo adicionar o campo "segmento" (lista) na ficha de clientes
 /ciclo corrigir o filtro da grade de oportunidades que ignora a situação "Perdida"
 /ciclo nova ferramenta MCP para listar oportunidades paradas há mais de 30 dias
-/ciclo renomear a coluna "obs" de contatos para "observacao" (migração de banco)
+/ciclo renomear a coluna "cargo" de contatos para "funcao" (migração de banco)
 /ciclo avisar no feed quando um atendimento mudar de responsável
 ```
 
