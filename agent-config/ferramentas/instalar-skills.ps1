@@ -143,21 +143,35 @@ Não edite aqui: edite ``adaptacao\`` e rode o script. Detalhes em ``adaptacao\R
 "@
 
 # --- comparar com o que está instalado
+# Chave em minúsculas (o Windows não distingue), mas guarda o caminho com a grafia real:
+# é ele que se usa para gravar, e grafia diferente (skill.md x SKILL.md) conta como mudança -
+# o Claude Code e o roteador procuram SKILL.md, e num sistema que distingue maiúsculas o
+# arquivo com outra grafia não seria achado.
 function Mapa([string]$raiz) {
     $m = @{}
     if (-not (Test-Path -LiteralPath $raiz)) { return $m }
     foreach ($p in $pastas + @('LEIA-ME.md')) {
         $alvo = Join-Path $raiz $p
-        if (Test-Path -LiteralPath $alvo -PathType Leaf) { $m[$p] = (Get-FileHash -LiteralPath $alvo).Hash; continue }
+        if (Test-Path -LiteralPath $alvo -PathType Leaf) {
+            $f = Get-Item -LiteralPath $alvo
+            $m[$p.ToLowerInvariant()] = [pscustomobject]@{ Rel = $f.FullName.Substring($raiz.Length + 1); Hash = (Get-FileHash -LiteralPath $alvo).Hash }
+            continue
+        }
         if (-not (Test-Path -LiteralPath $alvo)) { continue }
         foreach ($f in Get-ChildItem -LiteralPath $alvo -Recurse -File) {
-            $m[$f.FullName.Substring($raiz.Length + 1).ToLowerInvariant()] = (Get-FileHash -LiteralPath $f.FullName).Hash
+            $rel = $f.FullName.Substring($raiz.Length + 1)
+            $m[$rel.ToLowerInvariant()] = [pscustomobject]@{ Rel = $rel; Hash = (Get-FileHash -LiteralPath $f.FullName).Hash }
         }
     }
     return $m
 }
+function Difere([string]$k) {
+    $a = $atual[$k]; $n = $novo[$k]
+    return (-not $a) -or ($a.Hash -ne $n.Hash) -or ($a.Rel -cne $n.Rel)
+}
 $novo = Mapa $temp; $atual = Mapa $destino
-$dif = @($novo.Keys | Where-Object { $atual[$_] -ne $novo[$_] }) + @($atual.Keys | Where-Object { -not $novo.ContainsKey($_) })
+$dif = @($novo.Keys | Where-Object { Difere $_ } | ForEach-Object { $novo[$_].Rel }) +
+       @($atual.Keys | Where-Object { -not $novo.ContainsKey($_) } | ForEach-Object { $atual[$_].Rel })
 
 # --- Antigravity (espelho por referência, sem duplicatas)
 $geminiMd    = Join-Path $ac 'GEMINI.md'
@@ -218,12 +232,15 @@ if ($Conferir) {
 # .claude\skills e um terminal pode estar parado dentro dela - apagar a pasta
 # inteira falha no meio e deixa a instalação vazia.
 New-Item -ItemType Directory -Path $destino -Force | Out-Null
-foreach ($rel in $atual.Keys) {
-    if (-not $novo.ContainsKey($rel)) { Remove-Item -LiteralPath (Join-Path $destino $rel) -Force }
+foreach ($k in $atual.Keys) {
+    if (-not $novo.ContainsKey($k)) { Remove-Item -LiteralPath (Join-Path $destino $atual[$k].Rel) -Force }
 }
-foreach ($rel in $novo.Keys) {
-    if ($atual[$rel] -eq $novo[$rel]) { continue }
+foreach ($k in $novo.Keys) {
+    if (-not (Difere $k)) { continue }
+    $rel = $novo[$k].Rel
     $para = Join-Path $destino $rel
+    # sobrescrever mantém a grafia antiga do nome no Windows: só apagando antes ela muda
+    if ($atual[$k] -and $atual[$k].Rel -cne $rel) { Remove-Item -LiteralPath (Join-Path $destino $atual[$k].Rel) -Force }
     New-Item -ItemType Directory -Path (Split-Path -Parent $para) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $temp $rel) -Destination $para -Force
 }
