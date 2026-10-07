@@ -869,6 +869,50 @@ Public Function ListarContatosParaVinculo(ByVal texto As String, Optional ByVal 
         " WHERE ct.ativo=True" & w & " ORDER BY cl.empresa, ct.nome, ct.id", ParaMatriz(ps))
 End Function
 
+'----------------------------------------------------------
+' ATENDIMENTO ANTERIOR (item 4, retomada)
+' Atendimento perdido ou descartado nao ganha proxima acao; se
+' o interesse volta, abre-se um novo apontando para o antigo.
+' Lista: todos os da MESMA empresa, menos o proprio, mais
+' recentes primeiro (entrada nula no fim; TOP com desempate por
+' id). Colunas: id, codigo, etapa, dt_entrada, motivo_desfecho,
+' contato.
+'----------------------------------------------------------
+Public Function ListarAtendimentosDoCliente(ByVal idCliente As Long, ByVal excetoId As Long, _
+                                            Optional ByVal texto As String = "") As Variant
+    Dim w As String, ps As New Collection, k As Long
+    ps.Add modDB.P(modDB.adInteger, idCliente)
+    ps.Add modDB.P(modDB.adInteger, excetoId)
+    If Trim$(texto) <> "" Then
+        w = " AND (op.codigo LIKE ? OR op.etapa LIKE ? OR op.motivo_desfecho LIKE ? OR op.maquina LIKE ? OR ct.nome LIKE ?)"
+        For k = 1 To 5
+            ps.Add modDB.P(modDB.adVarWChar, PadraoLike(texto))
+        Next k
+    End If
+    ListarAtendimentosDoCliente = modDB.Consultar( _
+        "SELECT TOP 300 op.id, op.codigo, op.etapa, op.dt_entrada, op.motivo_desfecho, ct.nome" & _
+        " FROM oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id" & _
+        " WHERE op.id_cliente=? AND op.id<>?" & w & _
+        " ORDER BY IIf(op.dt_entrada Is Null,1,0), op.dt_entrada DESC, op.id DESC", ParaMatriz(ps))
+End Function
+
+'----------------------------------------------------------
+' O anterior nao pode ser o proprio atendimento e tem de ser da
+' mesma empresa. Vazio (0) e aceito: o campo e opcional. A tela
+' ja so lista os da empresa; isto e a barreira ao salvar (o
+' contato, e com ele a empresa, pode ter mudado depois).
+'----------------------------------------------------------
+Public Function CriticarAnterior(ByVal idProprio As Long, ByVal idAnterior As Long, _
+                                 ByVal idCliente As Long, ByVal idClienteAnterior As Long) As String
+    If idAnterior = 0 Then Exit Function
+    If idAnterior = idProprio Then
+        CriticarAnterior = "O atendimento anterior não pode ser o próprio atendimento."
+    ElseIf idClienteAnterior <> idCliente Then
+        CriticarAnterior = "O atendimento anterior tem de ser da mesma empresa do contato." & vbCrLf & vbCrLf & _
+                           "Escolha de novo pelo botão ao lado do campo, ou remova o vínculo."
+    End If
+End Function
+
 Public Function ListarClientesParaVinculo(ByVal texto As String) As Variant
     Dim w As String, ps As Variant, dig As String
     If Trim$(texto) <> "" Then

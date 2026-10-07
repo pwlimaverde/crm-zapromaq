@@ -83,6 +83,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
     Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
     Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
+    ' item 4: o anterior nao pode ser o proprio atendimento nem de outra empresa
+    Confere "anterior vazio aceito", modCRM.CriticarAnterior(10, 0, 3, 0), ""
+    Confere "anterior da mesma empresa aceito", modCRM.CriticarAnterior(10, 7, 3, 3), ""
+    Confere "anterior no atendimento novo", modCRM.CriticarAnterior(0, 7, 3, 3), ""
+    Confere "anterior = o proprio recusado", (modCRM.CriticarAnterior(10, 10, 3, 3) <> ""), True
+    Confere "anterior de outra empresa recusado", (modCRM.CriticarAnterior(10, 7, 3, 4) <> ""), True
     ' botao de cada campo de vinculo: so na edicao; o do contato so em
     ' atendimento ja gravado (o novo escolhe empresa e contato em 2 passos)
     Confere "botao contato na edicao", modCRM.BotaoVinculoAtivo("id_contato", True, False, 5), True

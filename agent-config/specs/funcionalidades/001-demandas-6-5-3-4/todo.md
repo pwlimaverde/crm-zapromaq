@@ -24,7 +24,7 @@
   - Teste primeiro: `Confere ChaveSituacao` · Verificar: `-Completo`
 - [x] 4.1 Campo `id_atendimento_anterior` na ficha e na consulta
   - Teste primeiro: `verificar.py` + `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 4.2 `CriticarAnterior` e `ListarAtendimentosDoCliente`
+- [x] 4.2 `CriticarAnterior` e `ListarAtendimentosDoCliente`
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 4.3 Escolha, abertura e remoção do anterior na ficha 🖥
   - Teste primeiro: contrato + `Confere` · Verificar: `-Rapido` + build `-Teste`
