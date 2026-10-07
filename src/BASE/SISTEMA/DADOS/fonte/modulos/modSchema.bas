@@ -83,6 +83,8 @@ Public Function CamposDe(ByVal tabela As String) As Variant
     Add c, "cargo|Cargo|R||1. Cliente e contato|0|0"
     Add c, "telefone|Telefone|R||1. Cliente e contato|0|0"
     Add c, "email|E-mail|R||1. Cliente e contato|0|0"
+    ' retomada (item 4): coluna que ja existia no esquema 1.0 e que a IA ja grava
+    Add c, "id_atendimento_anterior|Atendimento anterior|K||1. Cliente e contato|0|1"
     Add c, "orcamento|Orçamento|T||2. Negociação|0|1"
     Add c, "etapa|Etapa|L|Etapa|2. Negociação|1|1"
     Add c, "responsavel|Responsável|L|Responsavel|2. Negociação|1|1"

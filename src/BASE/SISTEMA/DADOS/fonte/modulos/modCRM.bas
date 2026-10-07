@@ -595,9 +595,11 @@ Public Function SQLOportunidades(ByVal busca As String, ByVal etapa As String, _
         " op.orcamento, op.etapa, op.responsavel, op.maquina, op.familia, op.categoria," & _
         " op.tipo_venda, op.valor, op.origem, op.prioridade, op.dt_entrada, op.dt_proposta," & _
         " op.ultima_interacao, op.tentativas, op.prox_acao, op.dt_prox_acao, op.retomar_em," & _
-        " op.motivo_desfecho, op.dt_desfecho, op.observacoes, op.ctx_resumo, op.versao, cl.estagio" & _
-        " FROM (oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
-        " LEFT JOIN clientes cl ON op.id_cliente=cl.id" & _
+        " op.motivo_desfecho, op.dt_desfecho, op.observacoes, op.ctx_resumo, op.versao, cl.estagio," & _
+        " op.id_atendimento_anterior, ant.codigo AS codigo_anterior" & _
+        " FROM ((oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
+        " LEFT JOIN clientes cl ON op.id_cliente=cl.id)" & _
+        " LEFT JOIN oportunidades ant ON op.id_atendimento_anterior=ant.id" & _
         " WHERE 1=1" & w & OrdemOportunidades(ordem)
 End Function
 

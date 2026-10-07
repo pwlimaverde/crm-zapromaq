@@ -97,7 +97,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Parte", modSchema.Parte("a|b|c", 1), "b"
     ' a ficha guarda um vinculo POR CAMPO K: com dois campos K na mesma
     ' tabela, um id unico gravaria o contato no lugar do outro vinculo
-    Confere "CamposK oportunidades", modSchema.CamposK("oportunidades"), "id_contato"
+    Confere "CamposK oportunidades", modSchema.CamposK("oportunidades"), "id_contato,id_atendimento_anterior"
     Confere "CamposK contatos", modSchema.CamposK("contatos"), "id_cliente"
     Confere "CamposK clientes", modSchema.CamposK("clientes"), ""
 

@@ -22,7 +22,7 @@
   - Teste primeiro: `testar-uso` · Verificar: `-Rapido` + build `-Teste`
 - [x] 3.4 Ficha: filtro de situação em clientes e contatos 🖥
   - Teste primeiro: `Confere ChaveSituacao` · Verificar: `-Completo`
-- [ ] 4.1 Campo `id_atendimento_anterior` na ficha e na consulta
+- [x] 4.1 Campo `id_atendimento_anterior` na ficha e na consulta
   - Teste primeiro: `verificar.py` + `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 4.2 `CriticarAnterior` e `ListarAtendimentosDoCliente`
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
