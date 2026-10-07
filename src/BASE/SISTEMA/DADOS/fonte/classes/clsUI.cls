@@ -63,6 +63,24 @@ Public Sub Preparar(ByVal frm As Object)
     Next c
 End Sub
 
+'----------------------------------------------------------
+' Botao criado em TEMPO DE EXECUCAO (ex.: o botao de cada campo de
+' vinculo da ficha, criado com os campos). Controle criado por
+' Controls.Add nao dispara o <nome>_Click do formulario, entao o
+' clique no TEXTO tambem e repassado por UI_Acao("<nome>").
+' Religar o mesmo nome substitui o botao anterior.
+'----------------------------------------------------------
+Public Sub LigarBotao(ByVal fundo As Object, ByVal texto As Object, ByVal icone As Object, _
+                      ByVal variante As String)
+    Dim b As clsBotao
+    On Error Resume Next
+    mBotoes.Remove texto.Name
+    On Error GoTo 0
+    Set b = New clsBotao
+    b.Ligar mForm, Me, fundo, texto, icone, variante, True
+    mBotoes.Add b, texto.Name
+End Sub
+
 Public Function Grade(ByVal nome As String) As clsGrade
     Set Grade = mGrades(nome)
 End Function

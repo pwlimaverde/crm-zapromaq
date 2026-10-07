@@ -119,6 +119,14 @@ Public Sub AlinharDireita(ByVal coluna As Long)
     If mMontada Then Redesenhar
 End Sub
 
+' A cor do selo vem do estado ANTES de " - ": "SUSPEITO - FORA" e
+' "SUSPEITO - ENTRA" (lote) pintam como SUSPEITO, sem uma cor por rotulo.
+Public Function ChaveSelo(ByVal texto As String) As String
+    Dim p As Long
+    p = InStr(texto, " - ")
+    If p > 0 Then ChaveSelo = Left$(texto, p - 1) Else ChaveSelo = texto
+End Function
+
 Public Property Let ColunaSelo(ByVal coluna As Long)
     mColSelo = coluna
 End Property
@@ -321,7 +329,7 @@ Private Sub DesenharLinha(ByVal pos As Long)
         If j = mColSelo And t <> "" Then
             ' ponto + texto na cor da situacao (Segoe UI tem o U+25CF)
             lb.Caption = ChrW$(&H25CF) & " " & t
-            lb.ForeColor = modTema.CorSituacao(t, "texto")
+            lb.ForeColor = modTema.CorSituacao(ChaveSelo(t), "texto")
             lb.Font.Bold = True
         Else
             lb.Caption = t

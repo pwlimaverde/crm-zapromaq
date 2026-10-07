@@ -67,17 +67,71 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "MontarCodigo", modCRM.MontarCodigo("AT", 11, 148), "AT-0011-0148"
     Confere "CodigoVisualCliente", modCRM.CodigoVisualCliente(7), "0007"
     Confere "CodigoVisualCliente nulo", modCRM.CodigoVisualCliente(Null), ""
+    ' item 3: filtro de situacao do cadastro (o SQL e so texto: sem banco)
+    Dim ps As Variant
+    Confere "SQL clientes ativos", (InStr(modCRM.SQLClientes("", "", "", ps, situacao:="ativos"), "cl.ativo=True") > 0), True
+    Confere "SQL clientes inativos", (InStr(modCRM.SQLClientes("", "", "", ps, situacao:="inativos"), "cl.ativo=False") > 0), True
+    Confere "SQL clientes todos", (InStr(modCRM.SQLClientes("", "", "", ps, situacao:="todos"), "cl.ativo=") = 0), True
+    Confere "SQL contatos ativos", (InStr(modCRM.SQLContatos("", ps, situacao:="ativos"), "ct.ativo=True") > 0), True
+    Confere "SQL contatos inativos", (InStr(modCRM.SQLContatos("", ps, situacao:="inativos"), "ct.ativo=False") > 0), True
+    ' combo da ficha e lista da aba: as mesmas opcoes, Ativos primeiro (padrao)
+    Confere "OpcoesSituacao", Join(modCRM.OpcoesSituacao(), "|"), "Ativos|Inativos|Todos"
+    Confere "ChaveSituacao Inativos", modCRM.ChaveSituacao("Inativos"), "inativos"
+    Confere "ChaveSituacao vazio", modCRM.ChaveSituacao(""), "todos"
+    ' item 6: o atendimento so troca de contato dentro da mesma empresa
+    ' (o codigo AT- e congelado e nomeia a pasta do cliente)
+    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
+    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
+    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
+    ' item 4: o anterior nao pode ser o proprio atendimento nem de outra empresa
+    Confere "anterior vazio aceito", modCRM.CriticarAnterior(10, 0, 3, 0), ""
+    Confere "anterior da mesma empresa aceito", modCRM.CriticarAnterior(10, 7, 3, 3), ""
+    Confere "anterior no atendimento novo", modCRM.CriticarAnterior(0, 7, 3, 3), ""
+    Confere "anterior = o proprio recusado", (modCRM.CriticarAnterior(10, 10, 3, 3) <> ""), True
+    Confere "anterior de outra empresa recusado", (modCRM.CriticarAnterior(10, 7, 3, 4) <> ""), True
+    ' botao de cada campo de vinculo: so na edicao; o do contato so em
+    ' atendimento ja gravado (o novo escolhe empresa e contato em 2 passos)
+    Confere "botao contato na edicao", modCRM.BotaoVinculoAtivo("id_contato", True, False, 5), True
+    Confere "botao contato no atendimento novo", modCRM.BotaoVinculoAtivo("id_contato", True, True, 0), False
+    Confere "botao contato em leitura", modCRM.BotaoVinculoAtivo("id_contato", False, False, 5), False
+    Confere "botao empresa do contato novo", modCRM.BotaoVinculoAtivo("id_cliente", True, True, 0), True
+    ' o anterior e da empresa do contato: sem contato nao ha o que listar
+    Confere "botao anterior sem contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 0), False
+    Confere "botao anterior com contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 5), True
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True
     Confere "CamposDe oportunidades", (UBound(modSchema.CamposDe("oportunidades")) >= 20), True
     Confere "ColunasPlanilha", (UBound(modSchema.ColunasPlanilha("oportunidades", False)) >= 5), True
     Confere "Parte", modSchema.Parte("a|b|c", 1), "b"
+    ' a ficha guarda um vinculo POR CAMPO K: com dois campos K na mesma
+    ' tabela, um id unico gravaria o contato no lugar do outro vinculo
+    Confere "CamposK oportunidades", modSchema.CamposK("oportunidades"), "id_contato,id_atendimento_anterior"
+    Confere "CamposK contatos", modSchema.CamposK("contatos"), "id_cliente"
+    Confere "CamposK clientes", modSchema.CamposK("clientes"), ""
 
     ' ---- modGrade / modAcoes / modLote
     Confere "TabelaDaAba", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Clientes")), "clientes"
     Confere "TabelaDaAba fora", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Inicio")), ""
     Confere "RotuloStatus", modAcoes.RotuloStatus("contatos", 0, True), "Desativar"
+    ' item 5 (06/10/2026): SUSPEITO comeca fora; OK e SUSPEITO alternam
+    Confere "lote: SUSPEITO comeca ignorado", modLote.ComecaIgnorada("SUSPEITO"), True
+    Confere "lote: OK comeca entrando", modLote.ComecaIgnorada("OK"), False
+    Confere "lote: OK alterna", modLote.PodeAlternar("OK"), True
+    Confere "lote: SUSPEITO alterna", modLote.PodeAlternar("SUSPEITO"), True
+    Confere "lote: DUPLICADO nao alterna", modLote.PodeAlternar("DUPLICADO"), False
+    Confere "lote: ERRO nao alterna", modLote.PodeAlternar("ERRO"), False
+    Confere "lote: rotulo SUSPEITO incluido", modLote.RotuloLinha("SUSPEITO", False), "SUSPEITO - ENTRA"
+    Confere "lote: rotulo SUSPEITO fora", modLote.RotuloLinha("SUSPEITO", True), "SUSPEITO - FORA"
+    Confere "lote: rotulo OK ignorado", modLote.RotuloLinha("OK", True), "OK - IGNORAR"
+    Confere "lote: rotulo OK", modLote.RotuloLinha("OK", False), "OK"
+    Confere "lote: rotulo DUPLICADO", modLote.RotuloLinha("DUPLICADO", False), "DUPLICADO"
+    Confere "lote: ajuda explica o duplo clique", (InStr(modLote.TextoAjuda(), "Suspeito come" & ChrW$(&HE7) & "a fora") > 0), True
+    Confere "lote: aviso de quem nao alterna", (Left$(modLote.AvisoNaoAlterna(), 25) = "S" & ChrW$(&HF3) & " OK e SUSPEITO alternam"), True
+    ' o selo da grade pinta pelo estado antes do " - " (SUSPEITO - FORA = SUSPEITO)
+    Dim g As New clsGrade
+    Confere "selo pelo prefixo", g.ChaveSelo("SUSPEITO - FORA"), "SUSPEITO"
+    Confere "selo sem prefixo", g.ChaveSelo("Em dia"), "Em dia"
     Confere "NomeNormalizado", modLote.NomeNormalizado("Ind" & ChrW$(&HFA) & "stria D'" & ChrW$(&HC2) & "ngelo LTDA"), "D ANGELO"
 
     ' ---- tema e tela (visual)
@@ -103,6 +157,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Set f = New frmLote: Unload f: Set f = Nothing
     Set f = New frmCalibracao: Unload f: Set f = Nothing
     Set f = New frmVinculo: Unload f: Set f = Nothing
+    ContratoFormularios
 
     If mFalhas = "" Then Autoteste = "OK " & mTestes & " testes" Else Autoteste = "FALHA" & mFalhas
     Exit Function
@@ -120,6 +175,26 @@ Private Sub Confere(ByVal nome As String, ByVal obtido As Variant, ByVal esperad
         Exit Sub
     End If
     mFalhas = mFalhas & vbLf & nome & ": esperado [" & Texto(esperado) & "], obtido [" & Texto(obtido) & "]"
+End Sub
+
+'----------------------------------------------------------
+' CONTRATO DOS FORMULARIOS
+' Os formularios sao modais: chamar o metodo mostraria a tela e
+' travaria o build. Com a variavel TIPADA, um metodo que nao
+' existe e erro de compilacao - o build para antes de publicar.
+' O If False garante que nada roda; o comportamento se confere
+' na estacao (itens marcados na spec).
+'----------------------------------------------------------
+Private Sub ContratoFormularios()
+    Dim fv As frmVinculo, ui As clsUI
+    If False Then
+        Set fv = New frmVinculo
+        Call fv.EscolherContatoDe(0)
+        Call fv.EscolherAtendimentoDe(0, 0)
+        ' botao criado em tempo de execucao (campos de vinculo da ficha)
+        Set ui = New clsUI
+        ui.LigarBotao Nothing, Nothing, Nothing, "neutro"
+    End If
 End Sub
 
 ' CStr(Null) e erro: o relato da falha nao pode quebrar o autoteste.

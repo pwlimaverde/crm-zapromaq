@@ -190,7 +190,8 @@ Regras que o conector confere e recusa com mensagem:
 
 - **Abrir:** `abrir_atendimento` com o contato (`codigo_contato`), `etapa` e `responsavel`.
   Mesmas críticas de `atualizar_atendimento`; `dt_entrada` vem hoje se omitida. Retomada:
-  `codigo_atendimento_anterior`. Pré-cliente exige `promover_pre_cliente=true`.
+  `codigo_atendimento_anterior` — só atendimento da mesma empresa do contato (outra empresa é
+  recusada, como no front). Pré-cliente exige `promover_pre_cliente=true`.
 - **Trocar o contato:** `atualizar_atendimento` com `codigo_contato` — só contato ativo da mesma empresa.
 - Atendimento não se exclui nem desativa: encerra-se pela etapa (Pedido Fechado, Perdido, Descartado).
 

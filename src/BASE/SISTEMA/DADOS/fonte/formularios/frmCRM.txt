@@ -37,7 +37,13 @@ Private mID As Long
 Private mVersao As Long
 Private mNovo As Boolean
 Private mEditando As Boolean
-Private mVinculoID As Long         ' id do cliente/contato escolhido
+' Vinculos (campos K) POR CAMPO: campo -> id escolhido (0 = vazio).
+' Um id unico para a tabela gravaria o contato no lugar de outro
+' vinculo quando a ficha tiver dois campos K (atendimento anterior).
+Private mVinculos As Object
+Private mCamposK As Variant        ' campos K da tabela (modSchema.CamposK)
+Private mClienteRegistro As Long   ' empresa (id_cliente) do registro exibido
+Private mContatoLido As Long       ' id_contato lido ao entrar em edicao
 Private mAtivo As Boolean          ' registro exibido esta ativo?
 Private mConjunto As Variant       ' ids vindos da grade, na ordem da tela
 Private mPos As Long               ' posicao atual dentro de mConjunto
@@ -64,6 +70,7 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
     mTabela = tabela
     mCadastroRapido = novo
     mCampos = modSchema.CamposDe(tabela)
+    mCamposK = Split(modSchema.CamposK(tabela), ",")
     mCarregando = True
     mUltimoIndice = -1
 
@@ -85,6 +92,7 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
             If cboFiltro1.Visible Then cboFiltro1.ListIndex = 0
             If cboFiltro2.Visible Then cboFiltro2.ListIndex = 0
             If cboFiltro3.Visible Then cboFiltro3.ListIndex = 0
+            SituacaoSemFiltro
             On Error GoTo 0
         End If
     End If
@@ -97,13 +105,8 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
         mAbrindoComVinculo = True
         cmdNovo_Click
         mAbrindoComVinculo = False
-        mVinculoID = vinculoInicial
-        If mTabela = "oportunidades" Then
-            DefinirValor "id_contato", "K", mVinculoID
-        ElseIf mTabela = "contatos" Then
-            DefinirValor "id_cliente", "K", mVinculoID
-        End If
-        AtualizarResumos
+        DefinirValor CampoPrincipal(), "K", vinculoInicial
+        VinculoEscolhido CampoPrincipal()
     ElseIf novo Then
         cmdNovo_Click
     Else
@@ -123,6 +126,7 @@ Private Sub UserForm_Initialize()
     Set mUI = New clsUI
     mUI.Preparar Me
     Set mGrade = mUI.Grade("grdReg")
+    Set mVinculos = CreateObject("Scripting.Dictionary")
 End Sub
 
 '----------------------------------------------------------
@@ -311,6 +315,15 @@ Private Sub MontarCampos()
             Chapado ctl
 
             If tipo = "K" Then
+                ' O id e curto: o campo encolhe e o botao do vinculo fica
+                ' ao lado dele (trocar o contato sem refazer a busca da
+                ' empresa - item 6). Criado aqui, junto com o campo.
+                ctl.Width = L_CAMPO - 40
+                BotaoDoVinculo "kb_" & campo, ctl.Left + ctl.Width + 3, y + 1, _
+                               modTema.ICO_EDITAR, "Trocar " & LCase$(rotulo)
+                ' e o que abre a ficha do registro vinculado, em leitura
+                BotaoDoVinculo "kv_" & campo, ctl.Left + ctl.Width + 21, y + 1, _
+                               modTema.ICO_DOCUMENTO, "Abrir a ficha"
                 ' o resumo do vinculo ocupa a linha inteira embaixo
                 Set lb = fraCampos.Controls.Add("Forms.Label.1", "r_" & campo, True)
                 lb.Left = X_COL0: lb.Top = y + 21: lb.Width = util: lb.Height = 14
@@ -334,13 +347,55 @@ Private Sub MontarCampos()
 End Sub
 
 '----------------------------------------------------------
+' Botao pequeno de um campo de vinculo (fundo + glifo), criado em
+' tempo de execucao dentro de fraCampos. Nao existe no layout: o
+' clique chega por UI_Acao("kb_<campo>"), via clsUI.LigarBotao.
+'----------------------------------------------------------
+Private Sub BotaoDoVinculo(ByVal nome As String, ByVal esq As Single, ByVal topo As Single, _
+                           ByVal icone As Long, ByVal dica As String)
+    Dim fundo As MSForms.Label, texto As MSForms.Label
+    Set fundo = fraCampos.Controls.Add("Forms.Label.1", "bg_" & nome, True)
+    fundo.Left = esq: fundo.Top = topo: fundo.Width = 16: fundo.Height = 16
+    fundo.BackStyle = 1                        ' fmBackStyleOpaque
+    fundo.ControlTipText = dica
+    Set texto = fraCampos.Controls.Add("Forms.Label.1", nome, True)
+    texto.Left = esq: texto.Top = topo + 3: texto.Width = 16: texto.Height = 12
+    texto.BackStyle = 0                        ' fmBackStyleTransparent
+    texto.TextAlign = 2                        ' fmTextAlignCenter
+    texto.Font.Name = modTema.FONTE_ICONES
+    texto.Font.Size = 8
+    texto.Font.Charset = 2                     ' simbolo (ver clsUI: glifo)
+    texto.Caption = modTema.Glifo(icone)
+    texto.ControlTipText = dica
+    mUI.LigarBotao fundo, texto, Nothing, "neutro"
+End Sub
+
+' Liga e desliga os botoes dos vinculos conforme o modo da ficha.
+Private Sub AjustarBotoesVinculo()
+    Dim k As Variant
+    If Not IsArray(mCamposK) Then Exit Sub
+    On Error Resume Next
+    For Each k In mCamposK
+        fraCampos.Controls("kb_" & k).Enabled = modCRM.BotaoVinculoAtivo(CStr(k), mEditando, mNovo, _
+                                                                        VinculoDe("id_contato"))
+        ' abrir outra ficha so em leitura (como Cliente/Contato do rodape)
+        fraCampos.Controls("kv_" & k).Enabled = (Not mEditando And VinculoDe(CStr(k)) <> 0)
+    Next k
+    On Error GoTo 0
+    Repintar
+End Sub
+
+'----------------------------------------------------------
 ' O TOPO DA FICHA MUDA COM A TABELA
 '
 ' Cada tela tem os filtros que fazem sentido, e a lista cresce
 ' para ocupar o que sobra - em vez de deixar um vazio grande:
 '   oportunidades .. 3 filtros + situacao/ordem (2 linhas)
-'   clientes ....... 2 filtros + ordem, na mesma linha
-'   contatos ....... so a busca
+'   clientes ....... 2 filtros + ordem; situacao do cadastro
+'                    na 2a linha
+'   contatos ....... a busca e a situacao do cadastro
+' A situacao do cadastro (Ativos/Inativos/Todos, item 3) usa o
+' mesmo lblSituacao/cboSituacao do atendimento, reposicionado.
 ' A altura da grade e definida ANTES de PrepararGrade, que e
 ' quem monta as linhas (clsGrade usa a altura do quadro).
 '----------------------------------------------------------
@@ -354,10 +409,14 @@ Private Sub Geometria()
             lblOrdem.Left = 358: lblOrdem.Top = 98: lblOrdem.Width = 160
             cboOrdem.Left = 358: cboOrdem.Top = 111: cboOrdem.Width = 160
             lblOrdem.Visible = True: cboOrdem.Visible = True
-            topo = 140
+            lblSituacao.Left = 22: lblSituacao.Top = 136
+            cboSituacao.Left = 22: cboSituacao.Top = 149
+            topo = 176
         Case Else
             lblOrdem.Visible = False: cboOrdem.Visible = False
-            topo = 100
+            lblSituacao.Left = 22: lblSituacao.Top = 98
+            cboSituacao.Left = 22: cboSituacao.Top = 111
+            topo = 140
     End Select
     grdReg.Top = topo
     grdReg.Height = lblStatus.Top - 4 - topo
@@ -400,7 +459,7 @@ Private Sub PrepararFiltros()
             chkAbertas.Visible = True
             chkAbertas.Caption = "Somente em aberto"
             chkAbertas.Value = True
-            MostrarSituacao True
+            SituacaoDoAtendimento
             PreencherOrdem Array("codigo|Atendimento (mais novo)", _
                                  "prox|Pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", _
                                  "etapa|Etapa e depois pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", _
@@ -420,7 +479,7 @@ Private Sub PrepararFiltros()
             lblFiltro3.Visible = False
             cboFiltro3.Visible = False
             chkAbertas.Visible = False
-            MostrarSituacao False
+            SituacaoDoCadastro
             PreencherOrdem Array("codigo|C" & ChrW$(&HF3) & "digo", _
                                  "empresa|Empresa", _
                                  "cidade|UF e cidade", _
@@ -430,7 +489,7 @@ Private Sub PrepararFiltros()
             lblFiltro2.Visible = False: cboFiltro2.Visible = False
             lblFiltro3.Visible = False: cboFiltro3.Visible = False
             chkAbertas.Visible = False
-            MostrarSituacao False
+            SituacaoDoCadastro
             PreencherOrdem Array("codigo|C" & ChrW$(&HF3) & "digo", "empresa|Empresa", "nome|Contato")
     End Select
 
@@ -453,10 +512,9 @@ End Sub
 ' consulta - por isso ele fica junto do "somente em aberto" e
 ' da ordenacao, e nao com os filtros que vao no SQL.
 '----------------------------------------------------------
-Private Sub MostrarSituacao(ByVal mostrar As Boolean)
-    lblSituacao.Visible = mostrar
-    cboSituacao.Visible = mostrar
-    If Not mostrar Then Exit Sub
+Private Sub SituacaoDoAtendimento()
+    lblSituacao.Visible = True
+    cboSituacao.Visible = True
     cboSituacao.Clear
     cboSituacao.AddItem "(todas)"
     cboSituacao.AddItem "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
@@ -469,6 +527,33 @@ Private Sub MostrarSituacao(ByVal mostrar As Boolean)
     cboSituacao.ListIndex = 0
 End Sub
 
+'----------------------------------------------------------
+' Situacao do CADASTRO (clientes e contatos): Ativos, Inativos
+' ou Todos. Esta vai no SQL (cl.ativo / ct.ativo); abre em
+' Ativos, como a aba.
+'----------------------------------------------------------
+Private Sub SituacaoDoCadastro()
+    Dim op As Variant
+    lblSituacao.Visible = True
+    cboSituacao.Visible = True
+    cboSituacao.Clear
+    For Each op In modCRM.OpcoesSituacao()
+        cboSituacao.AddItem CStr(op)
+    Next op
+    cboSituacao.ListIndex = 0
+End Sub
+
+' Sem filtro de situacao: "(todas)" no atendimento, "Todos" no
+' cadastro (ultima opcao) - registro inativo tambem e achado.
+Private Sub SituacaoSemFiltro()
+    If Not cboSituacao.Visible Then Exit Sub
+    If mTabela = "oportunidades" Then
+        cboSituacao.ListIndex = 0
+    Else
+        cboSituacao.ListIndex = cboSituacao.ListCount - 1
+    End If
+End Sub
+
 Private Sub cboSituacao_Change()
     If Not mCarregando Then SairDoConjunto: Buscar
 End Sub
@@ -476,6 +561,7 @@ End Sub
 ' Mantem so as linhas da situacao escolhida (a consulta ja veio).
 Private Sub FiltrarPorSituacao()
     Dim alvo As String, i As Long, j As Long, n As Long, r() As Variant
+    If mTabela <> "oportunidades" Then Exit Sub   ' cadastro: a situacao foi no SQL
     If Not cboSituacao.Visible Then Exit Sub
     If cboSituacao.ListIndex <= 0 Then Exit Sub
     If IsEmpty(mDados) Then Exit Sub
@@ -551,7 +637,7 @@ End Sub
 Public Sub Buscar()
     Dim sql As String, params As Variant, cols As Variant
     Dim i As Long, j As Long, p As Variant, tela() As String
-    Dim filtro1 As String, filtro2 As String, filtro3 As String
+    Dim filtro1 As String, filtro2 As String, filtro3 As String, situacao As String
 
     On Error GoTo trata
     Me.MousePointer = fmMousePointerHourGlass
@@ -566,10 +652,14 @@ Public Sub Buscar()
         If cboFiltro3.ListIndex > 0 Then filtro3 = cboFiltro3.Value
     End If
 
+    If mTabela <> "oportunidades" And cboSituacao.Visible Then
+        situacao = modCRM.ChaveSituacao(CStr(cboSituacao.Value))
+    End If
+
     Select Case mTabela
         Case "clientes":      sql = modCRM.SQLClientes(txtBusca.Text, filtro1, filtro2, params, _
-                                                       filtro3, OrdemEscolhida())
-        Case "contatos":      sql = modCRM.SQLContatos(txtBusca.Text, params, OrdemEscolhida())
+                                                       filtro3, OrdemEscolhida(), , situacao)
+        Case "contatos":      sql = modCRM.SQLContatos(txtBusca.Text, params, OrdemEscolhida(), , situacao)
         Case "oportunidades": sql = modCRM.SQLOportunidades(txtBusca.Text, filtro1, filtro2, _
                                                             (chkAbertas.Value = True), params, _
                                                             filtro3, OrdemEscolhida())
@@ -608,7 +698,10 @@ Public Sub Buscar()
                             "   |   mude um filtro para ver todos"
     Else
         lblStatus.Caption = mGrade.ListCount & " registro(s)" & _
-                            IIf(cboSituacao.Visible And cboSituacao.ListIndex > 0, " em " & cboSituacao.Value, "") & _
+                            IIf(cboSituacao.Visible And cboSituacao.ListIndex > 0 And mTabela = "oportunidades", _
+                                " em " & cboSituacao.Value, "") & _
+                            IIf(mTabela <> "oportunidades" And cboSituacao.Visible, _
+                                " (" & LCase$(CStr(cboSituacao.Value)) & ")", "") & _
                             "   |   Consulta de " & Format$(Now, "hh:nn:ss")
     End If
     lblStatus.ForeColor = modTema.COR_TEXTO2
@@ -684,6 +777,12 @@ Public Sub UI_Acao(ByVal nome As String)
         Case "cmdRel2":        cmdRel2_Click
         Case "cmdStatus":      cmdStatus_Click
         Case "cmdFechar":      cmdFechar_Click
+        Case Else
+            ' botoes dos campos de vinculo, criados em MontarCampos
+            ' VBA.Mid$, nao Mid$: o VBA nao diferencia maiusculas e Mid
+            ' seria a variavel mID deste formulario
+            If Left$(nome, 3) = "kb_" Then TrocarVinculo VBA.Mid$(nome, 4)
+            If Left$(nome, 3) = "kv_" Then AbrirVinculado VBA.Mid$(nome, 4)
     End Select
 End Sub
 
@@ -739,7 +838,7 @@ Private Function SelecionarID(ByVal idRegistro As Long) As Boolean
     On Error Resume Next
     chkAbertas.Value = False
     txtBusca.Text = ""
-    If cboSituacao.Visible Then cboSituacao.ListIndex = 0
+    SituacaoSemFiltro
     If cboFiltro1.Visible Then cboFiltro1.ListIndex = 0
     If cboFiltro2.Visible Then cboFiltro2.ListIndex = 0
     If cboFiltro3.Visible Then cboFiltro3.ListIndex = 0
@@ -771,17 +870,13 @@ Private Sub ExibirRegistro(ByVal linha As Long)
     mID = CLng(Campo(linha, "id"))
     mVersao = CLng(modDB.Nz(Campo(linha, "versao"), "1"))
     mNovo = False
+    mClienteRegistro = CLng(modDB.Nz(Campo(linha, "id_cliente"), "0"))
 
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         DefinirValor CStr(spec(0)), CStr(spec(2)), Campo(linha, CStr(spec(0)))
     Next i
 
-    If mTabela = "oportunidades" Then
-        mVinculoID = CLng(modDB.Nz(Campo(linha, "id_contato"), "0"))
-    ElseIf mTabela = "contatos" Then
-        mVinculoID = CLng(modDB.Nz(Campo(linha, "id_cliente"), "0"))
-    End If
     AtualizarResumos linha
 
     ' CBool e nao CStr: o texto de um Boolean depende do idioma do Office
@@ -804,6 +899,11 @@ End Sub
 
 Private Sub DefinirValor(ByVal campo As String, ByVal tipo As String, ByVal v As Variant)
     Dim ctl As MSForms.Control
+    ' Vinculo: o id fica guardado por campo, sempre junto com o que a
+    ' tela mostra - exibir, editar, limpar e escolher passam por aqui.
+    If tipo = "K" Then
+        If IsNumeric(v) Then mVinculos(campo) = CLng(v) Else mVinculos(campo) = 0
+    End If
     On Error Resume Next
     Set ctl = fraCampos.Controls("c_" & campo)
     On Error GoTo 0
@@ -857,6 +957,7 @@ Private Sub ModoLeitura()
     AjustarBotaoAcao
     AjustarBotaoStatus
     AjustarBotoesRelacao
+    AjustarBotoesVinculo
     AtualizarNavegacao
 End Sub
 
@@ -913,6 +1014,7 @@ Private Sub ModoEdicao()
     cmdStatus.Enabled = False
     On Error GoTo 0
     AjustarBotoesRelacao
+    AjustarBotoesVinculo
     AtualizarNavegacao
 End Sub
 
@@ -962,7 +1064,7 @@ End Sub
 
 Private Sub cmdNovo_Click()
     Dim i As Long, spec As Variant
-    mNovo = True: mID = 0: mVersao = 0: mVinculoID = 0
+    mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         DefinirValor CStr(spec(0)), CStr(spec(2)), Null
@@ -979,7 +1081,7 @@ Private Sub cmdNovo_Click()
     mUltimoIndice = -1
     ModoEdicao
     ' atendimento e contato novos precisam do vinculo: ja abre a escolha
-    If mTabela <> "clientes" And Not mAbrindoComVinculo Then EscolherVinculo
+    If CampoPrincipal() <> "" And Not mAbrindoComVinculo Then EscolherVinculo CampoPrincipal()
 End Sub
 
 '----------------------------------------------------------
@@ -1008,6 +1110,7 @@ Private Sub cmdEditar_Click()
         End If
     Next i
     mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
+    mContatoLido = VinculoDe("id_contato")
 
     ModoEdicao
     lblStatus.Caption = "Editando. Versão " & mVersao & " lida às " & Format$(Now, "hh:nn:ss") & "."
@@ -1060,6 +1163,7 @@ Private Sub cmdSalvar_Click()
         Case "contatos":      critica = modValidacao.CriticarContato(d)
         Case "oportunidades": critica = modValidacao.CriticarOportunidade(d)
     End Select
+    If critica = "" Then critica = CriticarVinculos()
     If critica <> "" Then
         MsgBox critica, vbExclamation, "CRM Zapromaq"
         Exit Sub
@@ -1081,9 +1185,9 @@ Private Sub cmdSalvar_Click()
                 novoId = modCRM.CriarCliente(d, PerguntarSeCliente(), codNovo)
                 codigo = IIf(codNovo > 0, modCRM.CodigoVisualCliente(codNovo), "pré-cliente")
             Case "contatos"
-                novoId = modCRM.CriarContato(mVinculoID, d, codigo)
+                novoId = modCRM.CriarContato(VinculoDe("id_cliente"), d, codigo)
             Case "oportunidades"
-                novoId = modCRM.AbrirAtendimento(mVinculoID, d, codigo)
+                novoId = modCRM.AbrirAtendimento(VinculoDe("id_contato"), d, codigo)
         End Select
         Me.MousePointer = fmMousePointerDefault
         If novoId = 0 Then Exit Sub
@@ -1188,7 +1292,7 @@ Private Function MontarDados() As Object
             Case "D": d(campo) = modValidacao.ComoData(bruto)
             Case "C": d(campo) = modValidacao.ComoNumero(bruto)
             Case "N": d(campo) = modValidacao.ComoInteiro(bruto)
-            Case "K": d(campo) = IIf(mVinculoID = 0, Null, mVinculoID)
+            Case "K": d(campo) = IIf(VinculoDe(campo) = 0, Null, VinculoDe(campo))
             Case Else: d(campo) = modValidacao.Normalizar(campo, bruto)
         End Select
 proximo:
@@ -1200,31 +1304,153 @@ End Function
 ' VINCULO - busca por nome, nao por id
 '==========================================================
 Private Sub cmdVinculo_Click()
-    EscolherVinculo
+    TrocarVinculo CampoPrincipal()
 End Sub
+
+'----------------------------------------------------------
+' Botao do campo de vinculo (kb_<campo>) ou Procurar. Contato de
+' atendimento JA GRAVADO: so os contatos da mesma empresa, direto
+' no passo 2 - o atendimento nao troca de empresa. Atendimento
+' novo: empresa e contato, em dois passos.
+'----------------------------------------------------------
+Private Sub TrocarVinculo(ByVal nomeCampo As String)
+    If Not mEditando Then Exit Sub
+    If nomeCampo = "id_atendimento_anterior" Then
+        EscolherAnterior
+    ElseIf nomeCampo = "id_contato" And Not mNovo And mClienteRegistro <> 0 Then
+        TrocarContato
+    Else
+        EscolherVinculo nomeCampo
+    End If
+End Sub
+
+' Empresa do atendimento: a gravada ou, no novo, a do contato escolhido.
+Private Function ClienteDoAtendimento() As Long
+    Dim d As Object
+    If Not mNovo And mClienteRegistro <> 0 Then ClienteDoAtendimento = mClienteRegistro: Exit Function
+    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+    If Not d Is Nothing Then ClienteDoAtendimento = CLng(modDB.Nz(d("id_cliente"), "0"))
+End Function
+
+'----------------------------------------------------------
+' Atendimento anterior (item 4, retomada): so os da mesma
+' empresa, menos o proprio. Remover deixa o campo vazio.
+'----------------------------------------------------------
+Private Sub EscolherAnterior()
+    Dim f As frmVinculo, idCli As Long
+    idCli = ClienteDoAtendimento()
+    If idCli = 0 Then
+        MsgBox "Escolha o contato antes: o atendimento anterior " & ChrW$(&HE9) & " da empresa dele.", _
+               vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    Set f = New frmVinculo
+    If f.EscolherAtendimentoDe(idCli, mID) Then
+        DefinirValor "id_atendimento_anterior", "K", IIf(f.IdEscolhido = 0, Null, f.IdEscolhido)
+        VinculoEscolhido "id_atendimento_anterior"
+    End If
+    Unload f
+End Sub
+
+' Abre a ficha do registro vinculado (botao kv_), em leitura.
+Private Sub AbrirVinculado(ByVal nomeCampo As String)
+    Select Case nomeCampo
+        Case "id_contato":              AbrirUm "contatos", VinculoDe(nomeCampo)
+        Case "id_cliente":              AbrirUm "clientes", VinculoDe(nomeCampo)
+        Case "id_atendimento_anterior": AbrirUm "oportunidades", VinculoDe(nomeCampo)
+    End Select
+End Sub
+
+Private Sub TrocarContato()
+    Dim f As frmVinculo
+    Set f = New frmVinculo
+    If f.EscolherContatoDe(mClienteRegistro) Then
+        DefinirValor "id_contato", "K", f.IdEscolhido
+        VinculoEscolhido "id_contato"
+    End If
+    Unload f
+End Sub
+
+'----------------------------------------------------------
+' Depois de escolher um vinculo: o resumo dele e, no contato do
+' atendimento, os dados somente leitura (empresa, cargo, telefone,
+' e-mail) - tudo de UMA consulta.
+'----------------------------------------------------------
+Private Sub VinculoEscolhido(ByVal nomeCampo As String)
+    If nomeCampo = "id_contato" And mTabela = "oportunidades" Then
+        AposEscolherContato
+    Else
+        ResumoDoVinculo nomeCampo, 0
+    End If
+    AjustarBotoesVinculo
+End Sub
+
+Private Sub AposEscolherContato()
+    Dim d As Object, k As Variant
+    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+    For Each k In Array("empresa", "cidade", "uf", "cargo", "telefone", "email")
+        If d Is Nothing Then DefinirValor CStr(k), "R", Null Else DefinirValor CStr(k), "R", d(CStr(k))
+    Next k
+    If d Is Nothing Then
+        MostrarResumo "id_contato", ""
+    Else
+        MostrarResumo "id_contato", modCRM.TextoResumoContato(d("nome"), d("cargo"), d("empresa"), _
+                                                              d("cidade"), d("uf"), d("estagio"))
+    End If
+End Sub
+
+'----------------------------------------------------------
+' Checagem dos vinculos ao salvar (a tela ja limita a escolha;
+' esta e a segunda barreira). Contato trocado num atendimento
+' gravado tem de ser da mesma empresa.
+'----------------------------------------------------------
+Private Function CriticarVinculos() As String
+    Dim d As Object, idAnt As Long, idCliAnt As Long
+    If mTabela <> "oportunidades" Then Exit Function
+
+    If Not mNovo And VinculoDe("id_contato") <> mContatoLido Then
+        Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+        If d Is Nothing Then CriticarVinculos = "O contato escolhido n" & ChrW$(&HE3) & "o existe mais.": Exit Function
+        CriticarVinculos = modCRM.CriticarTrocaContato(mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
+        If CriticarVinculos <> "" Then Exit Function
+    End If
+
+    ' anterior: da mesma empresa e nao o proprio (o contato pode ter
+    ' mudado depois que o anterior foi escolhido)
+    idAnt = VinculoDe("id_atendimento_anterior")
+    If idAnt = 0 Then Exit Function
+    idCliAnt = CLng(modDB.Nz(modDB.ConsultarValor("SELECT id_cliente FROM oportunidades WHERE id=?", Null, _
+                                                  Array(modDB.P(modDB.adInteger, idAnt))), "0"))
+    CriticarVinculos = modCRM.CriticarAnterior(mID, idAnt, ClienteDoAtendimento(), idCliAnt)
+End Function
+
+' O id guardado do vinculo (0 = vazio).
+Private Function VinculoDe(ByVal nomeCampo As String) As Long
+    If mVinculos Is Nothing Then Exit Function
+    If mVinculos.Exists(nomeCampo) Then VinculoDe = mVinculos(nomeCampo)
+End Function
+
+' O primeiro campo K da tabela: o que o registro novo escolhe ao abrir.
+Private Function CampoPrincipal() As String
+    If Not IsArray(mCamposK) Then Exit Function
+    If UBound(mCamposK) >= LBound(mCamposK) Then CampoPrincipal = mCamposK(LBound(mCamposK))
+End Function
 
 '----------------------------------------------------------
 ' Escolha do vinculo pela tela frmVinculo (busca, lista e
 ' cadastro na hora) - antes eram duas InputBox com numeros.
 '----------------------------------------------------------
-Private Sub EscolherVinculo()
+Private Sub EscolherVinculo(ByVal nomeCampo As String)
     Dim f As frmVinculo, modo As String
-    If mTabela = "oportunidades" Then
-        modo = "contato"
-    ElseIf mTabela = "contatos" Then
-        modo = "cliente"
-    Else
-        Exit Sub
-    End If
+    Select Case nomeCampo
+        Case "id_contato": modo = "contato"
+        Case "id_cliente": modo = "cliente"
+        Case Else: Exit Sub
+    End Select
     Set f = New frmVinculo
     If f.Escolher(modo) Then
-        mVinculoID = f.IdEscolhido
-        If mTabela = "oportunidades" Then
-            DefinirValor "id_contato", "K", mVinculoID
-        Else
-            DefinirValor "id_cliente", "K", mVinculoID
-        End If
-        AtualizarResumos
+        DefinirValor nomeCampo, "K", f.IdEscolhido
+        VinculoEscolhido nomeCampo
     End If
     Unload f
 End Sub
@@ -1235,32 +1461,57 @@ End Sub
 ' escolhido agora, registro novo): uma consulta.
 '----------------------------------------------------------
 Private Sub AtualizarResumos(Optional ByVal linha As Long = 0)
+    Dim k As Variant
+    If Not IsArray(mCamposK) Then Exit Sub
+    For Each k In mCamposK
+        ResumoDoVinculo CStr(k), linha
+    Next k
+End Sub
+
+Private Sub ResumoDoVinculo(ByVal nomeCampo As String, ByVal linha As Long)
     ' a variavel NAO pode se chamar campo: o VBA nao diferencia maiusculas
     ' e ela esconderia a funcao Campo() ("Era esperada uma matriz")
-    Dim lb As MSForms.Control, txt As String, nomeCampo As String
+    Dim txt As String, idV As Long
 
-    If mTabela = "oportunidades" Then
-        nomeCampo = "id_contato"
-        If linha > 0 And mVinculoID <> 0 Then
-            txt = modCRM.TextoResumoContato(Campo(linha, "contato"), Campo(linha, "cargo"), Campo(linha, "empresa"), _
-                                            Campo(linha, "cidade"), Campo(linha, "uf"), Campo(linha, "estagio"))
+    idV = VinculoDe(nomeCampo)
+    Select Case nomeCampo
+        Case "id_contato"
+            If linha > 0 And idV <> 0 Then
+                txt = modCRM.TextoResumoContato(Campo(linha, "contato"), Campo(linha, "cargo"), Campo(linha, "empresa"), _
+                                                Campo(linha, "cidade"), Campo(linha, "uf"), Campo(linha, "estagio"))
+            Else
+                txt = modCRM.ResumoContato(idV)
+            End If
+        Case "id_cliente"
+            If linha > 0 And idV <> 0 Then
+                txt = modCRM.TextoResumoCliente(Campo(linha, "empresa"), Campo(linha, "cidade"), Campo(linha, "uf"), _
+                                                Campo(linha, "estagio"), Campo(linha, "codigo_cliente"))
+            Else
+                txt = modCRM.ResumoCliente(idV)
+            End If
+        Case "id_atendimento_anterior"
+            ' o codigo AT- do anterior; o botao ao lado abre a ficha dele
+            If linha > 0 And idV <> 0 Then
+                txt = modDB.Nz(Campo(linha, "codigo_anterior"))
+            Else
+                txt = modCRM.CodigoDoAtendimento(idV)
+            End If
+    End Select
+
+    MostrarResumo nomeCampo, txt
+End Sub
+
+' Texto do resumo embaixo do campo de vinculo (vazio = nao achou).
+Private Sub MostrarResumo(ByVal nomeCampo As String, ByVal txt As String)
+    Dim lb As MSForms.Control
+    If txt = "" And VinculoDe(nomeCampo) <> 0 Then txt = "** vínculo não encontrado **"
+    If VinculoDe(nomeCampo) = 0 Then
+        If nomeCampo = "id_atendimento_anterior" Then
+            txt = "(nenhum - opcional; o bot" & ChrW$(&HE3) & "o ao lado escolhe)"
         Else
-            txt = modCRM.ResumoContato(mVinculoID)
+            txt = "(use Procurar para escolher)"
         End If
-    ElseIf mTabela = "contatos" Then
-        nomeCampo = "id_cliente"
-        If linha > 0 And mVinculoID <> 0 Then
-            txt = modCRM.TextoResumoCliente(Campo(linha, "empresa"), Campo(linha, "cidade"), Campo(linha, "uf"), _
-                                            Campo(linha, "estagio"), Campo(linha, "codigo_cliente"))
-        Else
-            txt = modCRM.ResumoCliente(mVinculoID)
-        End If
-    Else
-        Exit Sub
     End If
-
-    If txt = "" And mVinculoID <> 0 Then txt = "** vínculo não encontrado **"
-    If mVinculoID = 0 Then txt = "(use Procurar para escolher)"
 
     On Error Resume Next
     Set lb = fraCampos.Controls("r_" & nomeCampo)

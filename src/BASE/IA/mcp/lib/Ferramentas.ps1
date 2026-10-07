@@ -1350,7 +1350,12 @@ function Invoke-AbrirAtendimento($a) {
         foreach ($c in $script:DefsAtendimento.Keys) { if (Test-TemArg $a $c) { $novo[$c] = ConvertTo-CampoAtendimento $ctx $c $a.$c } }
         $avisos = Get-CriticaAtendimento $novo
         $idAnt = $null
-        if (Test-TemArg $a 'codigo_atendimento_anterior') { $idAnt = [int](Get-AtendimentoNaTransacao $ctx ([string]$a.codigo_atendimento_anterior)).id }
+        if (Test-TemArg $a 'codigo_atendimento_anterior') {
+            # retomada: o anterior é da MESMA empresa (mesma regra do front: modCRM.CriticarAnterior)
+            $ant = Get-AtendimentoNaTransacao $ctx ([string]$a.codigo_atendimento_anterior)
+            if ([int]$ant.id_cliente -ne [int]$cli.id) { throw ('O atendimento ' + $ant.codigo + ' é de outra empresa. O atendimento anterior tem de ser da mesma empresa do contato.') }
+            $idAnt = [int]$ant.id
+        }
         $codCli = $cli.codigo_cliente; $promovida = $false
         if ($null -eq $codCli) {
             if (-not $promover) { throw ('A empresa ' + $cli.empresa + ' é pré-cliente. Abrir atendimento a promove a cliente; confirme com o usuário e repita com promover_pre_cliente=true.') }

@@ -83,6 +83,8 @@ Public Function CamposDe(ByVal tabela As String) As Variant
     Add c, "cargo|Cargo|R||1. Cliente e contato|0|0"
     Add c, "telefone|Telefone|R||1. Cliente e contato|0|0"
     Add c, "email|E-mail|R||1. Cliente e contato|0|0"
+    ' retomada (item 4): coluna que ja existia no esquema 1.0 e que a IA ja grava
+    Add c, "id_atendimento_anterior|Atendimento anterior|K||1. Cliente e contato|0|1"
     Add c, "orcamento|Orçamento|T||2. Negociação|0|1"
     Add c, "etapa|Etapa|L|Etapa|2. Negociação|1|1"
     Add c, "responsavel|Responsável|L|Responsavel|2. Negociação|1|1"
@@ -108,6 +110,23 @@ Public Function CamposDe(ByVal tabela As String) As Variant
     End Select
 
     CamposDe = c
+End Function
+
+'----------------------------------------------------------
+' Campos de VINCULO (tipo K) da tabela, na ordem da ficha,
+' separados por virgula. O primeiro e o vinculo principal (o
+' que o atendimento novo e o contato novo escolhem logo ao
+' abrir). A ficha guarda um id POR CAMPO: um id unico para a
+' tabela inteira gravaria o contato no lugar de outro vinculo.
+'----------------------------------------------------------
+Public Function CamposK(ByVal tabela As String) As String
+    Dim campos As Variant, i As Long, spec As Variant
+    campos = CamposDe(tabela)
+    If IsEmpty(campos) Then Exit Function
+    For i = LBound(campos) To UBound(campos)
+        spec = Split(campos(i), "|")
+        If spec(2) = "K" Then CamposK = CamposK & IIf(CamposK = "", "", ",") & spec(0)
+    Next i
 End Function
 
 '----------------------------------------------------------

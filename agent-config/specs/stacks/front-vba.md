@@ -51,14 +51,29 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   `Tag` (`ui:botao:<variante>`) via `clsUI`; depois de mudar `Enabled`, `mUI.Pintar`.
   `clsGrade` substitui a ListBox (`ColumnWidths`, `Cabecalho`, `Carregar`, `ListIndex`).
 - Abas criadas por automação não têm CodeName: eventos em `ThisWorkbook` (`Workbook_Sheet*`).
+- **Vínculos da ficha por campo:** cada campo K (`modSchema.CamposK`) guarda o próprio id
+  (`frmCRM.mVinculos`, sincronizado por `DefinirValor`); nunca um id único por tabela.
+  Cada campo K ganha, em tempo de execução, os botões `kb_<campo>` (trocar) e `kv_<campo>`
+  (abrir a ficha em leitura), ligados por `clsUI.LigarBotao` (o clique no texto chega por
+  `UI_Acao`, porque controle de `Controls.Add` não dispara o evento do formulário). Regra de
+  quando ficam ativos: `modCRM.BotaoVinculoAtivo`. Atendimento gravado só troca de contato
+  dentro da mesma empresa (`frmVinculo.EscolherContatoDe`, checagem ao salvar).
+- **Situação do cadastro** (Clientes/Contatos): grade com coluna oculta `_a` (depois de
+  `_id`) e célula com lista em F4 (`modGrade.COL_SITUACAO`); a aba abre em Ativos, inativo em
+  vermelho; na ficha, `cboSituacao` vai no SQL (`modCRM.OpcoesSituacao`/`ChaveSituacao`).
+- Nome de variável do formulário encobre função do VBA: em `frmCRM`, `Mid$` é `mID` — use
+  `VBA.Mid$`.
 
 ## Testes
 
 - **Unidade:** `modAutoteste.Autoteste` — `Confere "nome", obtido, esperado`. Sem banco, sem
   gravar na planilha. Roda no build depois de compilar; o build só publica com "OK".
-  Na estação: `Alt+F11 › Ctrl+G › ?Autoteste("")`.
+  Na estação: `Alt+F11 › Ctrl+G › ?Autoteste("")`. Formulários são modais: a API pública deles
+  entra em `ContratoFormularios` (chamada tipada dentro de `If False`: método inexistente =
+  erro de compilação no build); o comportamento é item 🖥.
 - **Uso:** `testes/testar-uso.ps1` monta as grades e o Painel com dados reais do banco
-  apontado (no desenvolvimento, o banco de demonstração).
+  apontado (no desenvolvimento, o banco de demonstração) e confere situação Ativos/Inativos/
+  Todos, lote, `DadosDoContato` e a lista do atendimento anterior.
 - **Visual:** prévia + `frmCalibracao` (Alt+F8 › `AbrirCalibracao`) na estação 🖥.
 
 ## Limites

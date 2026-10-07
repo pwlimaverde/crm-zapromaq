@@ -66,6 +66,10 @@ Acento é preservado.
   `WHERE codigo_cliente IS NULL` para dois usuários não levarem o mesmo número.
 - Números sequenciais (`controle`, `codigo_cliente`) são calculados **dentro da transação
   que insere**; colisão no índice único é repetida com o próximo número, não mostrada como erro.
+- Como o `AT-` guarda o código do cliente, o atendimento **não troca de empresa**: a troca de
+  contato e o atendimento anterior (`oportunidades.id_atendimento_anterior`, opcional, nunca o
+  próprio) só aceitam a mesma empresa — no front (`modCRM.CriticarTrocaContato`,
+  `CriticarAnterior`) e na IA (`atualizar_atendimento`, `abrir_atendimento`).
 
 ## 7. O que nenhum cliente faz
 

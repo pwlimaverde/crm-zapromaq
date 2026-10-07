@@ -44,6 +44,63 @@ try {
         Conferir ($aba + ': aba protegida') ([bool]$ws.ProtectContents)
         $ws.ExportAsFixedFormat(0, (Join-Path $pasta ('uso-' + $aba + '.pdf')))
     }
+    # item 3: Clientes e Contatos abrem em Ativos; Todos mostra os inativos (em vermelho);
+    # Limpar filtros volta para Ativos. Célula de situação: F4 (modGrade.COL_SITUACAO).
+    foreach ($aba in 'Clientes', 'Contatos') {
+        $ws = $wb.Worksheets.Item($aba); $lo = $ws.ListObjects.Item(1)
+        $total = $lo.DataBodyRange.Rows.Count
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': abre em Ativos (' + $vis + ' de ' + $total + ')') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=' + [string]$ws.Range('F4').Value2 + '; banco de demonstração sem inativos? rode testes\criar-banco-demo.ps1 -Recriar')
+        $ws.Range('F4').Value2 = 'Todos'
+        $xl.Run("'" + $n + "'!modGrade.FiltrarSituacao", $ws)
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': Todos mostra os ' + $total) ($vis -eq $total) ([string]$vis)
+        $regras = 0
+        foreach ($fc in $lo.DataBodyRange.FormatConditions) { if ([string]$fc.Formula1 -like '*INATIVO*') { $regras++ } }
+        Conferir ($aba + ': regra vermelha dos inativos') ($regras -ge 1)
+        $ws.Activate()
+        $xl.Run("'" + $n + "'!modGrade.GradeLimparFiltros")
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
+    }
+    # as macros acima religam os eventos; o resto do teste roda como começou (sem eventos)
+    $xl.EnableEvents = $false
+
+    # item 6: os dados do contato (troca na ficha) vêm numa consulta só
+    $lo = $wb.Worksheets.Item('Contatos').ListObjects.Item(1)
+    $idCto = [int]$lo.ListColumns.Item('_id').DataBodyRange.Cells.Item(1, 1).Value2
+    $nomeCto = [string]$lo.ListColumns.Item('Contato').DataBodyRange.Cells.Item(1, 1).Value2
+    $dc = $xl.Run("'" + $n + "'!modCRM.DadosDoContato", $idCto)
+    Conferir ('DadosDoContato(' + $idCto + ') traz nome e empresa') ($null -ne $dc -and [string]$dc.Item('nome') -eq $nomeCto -and [int]$dc.Item('id_cliente') -gt 0) $nomeCto
+
+    # item 4: lista do atendimento anterior = os da mesma empresa, mais recentes primeiro,
+    # sem o próprio. No banco de demonstração o cliente 1 tem 3; o id 1 é o mais recente.
+    $la = $xl.Run("'" + $n + "'!modCRM.ListarAtendimentosDoCliente", 1, 0, '')
+    $qt = if ($la -is [array]) { $la.GetLength(0) } else { 0 }
+    Conferir ('anteriores do cliente 1: ' + $qt + ', o mais recente primeiro') ($qt -ge 2 -and [int]$la.GetValue(1, 1) -eq 1)
+    $lb = $xl.Run("'" + $n + "'!modCRM.ListarAtendimentosDoCliente", 1, 1, '')
+    $ids = if ($lb -is [array]) { @(for ($k = 1; $k -le $lb.GetLength(0); $k++) { [int]$lb.GetValue($k, 1) }) } else { @() }
+    Conferir 'anteriores sem o próprio atendimento' ($ids.Count -eq $qt - 1 -and $ids -notcontains 1) ($ids -join ',')
+
+    # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
+    #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
+    $t = "`t"
+    $lote = @(('2' + $t + '2' + $t + $t + 'LOTE TESTE UM LTDA' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + '11222333000181' + $t),
+              ('2' + $t + '2' + $t + $t + 'METALURGICA EXEMPLO' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + $t),
+              ('1' + $t + '1' + $t + $t + 'LOTE TESTE DOIS LTDA' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + '11222333000181' + $t),
+              ('1' + $t + '1' + $t + 'SO TRES COLUNAS')) -join "`r`n"
+    $rl = "'" + $n + "'!modLote."
+    $q = [int]$xl.Run($rl + 'Analisar', $lote)
+    # foreach, não ForEach-Object: o $_ do pipeline chega ao COM embrulhado (PSObject) e o Run trava
+    $est = @(foreach ($i in 1..4) { [string]$xl.Run($rl + 'Valor', $i, 'status') }) -join ','
+    Conferir ('lote: 4 linhas nos 4 estados (' + $est + ')') ($q -eq 4 -and $est -eq 'OK,SUSPEITO,DUPLICADO,ERRO') $est
+    Conferir 'lote: total inicial conta só a OK' ([int]$xl.Run($rl + 'ACadastrar') -eq 1) ([string]$xl.Run($rl + 'ACadastrar'))
+    $ok1 = [bool]$xl.Run($rl + 'AlternarIgnorar', 1)
+    Conferir 'lote: duplo clique na OK tira a linha' ($ok1 -and [int]$xl.Run($rl + 'ACadastrar') -eq 0)
+    $ok2 = [bool]$xl.Run($rl + 'AlternarIgnorar', 2)
+    Conferir 'lote: duplo clique na SUSPEITO inclui' ($ok2 -and [int]$xl.Run($rl + 'ACadastrar') -eq 1 -and -not [bool]$xl.Run($rl + 'Ignorada', 2))
+    Conferir 'lote: DUPLICADO e ERRO não alternam' (-not [bool]$xl.Run($rl + 'AlternarIgnorar', 3) -and -not [bool]$xl.Run($rl + 'AlternarIgnorar', 4))
+
     $ini = Get-Date
     $xl.Run("'" + $n + "'!modPainel.AtualizarBasePainel")
     $ms = [int]((Get-Date) - $ini).TotalMilliseconds

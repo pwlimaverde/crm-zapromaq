@@ -66,7 +66,12 @@ src\BASE\SISTEMA\DADOS\testes\CHECAR-AMBIENTE.bat
 ## Testes
 
 `testar-build-lib.ps1` (`Conferir nome, condição`) para funções puras do build (versão,
-B7, pacote). O build completo é o teste de integração (`verificar-tudo -Completo`). Mudança no
+B7, pacote). O build completo é o teste de integração (`verificar-tudo -Completo`); o
+`testes/testar-uso.ps1` chama macros por `$xl.Run` (grades, situação Ativos/Inativos/Todos, lote,
+`DadosDoContato`, lista do anterior, Painel). Com COM, use `foreach` e não `ForEach-Object`: o
+`$_` chega embrulhado e o `Run` trava. O banco de demonstração (`criar-banco-demo.ps1`) tem 2
+clientes e 2 contatos **inativos com log de DESATIVACAO** (sem o log a migração 002 os reativa);
+banco antigo: `-Recriar`. Mudança no
 `INICIAR-CRM.bat` ou nos agendamentos: teste manual 🖥 numa estação, registrado no plano.
 
 ## Limites

@@ -132,6 +132,11 @@ try {
         Conferir 'Perdido sem motivo é recusado' ($res.isError -and $res.content[0].text -match 'motivo')
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; etapa = 'Etapa Inventada' })
         Conferir 'etapa fora da lista é recusada' ($res.isError -and $res.content[0].text -match 'lista')
+        # retomada (item 4): o anterior tem de ser da mesma empresa do contato (o front também recusa).
+        # Recusado, nada é gravado: o teste não deixa atendimento novo no banco.
+        $res = Chamar 'abrir_atendimento' ([ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'
+                                                       codigo_atendimento_anterior = 'AT-0004-0005'; autor = 'teste' })
+        Conferir 'anterior de outra empresa é recusado' ($res.isError -and $res.content[0].text -match 'outra empresa') $res.content[0].text
         $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_resumo = 'Cliente de teste; resumo gravado pelo MCP' })
         Conferir 'atualizar_contexto_cliente' (-not $res.isError) $res.content[0].text
         $cli = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))

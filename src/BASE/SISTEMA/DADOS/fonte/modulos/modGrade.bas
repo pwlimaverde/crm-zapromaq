@@ -32,6 +32,12 @@ Attribute VB_Name = "modGrade"
 '     a ficha, e e na ficha que se ativa, desativa ou exclui
 '     o registro. Coluna de icone custava largura em toda
 '     linha para repetir o que o duplo clique ja fazia.
+'
+'  7. SITUACAO (Clientes e Contatos): a aba abre em Ativos. A
+'     celula com lista ao lado da pesquisa (Ativos, Inativos,
+'     Todos) filtra a coluna oculta _a, como a pesquisa filtra
+'     _b; inativo aparece em vermelho. A consulta continua
+'     trazendo tudo: quem filtra e o Excel, em memoria.
 '==========================================================
 Option Explicit
 
@@ -42,6 +48,8 @@ Public Const LIN_BUSCA As Long = 4
 Public Const LIN_STATUS As Long = 5
 Public Const LIN_CAB As Long = 7
 Public Const COL_INI As Long = 2        ' coluna A e so respiro
+Public Const COL_SITUACAO As Long = 6   ' celula de situacao: F e G mescladas, na linha da busca
+Private Const COL_LISTA As Long = 70    ' itens da lista de situacao, na linha LIN_MODO (4 pt)
 
 Private Const SENHA As String = "zpm"   ' travamento contra digitacao, nao e seguranca
 
@@ -50,6 +58,8 @@ Private Const SENHA As String = "zpm"   ' travamento contra digitacao, nao e seg
 
 Private Const CAB_ID As String = "_id"
 Private Const CAB_BUSCA As String = "_b"
+Private Const CAB_ATIVO As String = "_a"         ' ATIVO / INATIVO (so clientes e contatos)
+Private Const SIT_PADRAO As String = "Ativos"
 
 Private mDados As Variant
 Private mCampos As Variant
@@ -99,6 +109,11 @@ Public Sub GradeLimparFiltros()
     ws.Cells(LIN_BUSCA, COL_INI + 1).Value2 = ""
     ws.Cells(LIN_MODO, COL_INI + 1).Value2 = ""
     If ws.ListObjects.Count > 0 Then ws.ListObjects(1).AutoFilter.ShowAllData
+    ' "limpo" e o estado de abertura: so os ativos
+    If TemSituacao(TabelaDaAba(ws)) Then
+        ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2 = SIT_PADRAO
+        If ws.ListObjects.Count > 0 Then AplicarSituacao ws, ws.ListObjects(1)
+    End If
     Application.EnableEvents = True
     On Error GoTo 0
     Proteger ws
@@ -148,6 +163,7 @@ Private Sub Montar(ByVal ws As Worksheet)
     Dim rng As Range, lo As ListObject
     Dim completo As Boolean, txt As String
     Dim criterios As Variant, buscaAnterior As String, ordemAnterior As String
+    Dim situacaoAnterior As String
 
     tabela = TabelaDaAba(ws)
     If tabela = "" Then Exit Sub
@@ -161,7 +177,7 @@ Private Sub Montar(ByVal ws As Worksheet)
     completo = (ModoDe(ws) = "COMPLETO")
     cols = modSchema.ColunasPlanilha(tabela, completo)
     nc = UBound(cols) - LBound(cols) + 1
-    nt = nc + 2                                  ' + _b + _id
+    nt = nc + 3                                  ' + _b + _id + _a
 
     sql = modCRM.SQLGrade(tabela, params)
     mDados = modDB.Consultar(sql, params)
@@ -172,6 +188,7 @@ Private Sub Montar(ByVal ws As Worksheet)
     criterios = GuardarFiltros(ws)
     buscaAnterior = CStr(modDB.Nz(ws.Cells(LIN_BUSCA, COL_INI + 1).Value2))
     ordemAnterior = CStr(modDB.Nz(ws.Cells(LIN_MODO, COL_INI + 1).Value2))
+    situacaoAnterior = SituacaoValida(ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2)
 
     Limpar ws
     Cabecalho ws, tabela, completo
@@ -182,6 +199,7 @@ Private Sub Montar(ByVal ws As Worksheet)
     Next j
     arr(1, nc + 1) = CAB_BUSCA
     arr(1, nc + 2) = CAB_ID
+    arr(1, nc + 3) = CAB_ATIVO
 
     For i = 1 To nl
         txt = ""
@@ -201,6 +219,7 @@ Private Sub Montar(ByVal ws As Worksheet)
                     " " & modDB.Nz(CampoDaLinha(i, "categoria"))
         arr(i + 1, nc + 1) = UCase$(txt)
         arr(i + 1, nc + 2) = CLng(modDB.Nz(CampoDaLinha(i, "id"), "0"))
+        arr(i + 1, nc + 3) = TextoAtivo(i, tabela)
     Next i
 
     Set rng = ws.Range(ws.Cells(LIN_CAB, COL_INI), ws.Cells(LIN_CAB + nl, COL_INI + nt - 1))
@@ -214,6 +233,7 @@ Private Sub Montar(ByVal ws As Worksheet)
 
     Formatar ws, lo, cols, nc, nt, nl, tabela
     CaixaPesquisa ws
+    CaixaSituacao ws, tabela, situacaoAnterior
 
     ' Filtro, pesquisa e ordenacao sobrevivem ao Atualizar: refazer
     ' tres filtros a cada clique era o que tornava a edicao em
@@ -223,6 +243,7 @@ Private Sub Montar(ByVal ws As Worksheet)
     ReaplicarOrdem ws, lo, ordemAnterior
     ReaplicarFiltros ws, lo, criterios
     ReaplicarPesquisa ws, lo, buscaAnterior
+    If TemSituacao(tabela) Then AplicarSituacao ws, lo
     Status ws
     Congelar ws
     Proteger ws
@@ -389,6 +410,100 @@ Private Sub CaixaPesquisa(ByVal ws As Worksheet)
     On Error GoTo 0
 End Sub
 
+'----------------------------------------------------------
+' SITUACAO DO CADASTRO (Clientes e Contatos)
+'
+' Celula com lista na linha da pesquisa, a direita da caixa
+' (F e G mescladas; mesclagem no cabecalho e permitida). O
+' valor fica na propria celula e sobrevive ao Atualizar, como
+' a pesquisa. A lista aponta para 3 celulas da linha de
+' controle, nao para um texto "a,b,c": referencia de faixa nao
+' depende do separador de lista do Windows de cada estacao.
+'----------------------------------------------------------
+Private Function TemSituacao(ByVal tabela As String) As Boolean
+    TemSituacao = (tabela = "clientes" Or tabela = "contatos")
+End Function
+
+' Valor da celula, se for uma das opcoes; senao o padrao (Ativos).
+Private Function SituacaoValida(ByVal v As Variant) As String
+    Dim op As Variant
+    SituacaoValida = SIT_PADRAO
+    For Each op In modCRM.OpcoesSituacao()
+        If CStr(modDB.Nz(v)) = op Then SituacaoValida = op
+    Next op
+End Function
+
+Private Function TextoAtivo(ByVal linha As Long, ByVal tabela As String) As String
+    Dim v As Variant
+    If Not TemSituacao(tabela) Then Exit Function
+    v = CampoDaLinha(linha, "ativo")
+    ' CBool e nao CStr: o texto de um Boolean depende do idioma do Office
+    If IsNull(v) Then TextoAtivo = "ATIVO" Else TextoAtivo = IIf(CBool(v), "ATIVO", "INATIVO")
+End Function
+
+Private Sub CaixaSituacao(ByVal ws As Worksheet, ByVal tabela As String, ByVal valor As String)
+    Dim faixa As Range, lista As Range
+    If Not TemSituacao(tabela) Then Exit Sub
+    On Error Resume Next
+    Set lista = ws.Range(ws.Cells(LIN_MODO, COL_LISTA), ws.Cells(LIN_MODO, COL_LISTA + 2))
+    lista.Value2 = modCRM.OpcoesSituacao()
+    lista.Font.Color = modTema.COR_FUNDO
+    Set faixa = ws.Range(ws.Cells(LIN_BUSCA, COL_SITUACAO), ws.Cells(LIN_BUSCA, COL_SITUACAO + 1))
+    faixa.Merge
+    With faixa
+        .Interior.Color = modTema.COR_BRANCO
+        .Font.Name = "Segoe UI"
+        .Font.Size = 10
+        .HorizontalAlignment = -4131             ' xlLeft
+        .VerticalAlignment = -4108               ' xlCenter
+        .IndentLevel = 1
+        .ShrinkToFit = True
+        .Locked = False
+        .Borders.Color = modTema.COR_VERDE
+        .Borders.Weight = 2
+        ' mostra "Situacao: Ativos"; o valor da celula continua "Ativos"
+        .NumberFormat = """Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o: ""@"
+    End With
+    ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2 = valor
+    With ws.Cells(LIN_BUSCA, COL_SITUACAO).Validation
+        .Delete
+        ' xlValidateList = 3, xlValidAlertStop = 1, xlBetween = 1
+        .Add Type:=3, AlertStyle:=1, Operator:=1, Formula1:="=" & lista.Address
+        .InCellDropdown = True
+        .InputTitle = "Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
+        .InputMessage = "Ativos, Inativos ou Todos."
+    End With
+    On Error GoTo 0
+End Sub
+
+' Filtra a coluna _a pela celula de situacao (aba desprotegida por quem chama).
+Private Sub AplicarSituacao(ByVal ws As Worksheet, ByVal lo As ListObject)
+    Dim idx As Long
+    idx = IndiceColuna(lo, CAB_ATIVO)
+    If idx = 0 Then Exit Sub
+    On Error Resume Next
+    Select Case SituacaoValida(ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2)
+        Case "Ativos":   lo.Range.AutoFilter Field:=idx, Criteria1:="ATIVO"
+        Case "Inativos": lo.Range.AutoFilter Field:=idx, Criteria1:="INATIVO"
+        Case Else:       lo.Range.AutoFilter Field:=idx
+    End Select
+    On Error GoTo 0
+End Sub
+
+' Mudou a celula de situacao (Workbook_SheetChange).
+Public Sub FiltrarSituacao(ByVal ws As Object)
+    If Not TemSituacao(TabelaDaAba(ws)) Then Exit Sub
+    If ws.ListObjects.Count = 0 Then Exit Sub
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Desproteger ws
+    AplicarSituacao ws, ws.ListObjects(1)
+    Proteger ws
+    Status ws
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+End Sub
+
 Private Sub Status(ByVal ws As Worksheet)
     Dim lo As ListObject, total As Long, visiveis As Long, t As String
     If ws.ListObjects.Count = 0 Then Exit Sub
@@ -410,7 +525,9 @@ Private Sub Status(ByVal ws As Worksheet)
         Format$(visiveis, "#,##0") & " de " & Format$(total, "#,##0") & " registro(s)  " & _
         ChrW$(&HB7) & "  consulta de " & Format$(Now, "dd/mm/yyyy hh:nn") & "  " & _
         ChrW$(&HB7) & "  " & IIf(ModoDe(ws) = "COMPLETO", "todas as colunas", "colunas de trabalho") & _
-        IIf(t = "", "", "  " & ChrW$(&HB7) & "  pesquisa: " & t) & "  " & ChrW$(&HB7) & _
+        IIf(t = "", "", "  " & ChrW$(&HB7) & "  pesquisa: " & t) & _
+        IIf(TemSituacao(TabelaDaAba(ws)), "  " & ChrW$(&HB7) & "  " & _
+            LCase$(SituacaoValida(ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2)), "") & "  " & ChrW$(&HB7) & _
         "  clique no cabecalho ordena  " & ChrW$(&HB7) & "  duplo clique abre a ficha"
 End Sub
 
@@ -443,6 +560,7 @@ Private Sub Formatar(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal cols A
     ' colunas de controle: ocultas, nunca apagadas
     ws.Columns(COL_INI + nc).Hidden = True       ' _b
     ws.Columns(COL_INI + nc + 1).Hidden = True    ' _id
+    ws.Columns(COL_INI + nc + 2).Hidden = True    ' _a
 
     If nl > 0 Then
         With lo.DataBodyRange
@@ -489,6 +607,14 @@ Private Sub Condicionais(ByVal ws As Worksheet, ByVal lo As ListObject, _
 
     If nl = 0 Then Exit Sub
     If lo.DataBodyRange Is Nothing Then Exit Sub
+
+    ' Cadastro inativo: a linha inteira em vermelho (cor perigo do tema).
+    ' Formula simples, sem funcao: nao depende do idioma do Excel.
+    If TemSituacao(tabela) Then
+        RegraLinha lo.DataBodyRange, "=$" & LetraDaColuna(ws, COL_INI + nc + 2) & lo.DataBodyRange.Row & _
+                   "=""INATIVO""", -1, modTema.COR_PERIGO, False
+        Exit Sub
+    End If
     If tabela <> "oportunidades" Then Exit Sub
 
     For j = 1 To nc
@@ -906,6 +1032,10 @@ Private Function GuardarFiltros(ByVal ws As Worksheet) As Variant
     ReDim guardados(1 To lo.ListColumns.Count, 1 To 3)
     For i = 1 To lo.ListColumns.Count
         Set f = lo.AutoFilter.Filters(i)
+        ' coluna de controle (_b, _id, _a) volta pela propria celula, e o
+        ' indice dela muda no "Ver tudo": reaplicada por posicao, cairia
+        ' numa coluna visivel e esconderia tudo
+        If Left$(CStr(lo.ListColumns(i).Name), 1) = "_" Then GoTo proxima
         If f.On Then
             guardados(i, 1) = TextoCriterio(f.Criteria1)
             guardados(i, 2) = CStr(f.Operator)
@@ -913,6 +1043,7 @@ Private Function GuardarFiltros(ByVal ws As Worksheet) As Variant
                 guardados(i, 3) = TextoCriterio(f.Criteria2)
             End If
         End If
+proxima:
     Next i
     On Error GoTo 0
     GuardarFiltros = guardados
@@ -1142,6 +1273,9 @@ Public Function AtualizarRegistros(ByVal ws As Worksheet, ByVal pendentes As Obj
             ' uma escrita por linha: nc celulas de uma vez
             ws.Range(ws.Cells(linhaPlan, COL_INI), _
                      ws.Cells(linhaPlan, COL_INI + nc)).Value2 = arr
+            ' situacao (_a, depois de _id): desativado em outra estacao fica
+            ' vermelho na hora; sai da lista no proximo filtro ou Atualizar
+            ws.Cells(linhaPlan, COL_INI + nc + 2).Value2 = TextoAtivo(achou, tabela)
         End If
     Next chave
     On Error GoTo 0

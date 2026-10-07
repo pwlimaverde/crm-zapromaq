@@ -514,9 +514,11 @@ Public Function SQLClientes(ByVal busca As String, ByVal estagio As String, _
                             ByVal responsavel As String, ByRef params As Variant, _
                             Optional ByVal qualificacao As String = "", _
                             Optional ByVal ordem As String = "", _
-                            Optional ByVal ids As Variant) As String
+                            Optional ByVal ids As Variant, _
+                            Optional ByVal situacao As String = "") As String
     Dim w As String, ps As New Collection
 
+    w = FiltroSituacao("cl.ativo", situacao)
     If Trim$(busca) <> "" Then
         ' So procura no CNPJ se o texto tiver digito. Sem isso, "%%"
         ' casa com QUALQUER cnpj preenchido e a busca devolve a base toda.
@@ -547,10 +549,12 @@ End Function
 
 Public Function SQLContatos(ByVal busca As String, ByRef params As Variant, _
                             Optional ByVal ordem As String = "", _
-                            Optional ByVal ids As Variant) As String
+                            Optional ByVal ids As Variant, _
+                            Optional ByVal situacao As String = "") As String
     Dim w As String, ps As New Collection, k As Long
+    w = FiltroSituacao("ct.ativo", situacao)
     If Trim$(busca) <> "" Then
-        w = " AND (ct.nome LIKE ? OR cl.empresa LIKE ? OR ct.email LIKE ? OR ct.codigo LIKE ?)"
+        w = w & " AND (ct.nome LIKE ? OR cl.empresa LIKE ? OR ct.email LIKE ? OR ct.codigo LIKE ?)"
         For k = 1 To 4
             ps.Add modDB.P(modDB.adVarWChar, PadraoLike(busca))
         Next k
@@ -591,9 +595,11 @@ Public Function SQLOportunidades(ByVal busca As String, ByVal etapa As String, _
         " op.orcamento, op.etapa, op.responsavel, op.maquina, op.familia, op.categoria," & _
         " op.tipo_venda, op.valor, op.origem, op.prioridade, op.dt_entrada, op.dt_proposta," & _
         " op.ultima_interacao, op.tentativas, op.prox_acao, op.dt_prox_acao, op.retomar_em," & _
-        " op.motivo_desfecho, op.dt_desfecho, op.observacoes, op.ctx_resumo, op.versao, cl.estagio" & _
-        " FROM (oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
-        " LEFT JOIN clientes cl ON op.id_cliente=cl.id" & _
+        " op.motivo_desfecho, op.dt_desfecho, op.observacoes, op.ctx_resumo, op.versao, cl.estagio," & _
+        " op.id_atendimento_anterior, ant.codigo AS codigo_anterior" & _
+        " FROM ((oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
+        " LEFT JOIN clientes cl ON op.id_cliente=cl.id)" & _
+        " LEFT JOIN oportunidades ant ON op.id_atendimento_anterior=ant.id" & _
         " WHERE 1=1" & w & OrdemOportunidades(ordem)
 End Function
 
@@ -604,6 +610,33 @@ Public Function SQLGrade(ByVal tabela As String, ByRef params As Variant, Option
         Case "clientes":      SQLGrade = SQLClientes("", "", "", params, "", "", ids)
         Case "contatos":      SQLGrade = SQLContatos("", params, "", ids)
         Case "oportunidades": SQLGrade = SQLOportunidades("", "", "", False, params, "", "", ids)
+    End Select
+End Function
+
+' Opcoes do filtro de situacao (combo da ficha e lista da aba).
+' A primeira e o padrao ao abrir.
+Public Function OpcoesSituacao() As Variant
+    OpcoesSituacao = Array("Ativos", "Inativos", "Todos")
+End Function
+
+' Texto da opcao -> chave do SQL (FiltroSituacao). Vazio = todos.
+Public Function ChaveSituacao(ByVal opcao As String) As String
+    Select Case opcao
+        Case "Ativos":   ChaveSituacao = "ativos"
+        Case "Inativos": ChaveSituacao = "inativos"
+        Case Else:       ChaveSituacao = "todos"
+    End Select
+End Function
+
+'----------------------------------------------------------
+' Situacao do cadastro (item 3): "ativos", "inativos" ou
+' "todos"/vazio (sem filtro). Constante booleana do proprio
+' SQL, nao parametro: nao vem de digitacao.
+'----------------------------------------------------------
+Private Function FiltroSituacao(ByVal coluna As String, ByVal situacao As String) As String
+    Select Case LCase$(situacao)
+        Case "ativos":   FiltroSituacao = " AND " & coluna & "=True"
+        Case "inativos": FiltroSituacao = " AND " & coluna & "=False"
     End Select
 End Function
 
@@ -695,14 +728,74 @@ End Function
 ' RESUMO DE VINCULO - uma consulta, ao trocar o vinculo
 '==========================================================
 Public Function ResumoContato(ByVal idContato As Long) As String
-    Dim d As Variant
+    Dim d As Object
+    Set d = DadosDoContato(idContato)
+    If d Is Nothing Then Exit Function
+    ResumoContato = TextoResumoContato(d("nome"), d("cargo"), d("empresa"), d("cidade"), d("uf"), d("estagio"))
+End Function
+
+'----------------------------------------------------------
+' Tudo o que a ficha do atendimento mostra do contato, numa
+' consulta: trocar o contato atualiza cargo, telefone e e-mail
+' e da a empresa dele (a troca so vale dentro da mesma empresa).
+' Devolve um dicionario campo -> valor, ou Nothing.
+'----------------------------------------------------------
+Public Function DadosDoContato(ByVal idContato As Long) As Object
+    Dim d As Variant, r As Object, nomes As Variant, i As Long
     If idContato = 0 Then Exit Function
     d = modDB.Consultar( _
-        "SELECT ct.nome, ct.cargo, cl.empresa, cl.cidade, cl.uf, cl.estagio" & _
+        "SELECT ct.id_cliente, ct.nome, ct.cargo, ct.telefone, ct.email, cl.empresa, cl.cidade, cl.uf, cl.estagio" & _
         " FROM contatos ct LEFT JOIN clientes cl ON ct.id_cliente=cl.id WHERE ct.id=?", _
         Array(modDB.P(modDB.adInteger, idContato)))
     If IsEmpty(d) Then Exit Function
-    ResumoContato = TextoResumoContato(d(1, 1), d(1, 2), d(1, 3), d(1, 4), d(1, 5), d(1, 6))
+    ' gCampos tem o indice da coluna na matriz (como em IndiceDeCampos)
+    nomes = modDB.gCampos
+    Set r = CreateObject("Scripting.Dictionary")
+    For i = LBound(nomes) To UBound(nomes)
+        r(LCase$(nomes(i))) = d(1, i)
+    Next i
+    Set DadosDoContato = r
+End Function
+
+'----------------------------------------------------------
+' Troca de contato de um atendimento ja gravado: so dentro da
+' mesma empresa. O codigo AT- guarda o codigo do cliente e e
+' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
+' atendimento nao e gravavel pela ficha - trocar de empresa
+' deixaria o atendimento apontando para duas empresas.
+' idClienteAtual = 0: atendimento novo, ainda sem empresa.
+'----------------------------------------------------------
+'----------------------------------------------------------
+' Quando o botao de um campo de vinculo da ficha fica ativo.
+' Sempre so na edicao. O do contato, so em atendimento JA
+' GRAVADO: o novo escolhe empresa e contato pelo Procurar, em
+' dois passos. O do anterior, so com contato: a lista e da
+' empresa dele.
+'----------------------------------------------------------
+Public Function BotaoVinculoAtivo(ByVal nomeCampo As String, ByVal editando As Boolean, _
+                                  ByVal novo As Boolean, ByVal idContato As Long) As Boolean
+    If Not editando Then Exit Function
+    Select Case nomeCampo
+        Case "id_contato":              BotaoVinculoAtivo = Not novo
+        Case "id_atendimento_anterior": BotaoVinculoAtivo = (idContato <> 0)
+        Case Else:                      BotaoVinculoAtivo = True
+    End Select
+End Function
+
+' Codigo AT- de um atendimento (resumo do anterior na ficha).
+Public Function CodigoDoAtendimento(ByVal idAtendimento As Long) As String
+    If idAtendimento = 0 Then Exit Function
+    CodigoDoAtendimento = modDB.Nz(modDB.ConsultarValor("SELECT codigo FROM oportunidades WHERE id=?", Null, _
+                                                        Array(modDB.P(modDB.adInteger, idAtendimento))))
+End Function
+
+Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
+    If idClienteAtual = 0 Then Exit Function
+    If idClienteNovo = idClienteAtual Then Exit Function
+    CriticarTrocaContato = "O contato escolhido é de outra empresa." & vbCrLf & vbCrLf & _
+        "O atendimento só troca de contato dentro da mesma empresa: o código AT- guarda " & _
+        "o código do cliente e não muda. Se o atendimento foi aberto na empresa errada, " & _
+        "encerre-o como Descartado e abra um novo apontando para ele como anterior."
 End Function
 
 Public Function ResumoCliente(ByVal idCliente As Long) As String
@@ -783,6 +876,50 @@ Public Function ListarContatosParaVinculo(ByVal texto As String, Optional ByVal 
         "SELECT TOP 300 ct.id, ct.codigo, ct.nome, ct.cargo, cl.empresa, cl.cidade, cl.uf, ct.telefone, ct.id_cliente" & _
         " FROM contatos ct LEFT JOIN clientes cl ON ct.id_cliente=cl.id" & _
         " WHERE ct.ativo=True" & w & " ORDER BY cl.empresa, ct.nome, ct.id", ParaMatriz(ps))
+End Function
+
+'----------------------------------------------------------
+' ATENDIMENTO ANTERIOR (item 4, retomada)
+' Atendimento perdido ou descartado nao ganha proxima acao; se
+' o interesse volta, abre-se um novo apontando para o antigo.
+' Lista: todos os da MESMA empresa, menos o proprio, mais
+' recentes primeiro (entrada nula no fim; TOP com desempate por
+' id). Colunas: id, codigo, etapa, dt_entrada, motivo_desfecho,
+' contato.
+'----------------------------------------------------------
+Public Function ListarAtendimentosDoCliente(ByVal idCliente As Long, ByVal excetoId As Long, _
+                                            Optional ByVal texto As String = "") As Variant
+    Dim w As String, ps As New Collection, k As Long
+    ps.Add modDB.P(modDB.adInteger, idCliente)
+    ps.Add modDB.P(modDB.adInteger, excetoId)
+    If Trim$(texto) <> "" Then
+        w = " AND (op.codigo LIKE ? OR op.etapa LIKE ? OR op.motivo_desfecho LIKE ? OR op.maquina LIKE ? OR ct.nome LIKE ?)"
+        For k = 1 To 5
+            ps.Add modDB.P(modDB.adVarWChar, PadraoLike(texto))
+        Next k
+    End If
+    ListarAtendimentosDoCliente = modDB.Consultar( _
+        "SELECT TOP 300 op.id, op.codigo, op.etapa, op.dt_entrada, op.motivo_desfecho, ct.nome" & _
+        " FROM oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id" & _
+        " WHERE op.id_cliente=? AND op.id<>?" & w & _
+        " ORDER BY IIf(op.dt_entrada Is Null,1,0), op.dt_entrada DESC, op.id DESC", ParaMatriz(ps))
+End Function
+
+'----------------------------------------------------------
+' O anterior nao pode ser o proprio atendimento e tem de ser da
+' mesma empresa. Vazio (0) e aceito: o campo e opcional. A tela
+' ja so lista os da empresa; isto e a barreira ao salvar (o
+' contato, e com ele a empresa, pode ter mudado depois).
+'----------------------------------------------------------
+Public Function CriticarAnterior(ByVal idProprio As Long, ByVal idAnterior As Long, _
+                                 ByVal idCliente As Long, ByVal idClienteAnterior As Long) As String
+    If idAnterior = 0 Then Exit Function
+    If idAnterior = idProprio Then
+        CriticarAnterior = "O atendimento anterior não pode ser o próprio atendimento."
+    ElseIf idClienteAnterior <> idCliente Then
+        CriticarAnterior = "O atendimento anterior tem de ser da mesma empresa do contato." & vbCrLf & vbCrLf & _
+                           "Escolha de novo pelo botão ao lado do campo, ou remova o vínculo."
+    End If
 End Function
 
 Public Function ListarClientesParaVinculo(ByVal texto As String) As Variant

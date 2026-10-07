@@ -25,9 +25,7 @@ Private Sub UserForm_Initialize()
     Set mGrade = mUI.Grade("grdLinhas")
     Me.Caption = "CRM Zapromaq  -  cadastro em lote de pre-clientes"
     lblTitulo.Caption = "Cadastro em lote de pre-clientes"
-    lblAjuda.Caption = "Cole aqui o bloco copiado da planilha de qualificacao, " & _
-        "uma empresa por linha. Ordem das colunas: aderencia, porte, qualificacao, " & _
-        "empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observacoes."
+    lblAjuda.Caption = modLote.TextoAjuda()
     PrepararLista
     cmdCadastrar.Enabled = False
     lblResumo.Caption = ""
@@ -94,8 +92,7 @@ Private Sub Preencher()
     Else
         ReDim tela(1 To n, 1 To 6)
         For i = 1 To n
-            rot = modLote.Valor(i, "status")
-            If modLote.Ignorada(i) Then rot = "IGNORAR"
+            rot = modLote.RotuloLinha(modLote.Valor(i, "status"), modLote.Ignorada(i))
             tela(i, 1) = modLote.Valor(i, "linha")
             tela(i, 2) = rot
             tela(i, 3) = modLote.Valor(i, "empresa")
@@ -120,19 +117,17 @@ Private Sub Preencher()
 End Sub
 
 '----------------------------------------------------------
-' Duplo clique numa SUSPEITA alterna entre cadastrar e
-' ignorar. DUPLICADO e ERRO nao alternam: nao e questao de
-' opiniao, e dado que falta ou que ja existe.
+' Duplo clique numa linha OK ou SUSPEITA alterna entre entrar
+' e ficar fora (regra em modLote). DUPLICADO e ERRO nao
+' alternam: nao e questao de opiniao, e dado que falta ou que
+' ja existe.
 '----------------------------------------------------------
 Public Sub UI_GradeDuploClique(ByVal nome As String)
     Dim i As Long
     If mGrade.ListIndex < 0 Then Exit Sub
     i = mGrade.ListIndex + 1
     If Not modLote.AlternarIgnorar(i) Then
-        MsgBox "So a linha SUSPEITA alterna." & vbCrLf & vbCrLf & _
-               "DUPLICADO e ERRO nao entram: uma ja esta na base, a outra esta " & _
-               "sem dado obrigatorio. Corrija na planilha e confira de novo.", _
-               vbInformation, "CRM Zapromaq"
+        MsgBox modLote.AvisoNaoAlterna(), vbInformation, "CRM Zapromaq"
         Exit Sub
     End If
     Preencher

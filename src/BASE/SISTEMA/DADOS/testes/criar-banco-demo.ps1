@@ -2,7 +2,7 @@
   criar-banco-demo.ps1 - cria BASE\crm_zapromaq.accdb com dados FICTÍCIOS para
   demonstração e conferência visual do front: 20 empresas (16 clientes e 4
   pré-clientes), 20 contatos, 20 atendimentos em etapas e prazos variados e as
-  metas do ano corrente.
+  metas do ano corrente. Dois clientes e os contatos deles ficam inativos.
 
   A estrutura vem do dono dela (banco\esquema\criar-banco.ps1); as migrações
   pendentes são aplicadas no fim, como no banco de produção. Nenhum dado real:
@@ -35,6 +35,12 @@ $prov = @('Microsoft.ACE.OLEDB.16.0', 'Microsoft.ACE.OLEDB.12.0') |
 $cn = New-Object System.Data.OleDb.OleDbConnection("Provider=$prov;Data Source=$Banco;OLE DB Services=-4;")
 $cn.Open()
 $tx = $cn.BeginTransaction()
+
+# desativação como a ficha faz: com o log DESATIVACAO (sem ele, a migração 002 reativa)
+function Desativado([string]$tabela, [int]$id) {
+    [void](Ins 'log_alteracoes' ([ordered]@{ tabela = $tabela; id_registro = $id; campo = 'ativo'; valor_antigo = 'True'
+                                             valor_novo = 'False'; acao = 'DESATIVACAO'; usuario = 'demo'; quando = (Get-Date); origem = 'FRONT' }))
+}
 
 function Ins([string]$tabela, $campos) {
     $cmd = $cn.CreateCommand(); $cmd.Transaction = $tx
@@ -115,7 +121,7 @@ try {
         @('INOX FICTICIO COMERCIO LTDA',         'NOVO HAMBURGO',    'RS', 'Metalurgia',              'Vendedor A', 2, 1, 'Reserva'),
         @('CARROCERIAS PROSPECTO LTDA',          'ERECHIM',          'RS', 'Automotivo',              'Vendedor B', 3, 2, 'Prioridade alta')
     )
-    $ids = @{}; $cods = @{}
+    $ids = @{}; $cods = @{}; $inativos = @(6, 12)
     for ($i = 0; $i -lt $empresas.Count; $i++) {
         $e = $empresas[$i]; $cod = if ($i -lt 16) { $i + 1 } else { $null }
         $c = [ordered]@{
@@ -127,7 +133,11 @@ try {
             observacoes = $(if ($i % 4 -eq 0) { 'Cadastro fictício para demonstração do CRM.' } else { $null })
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        # 2 clientes desativados (com os contatos deles, como faz a ficha): a grade abre em
+        # Ativos e mostra os inativos em vermelho só em Inativos/Todos
+        if ($inativos -contains $i) { $c['ativo'] = $false }
         $ids[$i] = Ins 'clientes' $c; $cods[$i] = $cod
+        if ($inativos -contains $i) { Desativado 'clientes' $ids[$i] }
     }
 
     # ------------------------------------------------------------ 20 contatos (só clientes têm código CT)
@@ -152,7 +162,9 @@ try {
             telefone = ('41999{0:000000}' -f (10000 + 777 * $i)); email = ('contato{0:00}@exemplo.com.br' -f ($i + 1))
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        if ($inativos -contains $ci) { $c['ativo'] = $false }
         $ctos[$i] = @{ id = (Ins 'contatos' $c); cli = $ci }
+        if ($inativos -contains $ci) { Desativado 'contatos' $ctos[$i].id }
     }
 
     # ------------------------------------------------------------ 20 atendimentos com situações variadas
@@ -221,4 +233,4 @@ finally { $cn.Close(); $cn.Dispose() }
 
 Write-Host ''
 Write-Host 'Banco de demonstração pronto:' $Banco
-Write-Host '  16 clientes, 4 pré-clientes, 20 contatos, 20 atendimentos, metas do ano. Tudo fictício.'
+Write-Host '  16 clientes, 4 pré-clientes, 20 contatos, 20 atendimentos, metas do ano (2 clientes e 2 contatos inativos). Tudo fictício.'

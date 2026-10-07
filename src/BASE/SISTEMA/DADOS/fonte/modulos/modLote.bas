@@ -15,18 +15,21 @@ Attribute VB_Name = "modLote"
 ' oportunidade. Contato e atendimento so existem depois que
 ' o pre-cliente vira cliente, pela ficha.
 '
-' TRES ESTADOS POR LINHA, e nenhum deles e opiniao:
-'   OK .......... cadastra
-'   SUSPEITO .... cadastra, mas avisa por que desconfiou.
-'                 Duplo clique na lista alterna para IGNORAR.
+' QUATRO ESTADOS POR LINHA, e nenhum deles e opiniao:
+'   OK .......... cadastra. Duplo clique alterna para IGNORAR.
+'   SUSPEITO .... comeca FORA e avisa por que desconfiou.
+'                 Duplo clique alterna para ENTRAR.
 '   DUPLICADO ... NAO cadastra. CNPJ ja esta na base ou
 '                 repetido dentro do proprio lote.
 '   ERRO ........ NAO cadastra. Falta dado obrigatorio.
 '
-' Por que SUSPEITO nao barra: decisao do comercial em
-' 17/09/2026. O custo do falso positivo (recusar empresa
-' nova com nome parecido) foi julgado maior que o de um
-' cadastro repetido, que se resolve desativando.
+' Por que SUSPEITO comeca fora: decisao de 06/10/2026, que
+' REVERTE a do comercial de 17/09/2026 (SUSPEITO cadastrava).
+' Relatos do comercial de 18 a 29/09/2026: o suspeito que
+' entrava sozinho virava cadastro repetido que ninguem revia.
+' Passa a comecar fora e so entra por escolha consciente
+' (duplo clique). OK tambem alterna: tirar uma linha boa do
+' lote nao pode exigir apagar a linha da planilha e colar de novo.
 '
 ' O que o indice unico de CNPJ cobre e o que NAO cobre:
 ' ele recusa CNPJ repetido no banco - mas 54% da base nao
@@ -208,7 +211,45 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
             Marcar d, "SUSPEITO", "segmento fora da lista: " & d("segmento")
         End If
     End If
+
+    ' depois de TODAS as conferencias: o estado final decide se comeca fora
+    d("ignorar") = ComecaIgnorada(CStr(d("status")))
 End Sub
+
+'----------------------------------------------------------
+' REGRAS DE ENTRADA DE CADA LINHA (sem banco; ver o cabecalho)
+'----------------------------------------------------------
+Public Function ComecaIgnorada(ByVal status As String) As Boolean
+    ComecaIgnorada = (status = "SUSPEITO")
+End Function
+
+' So OK e SUSPEITO alternam: DUPLICADO e ERRO nao sao opiniao.
+Public Function PodeAlternar(ByVal status As String) As Boolean
+    PodeAlternar = (status = "OK" Or status = "SUSPEITO")
+End Function
+
+' Textos da tela (frmLote) que explicam a regra: ficam aqui, junto dela.
+Public Function TextoAjuda() As String
+    ' cabe nas 2 linhas de lblAjuda (736 x 26 pt)
+    TextoAjuda = "Cole o bloco da planilha de qualificação, uma empresa por linha: aderência, porte, " & _
+        "qualificação, empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observações. " & _
+        "Duplo clique alterna OK e SUSPEITO entre entrar e ficar fora; Suspeito começa fora."
+End Function
+
+Public Function AvisoNaoAlterna() As String
+    AvisoNaoAlterna = "Só OK e SUSPEITO alternam." & vbCrLf & vbCrLf & _
+        "DUPLICADO e ERRO não entram: um já está na base, o outro está " & _
+        "sem dado obrigatório. Corrija na planilha e confira de novo."
+End Function
+
+' O rotulo da lista mostra o estado EFETIVO da linha.
+Public Function RotuloLinha(ByVal status As String, ByVal ignorar As Boolean) As String
+    Select Case status
+        Case "OK":       RotuloLinha = IIf(ignorar, "OK - IGNORAR", "OK")
+        Case "SUSPEITO": RotuloLinha = IIf(ignorar, "SUSPEITO - FORA", "SUSPEITO - ENTRA")
+        Case Else:       RotuloLinha = status
+    End Select
+End Function
 
 '----------------------------------------------------------
 ' ERRO e DUPLICADO nao viram SUSPEITO depois: o estado pior
@@ -322,13 +363,13 @@ Public Function Ignorada(ByVal i As Long) As Boolean
 End Function
 
 '----------------------------------------------------------
-' So SUSPEITO se alterna. OK nao se ignora por engano de
-' clique, e ERRO e DUPLICADO nao entram de jeito nenhum.
+' OK e SUSPEITO se alternam (PodeAlternar); ERRO e DUPLICADO
+' nao entram de jeito nenhum.
 '----------------------------------------------------------
 Public Function AlternarIgnorar(ByVal i As Long) As Boolean
     If mLinhas Is Nothing Then Exit Function
     If i < 1 Or i > mLinhas.Count Then Exit Function
-    If CStr(mLinhas(i)("status")) <> "SUSPEITO" Then Exit Function
+    If Not PodeAlternar(CStr(mLinhas(i)("status"))) Then Exit Function
     mLinhas(i)("ignorar") = Not CBool(mLinhas(i)("ignorar"))
     AlternarIgnorar = True
 End Function

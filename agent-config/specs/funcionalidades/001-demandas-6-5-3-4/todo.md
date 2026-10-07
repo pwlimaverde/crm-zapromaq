@@ -1,0 +1,34 @@
+# Tarefas: demandas 6, 5, 3 e 4
+
+- [x] 6.1 Vínculo por campo na ficha + `modSchema.CamposK`
+  - Teste primeiro: `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
+- [x] 6.2 `modCRM.DadosDoContato` e `CriticarTrocaContato`
+  - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
+- [x] 6.3 `frmVinculo.EscolherContatoDe` (passo 2 direto, sem Voltar) 🖥
+  - Teste primeiro: contrato de compilação · Verificar: `-Rapido` + build `-Teste`
+- [x] 6.4 Botões por campo de vínculo; "Procurar" na edição; checagem ao salvar 🖥
+  - Teste primeiro: `Confere BotaoVinculoAtivo` + contrato `LigarBotao` · Verificar: `-Completo`
+- [x] 5.1 Regras do lote (SUSPEITO começa fora; OK e SUSPEITO alternam)
+  - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
+- [x] 5.2 Aceite de ponta a ponta do lote
+  - Teste primeiro: `testar-uso` (contra o `modLote` antigo) · Verificar: `-Rapido` + build `-Teste`
+- [x] 5.3 `frmLote`: rótulos, ajuda, mensagem, cor do selo 🖥
+  - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
+- [x] 3.1 SQL de clientes e contatos com `situacao`
+  - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
+- [x] 3.2 Banco de demonstração com inativos
+  - Teste primeiro: parte do RED do 3.3
+- [x] 3.3 Grade: `_a`, célula de situação, filtro, vermelho, Limpar filtros 🖥
+  - Teste primeiro: `testar-uso` · Verificar: `-Rapido` + build `-Teste`
+- [x] 3.4 Ficha: filtro de situação em clientes e contatos 🖥
+  - Teste primeiro: `Confere ChaveSituacao` · Verificar: `-Completo`
+- [x] 4.1 Campo `id_atendimento_anterior` na ficha e na consulta
+  - Teste primeiro: `verificar.py` + `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
+- [x] 4.2 `CriticarAnterior` e `ListarAtendimentosDoCliente`
+  - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
+- [x] 4.3 Escolha, abertura e remoção do anterior na ficha 🖥
+  - Teste primeiro: contrato + `Confere` · Verificar: `-Rapido` + build `-Teste`
+- [x] 4.4 IA recusa anterior de outra empresa
+  - Teste primeiro: caso em `testar-mcp.ps1` · Verificar: padrão
+- [x] F Fechamento: specs de stack, PLANO, contrato-banco, carimbo
+  - Verificar: `-Completo`
