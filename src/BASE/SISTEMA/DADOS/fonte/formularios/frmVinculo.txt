@@ -10,6 +10,10 @@
 '                    gravado: abre direto no passo 2, na empresa
 '                    do atendimento, SEM Voltar. O atendimento nao
 '                    troca de empresa (o codigo AT- e congelado).
+'   EscolherAtendimentoDe - ATENDIMENTO ANTERIOR (retomada): os
+'                    atendimentos da mesma empresa, menos o
+'                    proprio; "Remover vinculo" devolve True com
+'                    IdEscolhido = 0.
 '
 ' Busca filtra enquanto se digita (a partir de 2 letras, ou
 ' vazia = primeiros por empresa); setas + Enter ou duplo clique
@@ -26,7 +30,8 @@ Option Explicit
 Private mUI As clsUI
 Private mGrade As clsGrade
 Private mModo As String            ' "contato" ou "cliente"
-Private mPasso As String           ' "cliente" (1o passo) ou "contato" (2o)
+Private mPasso As String           ' "cliente" (1o passo), "contato" (2o) ou "atendimento"
+Private mExceto As Long            ' atendimento que nao entra na lista (o proprio)
 Private mClienteID As Long         ' empresa escolhida no 1o passo
 Private mEmpresa As String
 Private mDados As Variant          ' matriz da ultima consulta
@@ -65,6 +70,19 @@ Public Function EscolherContatoDe(ByVal idCliente As Long) As Boolean
     modTela.Encaixar Me
     Me.Show
     EscolherContatoDe = mOk
+End Function
+
+'----------------------------------------------------------
+' Atendimento anterior: os da empresa, menos excetoId (o proprio).
+' True com IdEscolhido = 0 quando o usuario remove o vinculo.
+'----------------------------------------------------------
+Public Function EscolherAtendimentoDe(ByVal idCliente As Long, ByVal excetoId As Long) As Boolean
+    mModo = "atendimento"
+    mExceto = excetoId
+    PassoAtendimento idCliente
+    modTela.Encaixar Me
+    Me.Show
+    EscolherAtendimentoDe = mOk
 End Function
 
 Public Property Get IdEscolhido() As Long
@@ -123,6 +141,23 @@ Private Sub PassoContato(ByVal idCliente As Long)
     End If
 End Sub
 
+Private Sub PassoAtendimento(ByVal idCliente As Long)
+    mPasso = "atendimento"
+    mClienteID = idCliente
+    mEmpresa = modDB.Nz(modDB.ConsultarValor("SELECT empresa FROM clientes WHERE id=?", "", _
+                                              Array(modDB.P(modDB.adInteger, idCliente))))
+    Me.Caption = "CRM Zapromaq  -  atendimento anterior"
+    lblTitulo.Caption = "Atendimento anterior  " & ChrW$(&H203A) & "  " & mEmpresa
+    lblSubtitulo.Caption = "Atendimentos desta empresa, mais recentes primeiro. Enter ou duplo clique escolhe; " & _
+                           "Remover v" & ChrW$(&HED) & "nculo deixa o campo vazio."
+    mGrade.ColumnWidths = "90;150;80;170;172"
+    mGrade.Cabecalho Array("Atendimento", "Etapa", "Entrada", "Motivo", "Contato")
+    Botao "cmdNovoCliente", "Remover v" & ChrW$(&HED) & "nculo", modTema.ICO_EXCLUIR, True
+    Botao "cmdNovoContato", "", 0, False
+    Botao "cmdSelecionar", "Selecionar", modTema.ICO_OK, True
+    Reiniciar
+End Sub
+
 Private Sub Reiniciar()
     mCarregando = True
     txtProcura.Text = ""
@@ -151,16 +186,18 @@ Private Sub Carregar()
     Dim d As Variant, tela() As String, i As Long, n As Long
     On Error GoTo falha
     Me.MousePointer = fmMousePointerHourGlass
-    If mPasso = "cliente" Then
-        d = modCRM.ListarClientesParaVinculo(txtProcura.Text)
-    Else
-        d = modCRM.ListarContatosParaVinculo(txtProcura.Text, mClienteID)
-    End If
+    Select Case mPasso
+        Case "cliente":     d = modCRM.ListarClientesParaVinculo(txtProcura.Text)
+        Case "atendimento": d = modCRM.ListarAtendimentosDoCliente(mClienteID, mExceto, txtProcura.Text)
+        Case Else:          d = modCRM.ListarContatosParaVinculo(txtProcura.Text, mClienteID)
+    End Select
     mDados = d
     If IsEmpty(d) Then
         mGrade.Clear
         ReDim mIDs(0 To 0)
-        If mPasso = "contato" And Trim$(txtProcura.Text) = "" Then
+        If mPasso = "atendimento" And Trim$(txtProcura.Text) = "" Then
+            lblStatus.Caption = "Esta empresa n" & ChrW$(&HE3) & "o tem outro atendimento."
+        ElseIf mPasso = "contato" And Trim$(txtProcura.Text) = "" Then
             lblStatus.Caption = "Esta empresa ainda n" & ChrW$(&HE3) & "o tem contato: use Novo contato."
         Else
             lblStatus.Caption = "Nada encontrado. Confira o texto ou cadastre pelo bot" & ChrW$(&HE3) & "o abaixo."
@@ -182,6 +219,17 @@ Private Sub Carregar()
             tela(i, 4) = modDB.Nz(d(i, 6))
             tela(i, 5) = modValidacao.FormatarCNPJ(d(i, 7))
         Next i
+    ElseIf mPasso = "atendimento" Then
+        ' id, codigo, etapa, dt_entrada, motivo_desfecho, contato
+        ReDim tela(1 To n, 1 To 5)
+        For i = 1 To n
+            mIDs(i) = CLng(d(i, 1))
+            tela(i, 1) = modDB.Nz(d(i, 2))
+            tela(i, 2) = modDB.Nz(d(i, 3))
+            If IsDate(d(i, 4)) Then tela(i, 3) = Format$(d(i, 4), "dd/mm/yyyy")
+            tela(i, 4) = modDB.Nz(d(i, 5))
+            tela(i, 5) = modDB.Nz(d(i, 6))
+        Next i
     Else
         ' id, codigo, nome, cargo, empresa, cidade, uf, telefone, id_cliente
         ReDim tela(1 To n, 1 To 5)
@@ -196,7 +244,8 @@ Private Sub Carregar()
     End If
     mGrade.Carregar tela
     mGrade.ListIndex = 0
-    lblStatus.Caption = n & IIf(mPasso = "cliente", " empresa(s)", " contato(s)") & " ativo(s)" & _
+    lblStatus.Caption = n & Switch(mPasso = "cliente", " empresa(s) ativa(s)", mPasso = "contato", " contato(s) ativo(s)", _
+                                   True, " atendimento(s)") & _
                         IIf(n >= 300, "  -  mostrando os 300 primeiros: refine a busca", "")
     Me.MousePointer = fmMousePointerDefault
     Repintar
@@ -305,6 +354,10 @@ End Sub
 '----------------------------------------------------------
 Private Sub cmdNovoCliente_Click()
     Dim novo As Long
+    If mPasso = "atendimento" Then              ' aqui o botao e "Remover vinculo"
+        Escolhe 0
+        Exit Sub
+    End If
     If mTroca Then Exit Sub                     ' troca: nao ha passo 1 (botao oculto)
     If mPasso = "contato" Then                  ' no 2o passo o botao e "Voltar"
         PassoCliente

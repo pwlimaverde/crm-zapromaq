@@ -26,7 +26,7 @@
   - Teste primeiro: `verificar.py` + `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
 - [x] 4.2 `CriticarAnterior` e `ListarAtendimentosDoCliente`
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 4.3 Escolha, abertura e remoção do anterior na ficha 🖥
+- [x] 4.3 Escolha, abertura e remoção do anterior na ficha 🖥
   - Teste primeiro: contrato + `Confere` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 4.4 IA recusa anterior de outra empresa
   - Teste primeiro: caso em `testar-mcp.ps1` · Verificar: padrão

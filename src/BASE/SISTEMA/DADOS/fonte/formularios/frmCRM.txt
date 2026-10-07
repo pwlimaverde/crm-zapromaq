@@ -321,6 +321,9 @@ Private Sub MontarCampos()
                 ctl.Width = L_CAMPO - 40
                 BotaoDoVinculo "kb_" & campo, ctl.Left + ctl.Width + 3, y + 1, _
                                modTema.ICO_EDITAR, "Trocar " & LCase$(rotulo)
+                ' e o que abre a ficha do registro vinculado, em leitura
+                BotaoDoVinculo "kv_" & campo, ctl.Left + ctl.Width + 21, y + 1, _
+                               modTema.ICO_DOCUMENTO, "Abrir a ficha"
                 ' o resumo do vinculo ocupa a linha inteira embaixo
                 Set lb = fraCampos.Controls.Add("Forms.Label.1", "r_" & campo, True)
                 lb.Left = X_COL0: lb.Top = y + 21: lb.Width = util: lb.Height = 14
@@ -375,6 +378,8 @@ Private Sub AjustarBotoesVinculo()
     For Each k In mCamposK
         fraCampos.Controls("kb_" & k).Enabled = modCRM.BotaoVinculoAtivo(CStr(k), mEditando, mNovo, _
                                                                         VinculoDe("id_contato"))
+        ' abrir outra ficha so em leitura (como Cliente/Contato do rodape)
+        fraCampos.Controls("kv_" & k).Enabled = (Not mEditando And VinculoDe(CStr(k)) <> 0)
     Next k
     On Error GoTo 0
     Repintar
@@ -778,6 +783,7 @@ Public Sub UI_Acao(ByVal nome As String)
             ' VBA.Mid$, nao Mid$: o VBA nao diferencia maiusculas e Mid
             ' seria a variavel mID deste formulario
             If Left$(nome, 3) = "kb_" Then TrocarVinculo VBA.Mid$(nome, 4)
+            If Left$(nome, 3) = "kv_" Then AbrirVinculado VBA.Mid$(nome, 4)
     End Select
 End Sub
 
@@ -1310,11 +1316,50 @@ End Sub
 '----------------------------------------------------------
 Private Sub TrocarVinculo(ByVal nomeCampo As String)
     If Not mEditando Then Exit Sub
-    If nomeCampo = "id_contato" And Not mNovo And mClienteRegistro <> 0 Then
+    If nomeCampo = "id_atendimento_anterior" Then
+        EscolherAnterior
+    ElseIf nomeCampo = "id_contato" And Not mNovo And mClienteRegistro <> 0 Then
         TrocarContato
     Else
         EscolherVinculo nomeCampo
     End If
+End Sub
+
+' Empresa do atendimento: a gravada ou, no novo, a do contato escolhido.
+Private Function ClienteDoAtendimento() As Long
+    Dim d As Object
+    If Not mNovo And mClienteRegistro <> 0 Then ClienteDoAtendimento = mClienteRegistro: Exit Function
+    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+    If Not d Is Nothing Then ClienteDoAtendimento = CLng(modDB.Nz(d("id_cliente"), "0"))
+End Function
+
+'----------------------------------------------------------
+' Atendimento anterior (item 4, retomada): so os da mesma
+' empresa, menos o proprio. Remover deixa o campo vazio.
+'----------------------------------------------------------
+Private Sub EscolherAnterior()
+    Dim f As frmVinculo, idCli As Long
+    idCli = ClienteDoAtendimento()
+    If idCli = 0 Then
+        MsgBox "Escolha o contato antes: o atendimento anterior " & ChrW$(&HE9) & " da empresa dele.", _
+               vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    Set f = New frmVinculo
+    If f.EscolherAtendimentoDe(idCli, mID) Then
+        DefinirValor "id_atendimento_anterior", "K", IIf(f.IdEscolhido = 0, Null, f.IdEscolhido)
+        VinculoEscolhido "id_atendimento_anterior"
+    End If
+    Unload f
+End Sub
+
+' Abre a ficha do registro vinculado (botao kv_), em leitura.
+Private Sub AbrirVinculado(ByVal nomeCampo As String)
+    Select Case nomeCampo
+        Case "id_contato":              AbrirUm "contatos", VinculoDe(nomeCampo)
+        Case "id_cliente":              AbrirUm "clientes", VinculoDe(nomeCampo)
+        Case "id_atendimento_anterior": AbrirUm "oportunidades", VinculoDe(nomeCampo)
+    End Select
 End Sub
 
 Private Sub TrocarContato()
@@ -1361,12 +1406,23 @@ End Sub
 ' gravado tem de ser da mesma empresa.
 '----------------------------------------------------------
 Private Function CriticarVinculos() As String
-    Dim d As Object
-    If mTabela <> "oportunidades" Or mNovo Then Exit Function
-    If VinculoDe("id_contato") = mContatoLido Then Exit Function
-    Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
-    If d Is Nothing Then CriticarVinculos = "O contato escolhido n" & ChrW$(&HE3) & "o existe mais.": Exit Function
-    CriticarVinculos = modCRM.CriticarTrocaContato(mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
+    Dim d As Object, idAnt As Long, idCliAnt As Long
+    If mTabela <> "oportunidades" Then Exit Function
+
+    If Not mNovo And VinculoDe("id_contato") <> mContatoLido Then
+        Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
+        If d Is Nothing Then CriticarVinculos = "O contato escolhido n" & ChrW$(&HE3) & "o existe mais.": Exit Function
+        CriticarVinculos = modCRM.CriticarTrocaContato(mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
+        If CriticarVinculos <> "" Then Exit Function
+    End If
+
+    ' anterior: da mesma empresa e nao o proprio (o contato pode ter
+    ' mudado depois que o anterior foi escolhido)
+    idAnt = VinculoDe("id_atendimento_anterior")
+    If idAnt = 0 Then Exit Function
+    idCliAnt = CLng(modDB.Nz(modDB.ConsultarValor("SELECT id_cliente FROM oportunidades WHERE id=?", Null, _
+                                                  Array(modDB.P(modDB.adInteger, idAnt))), "0"))
+    CriticarVinculos = modCRM.CriticarAnterior(mID, idAnt, ClienteDoAtendimento(), idCliAnt)
 End Function
 
 ' O id guardado do vinculo (0 = vazio).
@@ -1434,6 +1490,13 @@ Private Sub ResumoDoVinculo(ByVal nomeCampo As String, ByVal linha As Long)
             Else
                 txt = modCRM.ResumoCliente(idV)
             End If
+        Case "id_atendimento_anterior"
+            ' o codigo AT- do anterior; o botao ao lado abre a ficha dele
+            If linha > 0 And idV <> 0 Then
+                txt = modDB.Nz(Campo(linha, "codigo_anterior"))
+            Else
+                txt = modCRM.CodigoDoAtendimento(idV)
+            End If
     End Select
 
     MostrarResumo nomeCampo, txt
@@ -1443,7 +1506,13 @@ End Sub
 Private Sub MostrarResumo(ByVal nomeCampo As String, ByVal txt As String)
     Dim lb As MSForms.Control
     If txt = "" And VinculoDe(nomeCampo) <> 0 Then txt = "** vínculo não encontrado **"
-    If VinculoDe(nomeCampo) = 0 Then txt = "(use Procurar para escolher)"
+    If VinculoDe(nomeCampo) = 0 Then
+        If nomeCampo = "id_atendimento_anterior" Then
+            txt = "(nenhum - opcional; o bot" & ChrW$(&HE3) & "o ao lado escolhe)"
+        Else
+            txt = "(use Procurar para escolher)"
+        End If
+    End If
 
     On Error Resume Next
     Set lb = fraCampos.Controls("r_" & nomeCampo)

@@ -95,6 +95,9 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "botao contato no atendimento novo", modCRM.BotaoVinculoAtivo("id_contato", True, True, 0), False
     Confere "botao contato em leitura", modCRM.BotaoVinculoAtivo("id_contato", False, False, 5), False
     Confere "botao empresa do contato novo", modCRM.BotaoVinculoAtivo("id_cliente", True, True, 0), True
+    ' o anterior e da empresa do contato: sem contato nao ha o que listar
+    Confere "botao anterior sem contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 0), False
+    Confere "botao anterior com contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 5), True
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True
@@ -187,6 +190,7 @@ Private Sub ContratoFormularios()
     If False Then
         Set fv = New frmVinculo
         Call fv.EscolherContatoDe(0)
+        Call fv.EscolherAtendimentoDe(0, 0)
         ' botao criado em tempo de execucao (campos de vinculo da ficha)
         Set ui = New clsUI
         ui.LigarBotao Nothing, Nothing, Nothing, "neutro"

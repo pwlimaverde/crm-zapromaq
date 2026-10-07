@@ -769,15 +769,24 @@ End Function
 ' Quando o botao de um campo de vinculo da ficha fica ativo.
 ' Sempre so na edicao. O do contato, so em atendimento JA
 ' GRAVADO: o novo escolhe empresa e contato pelo Procurar, em
-' dois passos.
+' dois passos. O do anterior, so com contato: a lista e da
+' empresa dele.
 '----------------------------------------------------------
 Public Function BotaoVinculoAtivo(ByVal nomeCampo As String, ByVal editando As Boolean, _
                                   ByVal novo As Boolean, ByVal idContato As Long) As Boolean
     If Not editando Then Exit Function
     Select Case nomeCampo
-        Case "id_contato": BotaoVinculoAtivo = Not novo
-        Case Else:         BotaoVinculoAtivo = True
+        Case "id_contato":              BotaoVinculoAtivo = Not novo
+        Case "id_atendimento_anterior": BotaoVinculoAtivo = (idContato <> 0)
+        Case Else:                      BotaoVinculoAtivo = True
     End Select
+End Function
+
+' Codigo AT- de um atendimento (resumo do anterior na ficha).
+Public Function CodigoDoAtendimento(ByVal idAtendimento As Long) As String
+    If idAtendimento = 0 Then Exit Function
+    CodigoDoAtendimento = modDB.Nz(modDB.ConsultarValor("SELECT codigo FROM oportunidades WHERE id=?", Null, _
+                                                        Array(modDB.P(modDB.adInteger, idAtendimento))))
 End Function
 
 Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
