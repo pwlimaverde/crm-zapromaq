@@ -424,11 +424,13 @@ Private Function TemSituacao(ByVal tabela As String) As Boolean
     TemSituacao = (tabela = "clientes" Or tabela = "contatos")
 End Function
 
+' Valor da celula, se for uma das opcoes; senao o padrao (Ativos).
 Private Function SituacaoValida(ByVal v As Variant) As String
-    Select Case CStr(modDB.Nz(v))
-        Case "Ativos", "Inativos", "Todos": SituacaoValida = CStr(v)
-        Case Else:                          SituacaoValida = SIT_PADRAO
-    End Select
+    Dim op As Variant
+    SituacaoValida = SIT_PADRAO
+    For Each op In modCRM.OpcoesSituacao()
+        If CStr(modDB.Nz(v)) = op Then SituacaoValida = op
+    Next op
 End Function
 
 Private Function TextoAtivo(ByVal linha As Long, ByVal tabela As String) As String

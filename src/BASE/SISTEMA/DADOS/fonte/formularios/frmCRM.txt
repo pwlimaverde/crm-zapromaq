@@ -459,7 +459,7 @@ Private Sub PrepararFiltros()
             chkAbertas.Visible = True
             chkAbertas.Caption = "Somente em aberto"
             chkAbertas.Value = True
-            MostrarSituacao True
+            SituacaoDoAtendimento
             PreencherOrdem Array("codigo|Atendimento (mais novo)", _
                                  "prox|Pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", _
                                  "etapa|Etapa e depois pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", _
@@ -512,10 +512,9 @@ End Sub
 ' consulta - por isso ele fica junto do "somente em aberto" e
 ' da ordenacao, e nao com os filtros que vao no SQL.
 '----------------------------------------------------------
-Private Sub MostrarSituacao(ByVal mostrar As Boolean)
-    lblSituacao.Visible = mostrar
-    cboSituacao.Visible = mostrar
-    If Not mostrar Then Exit Sub
+Private Sub SituacaoDoAtendimento()
+    lblSituacao.Visible = True
+    cboSituacao.Visible = True
     cboSituacao.Clear
     cboSituacao.AddItem "(todas)"
     cboSituacao.AddItem "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
@@ -1171,7 +1170,7 @@ Private Sub cmdSalvar_Click()
     End If
 
     If mTabela = "oportunidades" Then
-        aviso =modValidacao.AvisarOportunidade(d)
+        aviso = modValidacao.AvisarOportunidade(d)
         If aviso <> "" Then
             If MsgBox(aviso, vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
         End If
