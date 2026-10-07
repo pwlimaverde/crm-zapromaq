@@ -24,6 +24,7 @@ agent-config/CLAUDE.md            regras e armadilhas (sempre carregado)
 `/spec` → `funcionalidades/NNN-nome/SPEC.md` (a partir de `_modelo/`) → `/plan` → `plan.md` +
 `todo.md` → `/build` (uma tarefa por vez, teste primeiro, commit por tarefa) → `/test`
 (`verificar-tudo`) → `/review` → `/code-simplify` → `/ship`. Ao terminar, a SPEC recebe
-"Concluída em dd/mm/aaaa — commit/tag" no topo e a pasta fica como registro.
+"Concluída em dd/mm/aaaa — feature/<nome>" no topo (formato em `funcionalidades/README.md`)
+e a pasta fica como registro.
 
 Spec de stack desatualizada é defeito: quem muda a stack atualiza a spec no mesmo commit.
