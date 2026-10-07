@@ -6,6 +6,10 @@
 '   modo "contato" - atendimento novo, em DOIS PASSOS:
 '                    1. a empresa   2. o contato DELA
 '   modo "cliente" - contato novo: so a empresa
+'   EscolherContatoDe - TROCA do contato de um atendimento ja
+'                    gravado: abre direto no passo 2, na empresa
+'                    do atendimento, SEM Voltar. O atendimento nao
+'                    troca de empresa (o codigo AT- e congelado).
 '
 ' Busca filtra enquanto se digita (a partir de 2 letras, ou
 ' vazia = primeiros por empresa); setas + Enter ou duplo clique
@@ -30,6 +34,7 @@ Private mIDs() As Long
 Private mEscolhido As Long
 Private mOk As Boolean
 Private mCarregando As Boolean
+Private mTroca As Boolean          ' troca de contato: so o passo 2, sem Voltar
 
 Private Sub UserForm_Initialize()
     Set mUI = New clsUI
@@ -47,6 +52,19 @@ Public Function Escolher(ByVal modo As String) As Boolean
     modTela.Encaixar Me
     Me.Show
     Escolher = mOk
+End Function
+
+'----------------------------------------------------------
+' Troca do contato de um atendimento ja gravado: lista so os
+' contatos da empresa dele, sem o passo 1 e sem Voltar.
+'----------------------------------------------------------
+Public Function EscolherContatoDe(ByVal idCliente As Long) As Boolean
+    mModo = "contato"
+    mTroca = True
+    PassoContato idCliente
+    modTela.Encaixar Me
+    Me.Show
+    EscolherContatoDe = mOk
 End Function
 
 Public Property Get IdEscolhido() As Long
@@ -81,11 +99,18 @@ Private Sub PassoContato(ByVal idCliente As Long)
     mEmpresa = modDB.Nz(modDB.ConsultarValor("SELECT empresa FROM clientes WHERE id=?", "", _
                                               Array(modDB.P(modDB.adInteger, idCliente))))
     Me.Caption = "CRM Zapromaq  -  escolher o contato"
-    lblTitulo.Caption = "Novo atendimento  " & ChrW$(&H203A) & "  2. Escolha o contato"
-    lblSubtitulo.Caption = mEmpresa & "  " & ChrW$(&HB7) & "  Enter ou duplo clique escolhe; Voltar troca a empresa."
     mGrade.ColumnWidths = "90;170;130;150;122"
     mGrade.Cabecalho Array("C" & ChrW$(&HF3) & "digo", "Contato", "Cargo", "Telefone", "E-mail / cidade")
-    Botao "cmdNovoCliente", "Voltar", modTema.ICO_ANTERIOR, True
+    If mTroca Then
+        lblTitulo.Caption = "Trocar contato  " & ChrW$(&H203A) & "  " & mEmpresa
+        lblSubtitulo.Caption = "Contatos desta empresa. Enter ou duplo clique escolhe; o atendimento n" & _
+                               ChrW$(&HE3) & "o muda de empresa."
+        Botao "cmdNovoCliente", "", 0, False
+    Else
+        lblTitulo.Caption = "Novo atendimento  " & ChrW$(&H203A) & "  2. Escolha o contato"
+        lblSubtitulo.Caption = mEmpresa & "  " & ChrW$(&HB7) & "  Enter ou duplo clique escolhe; Voltar troca a empresa."
+        Botao "cmdNovoCliente", "Voltar", modTema.ICO_ANTERIOR, True
+    End If
     Botao "cmdNovoContato", "Novo contato", modTema.ICO_CONTATO, True
     Botao "cmdSelecionar", "Selecionar", modTema.ICO_OK, True
     Reiniciar
@@ -280,6 +305,7 @@ End Sub
 '----------------------------------------------------------
 Private Sub cmdNovoCliente_Click()
     Dim novo As Long
+    If mTroca Then Exit Sub                     ' troca: nao ha passo 1 (botao oculto)
     If mPasso = "contato" Then                  ' no 2o passo o botao e "Voltar"
         PassoCliente
         Exit Sub

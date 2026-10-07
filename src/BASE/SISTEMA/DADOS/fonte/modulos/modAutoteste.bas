@@ -113,6 +113,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Set f = New frmLote: Unload f: Set f = Nothing
     Set f = New frmCalibracao: Unload f: Set f = Nothing
     Set f = New frmVinculo: Unload f: Set f = Nothing
+    ContratoFormularios
 
     If mFalhas = "" Then Autoteste = "OK " & mTestes & " testes" Else Autoteste = "FALHA" & mFalhas
     Exit Function
@@ -130,6 +131,22 @@ Private Sub Confere(ByVal nome As String, ByVal obtido As Variant, ByVal esperad
         Exit Sub
     End If
     mFalhas = mFalhas & vbLf & nome & ": esperado [" & Texto(esperado) & "], obtido [" & Texto(obtido) & "]"
+End Sub
+
+'----------------------------------------------------------
+' CONTRATO DOS FORMULARIOS
+' Os formularios sao modais: chamar o metodo mostraria a tela e
+' travaria o build. Com a variavel TIPADA, um metodo que nao
+' existe e erro de compilacao - o build para antes de publicar.
+' O If False garante que nada roda; o comportamento se confere
+' na estacao (itens marcados na spec).
+'----------------------------------------------------------
+Private Sub ContratoFormularios()
+    Dim fv As frmVinculo
+    If False Then
+        Set fv = New frmVinculo
+        Call fv.EscolherContatoDe(0)
+    End If
 End Sub
 
 ' CStr(Null) e erro: o relato da falha nao pode quebrar o autoteste.

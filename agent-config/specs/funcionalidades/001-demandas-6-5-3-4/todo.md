@@ -4,7 +4,7 @@
   - Teste primeiro: `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
 - [x] 6.2 `modCRM.DadosDoContato` e `CriticarTrocaContato`
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 6.3 `frmVinculo.EscolherContatoDe` (passo 2 direto, sem Voltar) 🖥
+- [x] 6.3 `frmVinculo.EscolherContatoDe` (passo 2 direto, sem Voltar) 🖥
   - Teste primeiro: contrato de compilação · Verificar: `-Rapido` + build `-Teste`
 - [ ] 6.4 Botões por campo de vínculo; "Procurar" na edição; checagem ao salvar 🖥
   - Teste primeiro: `Confere BotaoVinculoAtivo` + contrato `LigarBotao` · Verificar: `-Completo`
