@@ -36,6 +36,12 @@ $cn = New-Object System.Data.OleDb.OleDbConnection("Provider=$prov;Data Source=$
 $cn.Open()
 $tx = $cn.BeginTransaction()
 
+# desativação como a ficha faz: com o log DESATIVACAO (sem ele, a migração 002 reativa)
+function Desativado([string]$tabela, [int]$id) {
+    [void](Ins 'log_alteracoes' ([ordered]@{ tabela = $tabela; id_registro = $id; campo = 'ativo'; valor_antigo = 'True'
+                                             valor_novo = 'False'; acao = 'DESATIVACAO'; usuario = 'demo'; quando = (Get-Date); origem = 'FRONT' }))
+}
+
 function Ins([string]$tabela, $campos) {
     $cmd = $cn.CreateCommand(); $cmd.Transaction = $tx
     $nomes = @($campos.Keys)
@@ -131,6 +137,7 @@ try {
         # Ativos e mostra os inativos em vermelho só em Inativos/Todos
         if ($inativos -contains $i) { $c['ativo'] = $false }
         $ids[$i] = Ins 'clientes' $c; $cods[$i] = $cod
+        if ($inativos -contains $i) { Desativado 'clientes' $ids[$i] }
     }
 
     # ------------------------------------------------------------ 20 contatos (só clientes têm código CT)
@@ -157,6 +164,7 @@ try {
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
         if ($inativos -contains $ci) { $c['ativo'] = $false }
         $ctos[$i] = @{ id = (Ins 'contatos' $c); cli = $ci }
+        if ($inativos -contains $ci) { Desativado 'contatos' $ctos[$i].id }
     }
 
     # ------------------------------------------------------------ 20 atendimentos com situações variadas

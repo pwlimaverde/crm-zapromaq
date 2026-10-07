@@ -212,5 +212,10 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
         modGrade.Pesquisar Sh, Target
         Exit Sub
     End If
+    ' situacao do cadastro (Ativos/Inativos/Todos), celula mesclada F:G
+    If Target.Row = modGrade.LIN_BUSCA And Target.Column = modGrade.COL_SITUACAO Then
+        modGrade.FiltrarSituacao Sh
+        Exit Sub
+    End If
     modGrade.AvisarSomenteLeitura Sh, Target
 End Sub

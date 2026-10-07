@@ -44,6 +44,26 @@ try {
         Conferir ($aba + ': aba protegida') ([bool]$ws.ProtectContents)
         $ws.ExportAsFixedFormat(0, (Join-Path $pasta ('uso-' + $aba + '.pdf')))
     }
+    # item 3: Clientes e Contatos abrem em Ativos; Todos mostra os inativos (em vermelho);
+    # Limpar filtros volta para Ativos. Célula de situação: F4 (modGrade.COL_SITUACAO).
+    foreach ($aba in 'Clientes', 'Contatos') {
+        $ws = $wb.Worksheets.Item($aba); $lo = $ws.ListObjects.Item(1)
+        $total = $lo.DataBodyRange.Rows.Count
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': abre em Ativos (' + $vis + ' de ' + $total + ')') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=' + [string]$ws.Range('F4').Value2 + '; banco de demonstração sem inativos? rode testes\criar-banco-demo.ps1 -Recriar')
+        $ws.Range('F4').Value2 = 'Todos'
+        $xl.Run("'" + $n + "'!modGrade.FiltrarSituacao", $ws)
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': Todos mostra os ' + $total) ($vis -eq $total) ([string]$vis)
+        $regras = 0
+        foreach ($fc in $lo.DataBodyRange.FormatConditions) { if ([string]$fc.Formula1 -like '*INATIVO*') { $regras++ } }
+        Conferir ($aba + ': regra vermelha dos inativos') ($regras -ge 1)
+        $ws.Activate()
+        $xl.Run("'" + $n + "'!modGrade.GradeLimparFiltros")
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
+    }
+
     # item 6: os dados do contato (troca na ficha) vêm numa consulta só
     $lo = $wb.Worksheets.Item('Contatos').ListObjects.Item(1)
     $idCto = [int]$lo.ListColumns.Item('_id').DataBodyRange.Cells.Item(1, 1).Value2

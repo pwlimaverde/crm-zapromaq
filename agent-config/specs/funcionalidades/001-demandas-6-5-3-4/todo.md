@@ -18,7 +18,7 @@
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
 - [x] 3.2 Banco de demonstração com inativos
   - Teste primeiro: parte do RED do 3.3
-- [ ] 3.3 Grade: `_a`, célula de situação, filtro, vermelho, Limpar filtros 🖥
+- [x] 3.3 Grade: `_a`, célula de situação, filtro, vermelho, Limpar filtros 🖥
   - Teste primeiro: `testar-uso` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 3.4 Ficha: filtro de situação em clientes e contatos 🖥
   - Teste primeiro: `Confere ChaveSituacao` · Verificar: `-Completo`
