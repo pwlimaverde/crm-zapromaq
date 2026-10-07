@@ -18,6 +18,26 @@ Esta skill não repete o que as outras já dizem: ela indica **qual** usar em ca
 
 Caminhos relativos a `agent-config/` (onde o Claude Code é aberto); a raiz do git é `..`.
 
+**Glossário**
+
+- **GATE** — portão: ponto em que o agente para e só segue com aprovação explícita do usuário.
+- **RED / GREEN** — escrever primeiro o teste e vê-lo falhar (RED); depois o código mínimo que o
+  faz passar (GREEN).
+- **Fatia vertical** — pedaço pequeno da demanda que atravessa as camadas necessárias e pode ser
+  testado e commitado sozinho.
+- **Persona** — agente revisor especializado (`.claude/agents/`), chamado com o diff da branch.
+
+## Convivência com o roteador (Jev)
+
+Durante um ciclo, **esta skill prevalece** sobre qualquer indicação do roteador
+(`[seletor de skill] …` ou `[roteador] … Delegue ao subagente …`). Depois do `/ciclo`, o
+roteador não trata a mensagem seguinte como continuação: uma resposta curta como "aprovado"
+pode receber outra skill indicada ou uma ordem de delegação. Ignore-as enquanto o ciclo estiver
+em andamento — do `/ciclo` até o fim do Estágio 5, ou até o usuário dizer que encerra o ciclo ou
+mudar claramente de assunto — e **não delegue a outro agente** as respostas de portão (o agente delegado não
+fala com o usuário). Ao pedir aprovação, sugira ao usuário responder começando com `>>`
+(ex.: `>> aprovado`), que faz o roteador deixar a mensagem passar direto.
+
 ## Quando usar
 
 - O usuário digitou `/ciclo <demanda>` ou pediu para conduzir a demanda "de ponta a ponta".
@@ -82,8 +102,9 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 1. **Contexto, nesta ordem:** `CLAUDE.md` → `specs/PROJETO.md` → `specs/stacks/<stack>.md` das
    camadas tocadas → `doc_dev/planejamento/PLANO.md` (decisões, correções, pendências).
 2. **BASE da rede em dia?** A versão da rede tem prioridade (`PROJETO.md` › Limites, D15).
-   Pergunte se houve ajuste na empresa desde o último ciclo; se houve, a BASE de lá volta ao
-   repositório **antes** de qualquer mudança (`trazer-da-rede.ps1` ou comparação em três vias).
+   Se nem o usuário nem o `PLANO.md` indicarem sincronização recente, pergunte se houve ajuste
+   na empresa desde o último ciclo; se houve, a BASE de lá volta ao repositório **antes** de
+   qualquer mudança (`trazer-da-rede.ps1` ou comparação em três vias).
 3. **Ambiguidades:** requisito ausente ou conflito de regra → `interview-me` ou perguntas
    diretas (1–2 por vez, pt-BR), antes de escrever a spec.
 4. **Mapa de skills e agentes do ciclo** (apresentar no GATE 1):
@@ -108,6 +129,9 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
    - `plan.md` — fatias verticais finas, dependências, teste que falha primeiro de cada fatia
      (tabela "TDD por stack" de `PROJETO.md`) e itens que só se conferem na estação (`🖥`).
    - `todo.md` — caixas de checagem, uma por tarefa.
+
+   Os arquivos ficam **sem commit** até a branch existir: sem versionar, eles acompanham o
+   `git flow feature start` e entram no primeiro commit dela (nada se commita em `develop`).
 3. Mostre no chat: diagnóstico, mapa de skills/agentes e o checklist das fatias.
 4. **🛑 GATE 1** — aguarde aprovação explícita ("aprovado", "pode iniciar"). Antes disso, não
    crie branch nem escreva código. Pedido de ajuste → revise os arquivos e volte ao GATE 1.
@@ -117,10 +141,21 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 1. **Branch:** `git flow feature start <nome>` (correção: `git flow bugfix start <nome>`).
    O primeiro commit da branch leva `SPEC.md`, `plan.md` e `todo.md`.
 2. **Para cada fatia do `plan.md`:**
-   1. **RED** — o teste que falha primeiro, pela tabela de `PROJETO.md`:
-      lógica VBA → `Confere` em `modAutoteste.bas`; regra estática/encoding → `verificar.py`;
-      build/versão/B7 → `Conferir` em `testar-build-lib.ps1`; banco/SQL/MCP → `testar-mcp.ps1`;
-      MCP de desenvolvimento → `testar-mcp-dev.ps1`; aparência → prévia + item 🖥.
+   1. **RED** — o teste que falha primeiro, pela tabela "TDD por stack" de `PROJETO.md` (se
+      ela mudar, vale ela):
+
+      | Mudança em | Teste que falha primeiro |
+      |---|---|
+      | Lógica VBA pura | `Confere` em `fonte/modulos/modAutoteste.bas` (`-Completo`) |
+      | Regra estática VBA/esquema/encoding | checagem em `ferramentas/verificacao/verificar.py` |
+      | Build, versão, pacote, B7 | `Conferir` em `testes/testar-build-lib.ps1` |
+      | Banco / SQL / MCP de dados | caso em `IA/teste/testar-mcp.ps1` |
+      | Migração de banco nova | caso que a aplica no banco de teste (`criar-banco-teste.ps1`) e confere o resultado (`specs/stacks/banco-access.md` › Testes) |
+      | MCP de desenvolvimento | caso em `IA/teste/testar-mcp-dev.ps1` |
+      | Grades e Painel com dados | `testes/testar-uso.ps1`, rodado no build (`-Completo`) |
+      | Aparência | prévia (`gerar-visual.ps1`) + item 🖥 |
+      | Ferramenta de desenvolvimento (`agent-config/`) | `roteador/testar_roteador.py` ou checagem no `verificar-tudo` |
+
       Confirme que ele **falha** pelo motivo esperado.
    2. **GREEN** — o código mínimo que o faz passar.
    3. **Regressão** — `ferramentas\verificar-tudo.ps1 -Rapido` (e o teste específico da stack).
@@ -161,9 +196,11 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 
 ### Estágio 5 — Relatório e GATE 2
 
-1. **Antes do relatório**, feche a definição de pronto:
+1. **Antes do relatório**, feche a definição de pronto, no último commit da branch:
    - spec de stack atualizada se a stack mudou; `PLANO.md` se mudou fase/decisão/pendência;
-   - `todo.md` todo marcado.
+   - `todo.md` todo marcado;
+   - carimbo no topo da `SPEC.md`: `> Concluída em dd/mm/aaaa — feature/<nome>` (o nome da
+     branch identifica o merge; a versão publicada entra quando o `/ship` publicar).
 2. **Relatório de entrega:**
    - resumo das mudanças e arquivos criados/alterados;
    - saída do `verificar-tudo` (nível usado);
@@ -179,9 +216,6 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
    powershell -File ferramentas\finalizar-branch.ps1 -Enviar
    ```
    Confirme o merge `--no-ff` em `develop`, a remoção da branch (local e remota) e o push.
-   Depois, carimbe o topo da `SPEC.md`:
-   `> Concluída em dd/mm/aaaa — merge <commit>` (a versão publicada entra quando o `/ship`
-   publicar), num commit numa `bugfix/` ou na próxima branch — nunca direto em `develop`.
 
 ## Exemplos
 
@@ -189,7 +223,14 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 /ciclo adicionar o campo "segmento" (lista) na ficha de clientes
 /ciclo corrigir o filtro da grade de oportunidades que ignora a situação "Perdida"
 /ciclo nova ferramenta MCP para listar oportunidades paradas há mais de 30 dias
+/ciclo renomear a coluna "cargo" de contatos para "funcao" (migração de banco)
+/ciclo avisar no feed quando um atendimento mudar de responsável
 ```
+
+No exemplo da migração, renomear coluna é migração **estrutural**: o ciclo planeja e testa no
+banco de teste, mas para e pergunta antes de qualquer coisa que toque o banco de produção, e o
+MCP de dados precisa acompanhar `config.versao_esquema`. No do feed, a mudança passa por
+`modFeed`/`log_alteracoes`: toda gravação continua com log na mesma transação.
 
 ## Racionalizações comuns
 
@@ -208,6 +249,7 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 - Mudança em teste/checagem no mesmo commit que "conserta" a falha que ele apontava.
 - Relatório sem a saída do `verificar-tudo` ou sem a lista 🖥.
 - Toque em contrato (B7, nomes de controle, ferramentas MCP, `CT-`/`AT-`) sem pergunta.
+- Resposta de portão delegada a outro agente ou trocada por outra skill indicada pelo roteador.
 
 ## Verificação
 
@@ -215,5 +257,5 @@ Se as listas daquelas fontes mudarem, elas prevalecem sobre este resumo.
 - [ ] Cada fatia: teste falhou → passou → `-Rapido` verde → commit.
 - [ ] `verificar-tudo` no nível certo, sem falha, com a saída no relatório.
 - [ ] Revisão das três personas + simplificação, achados críticos/importantes resolvidos.
-- [ ] Specs de stack, `PLANO.md` e `todo.md` em dia; itens 🖥 listados.
+- [ ] Specs de stack, `PLANO.md` e `todo.md` em dia; `SPEC.md` carimbada; itens 🖥 listados.
 - [ ] GATE 2 autorizado antes do `finalizar-branch.ps1 -Enviar`.

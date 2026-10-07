@@ -31,7 +31,7 @@ DEFINIR      PLANEJAR     CONSTRUIR    VERIFICAR    REVISAR      SIMPLIFICAR    
 
 | Comando | O que faz aqui | Produz |
 |---|---|---|
-| `/ciclo` | orquestrador de ponta a ponta: diagnóstico, plano, TDD autônomo com autocorreção, revisão modular e portão de entrega | fluxo completo com gates |
+| `/ciclo` | orquestrador de ponta a ponta: diagnóstico, spec e plano (portão 1), TDD fatia por fatia com autocorreção limitada (até 3 tentativas por falha; sem correção óbvia, para e pergunta), revisão por personas e integração em `develop` (portão 2). Não publica na empresa (`/ship`) | fluxo completo com 2 portões |
 | `/spec` | entrevista (1–2 perguntas por vez, pt-BR) até ficar claro | `specs/funcionalidades/NNN-nome/SPEC.md` |
 | `/plan` | fatias verticais com teste e verificação por tarefa; 🖥 = conferir na estação | `plan.md`, `todo.md` na mesma pasta |
 | `/build` | abre a branch (`git flow feature start`), uma tarefa: teste que falha → código mínimo → suíte → commit | commits atômicos |

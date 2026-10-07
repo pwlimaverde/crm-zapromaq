@@ -19,7 +19,7 @@ Nas seções abaixo, `BASE\` significa `..\src\BASE\`. O legado (`old/`) saiu do
 
 ## Processo de desenvolvimento (agent-skills)
 
-**Leia `DIRETRIZES-IA.md`.** Todo trabalho segue `/spec → /plan → /build → /test → /review → /code-simplify → /ship` (comandos e skills em `.claude\`, gerados de `vendor\agent-skills` + `adaptacao\`):
+**Leia `DIRETRIZES-IA.md`.** Todo trabalho segue `/spec → /plan → /build → /test → /review → /code-simplify → /ship` (comandos e skills em `.claude\`, gerados de `vendor\agent-skills` + `adaptacao\`). `/ciclo <demanda>` (skill própria `ciclo`, em `adaptacao\proprios\`) conduz esse caminho de ponta a ponta até a integração em `develop`, com dois portões de aprovação; publicar na empresa continua no `/ship`:
 
 - **Contexto, nesta ordem:** este arquivo → `specs\PROJETO.md` (objetivo, limites, **definição de pronto**, TDD por stack) → `specs\stacks\<stack>.md` das camadas tocadas → `specs\funcionalidades\NNN-nome\SPEC.md`.
 - **Spec antes de código;** plano em fatias verticais; **teste que falha primeiro** (tabela em `specs\PROJETO.md`); um commit por tarefa.

@@ -72,6 +72,7 @@ crm-zapromaq/
 | MCP de desenvolvimento | caso em `IA/teste/testar-mcp-dev.ps1` | padrão |
 | Grades e Painel com dados | `testes/testar-uso.ps1` (no build) | `-Completo` |
 | Aparência | prévia (`gerar-visual.ps1`) + 🖥 calibração na estação | manual |
+| Ferramenta de desenvolvimento (`agent-config/`) | `roteador/testar_roteador.py` ou checagem no `verificar-tudo.ps1` | `-Rapido` |
 
 Dados de teste sempre fictícios. Teste que altera banco restaura o estado.
 
