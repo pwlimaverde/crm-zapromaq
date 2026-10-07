@@ -10,7 +10,7 @@
   - Teste primeiro: `Confere BotaoVinculoAtivo` + contrato `LigarBotao` · Verificar: `-Completo`
 - [x] 5.1 Regras do lote (SUSPEITO começa fora; OK e SUSPEITO alternam)
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 5.2 Aceite de ponta a ponta do lote
+- [x] 5.2 Aceite de ponta a ponta do lote
   - Teste primeiro: `testar-uso` (contra o `modLote` antigo) · Verificar: `-Rapido` + build `-Teste`
 - [ ] 5.3 `frmLote`: rótulos, ajuda, mensagem, cor do selo 🖥
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
