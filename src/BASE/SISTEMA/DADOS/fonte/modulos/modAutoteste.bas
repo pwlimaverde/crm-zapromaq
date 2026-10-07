@@ -74,6 +74,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "SQL clientes todos", (InStr(modCRM.SQLClientes("", "", "", ps, situacao:="todos"), "cl.ativo=") = 0), True
     Confere "SQL contatos ativos", (InStr(modCRM.SQLContatos("", ps, situacao:="ativos"), "ct.ativo=True") > 0), True
     Confere "SQL contatos inativos", (InStr(modCRM.SQLContatos("", ps, situacao:="inativos"), "ct.ativo=False") > 0), True
+    ' combo da ficha e lista da aba: as mesmas opcoes, Ativos primeiro (padrao)
+    Confere "OpcoesSituacao", Join(modCRM.OpcoesSituacao(), "|"), "Ativos|Inativos|Todos"
+    Confere "ChaveSituacao Inativos", modCRM.ChaveSituacao("Inativos"), "inativos"
+    Confere "ChaveSituacao vazio", modCRM.ChaveSituacao(""), "todos"
     ' item 6: o atendimento so troca de contato dentro da mesma empresa
     ' (o codigo AT- e congelado e nomeia a pasta do cliente)
     Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""

@@ -20,7 +20,7 @@
   - Teste primeiro: parte do RED do 3.3
 - [x] 3.3 Grade: `_a`, célula de situação, filtro, vermelho, Limpar filtros 🖥
   - Teste primeiro: `testar-uso` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 3.4 Ficha: filtro de situação em clientes e contatos 🖥
+- [x] 3.4 Ficha: filtro de situação em clientes e contatos 🖥
   - Teste primeiro: `Confere ChaveSituacao` · Verificar: `-Completo`
 - [ ] 4.1 Campo `id_atendimento_anterior` na ficha e na consulta
   - Teste primeiro: `verificar.py` + `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`

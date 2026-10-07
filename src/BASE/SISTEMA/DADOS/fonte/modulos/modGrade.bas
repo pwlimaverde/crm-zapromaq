@@ -444,7 +444,7 @@ Private Sub CaixaSituacao(ByVal ws As Worksheet, ByVal tabela As String, ByVal v
     If Not TemSituacao(tabela) Then Exit Sub
     On Error Resume Next
     Set lista = ws.Range(ws.Cells(LIN_MODO, COL_LISTA), ws.Cells(LIN_MODO, COL_LISTA + 2))
-    lista.Value2 = Array("Ativos", "Inativos", "Todos")
+    lista.Value2 = modCRM.OpcoesSituacao()
     lista.Font.Color = modTema.COR_FUNDO
     Set faixa = ws.Range(ws.Cells(LIN_BUSCA, COL_SITUACAO), ws.Cells(LIN_BUSCA, COL_SITUACAO + 1))
     faixa.Merge

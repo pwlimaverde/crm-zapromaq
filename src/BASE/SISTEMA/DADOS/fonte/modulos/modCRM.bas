@@ -611,6 +611,21 @@ Public Function SQLGrade(ByVal tabela As String, ByRef params As Variant, Option
     End Select
 End Function
 
+' Opcoes do filtro de situacao (combo da ficha e lista da aba).
+' A primeira e o padrao ao abrir.
+Public Function OpcoesSituacao() As Variant
+    OpcoesSituacao = Array("Ativos", "Inativos", "Todos")
+End Function
+
+' Texto da opcao -> chave do SQL (FiltroSituacao). Vazio = todos.
+Public Function ChaveSituacao(ByVal opcao As String) As String
+    Select Case opcao
+        Case "Ativos":   ChaveSituacao = "ativos"
+        Case "Inativos": ChaveSituacao = "inativos"
+        Case Else:       ChaveSituacao = "todos"
+    End Select
+End Function
+
 '----------------------------------------------------------
 ' Situacao do cadastro (item 3): "ativos", "inativos" ou
 ' "todos"/vazio (sem filtro). Constante booleana do proprio

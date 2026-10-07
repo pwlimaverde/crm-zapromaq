@@ -92,6 +92,7 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
             If cboFiltro1.Visible Then cboFiltro1.ListIndex = 0
             If cboFiltro2.Visible Then cboFiltro2.ListIndex = 0
             If cboFiltro3.Visible Then cboFiltro3.ListIndex = 0
+            SituacaoSemFiltro
             On Error GoTo 0
         End If
     End If
@@ -385,8 +386,11 @@ End Sub
 ' Cada tela tem os filtros que fazem sentido, e a lista cresce
 ' para ocupar o que sobra - em vez de deixar um vazio grande:
 '   oportunidades .. 3 filtros + situacao/ordem (2 linhas)
-'   clientes ....... 2 filtros + ordem, na mesma linha
-'   contatos ....... so a busca
+'   clientes ....... 2 filtros + ordem; situacao do cadastro
+'                    na 2a linha
+'   contatos ....... a busca e a situacao do cadastro
+' A situacao do cadastro (Ativos/Inativos/Todos, item 3) usa o
+' mesmo lblSituacao/cboSituacao do atendimento, reposicionado.
 ' A altura da grade e definida ANTES de PrepararGrade, que e
 ' quem monta as linhas (clsGrade usa a altura do quadro).
 '----------------------------------------------------------
@@ -400,10 +404,14 @@ Private Sub Geometria()
             lblOrdem.Left = 358: lblOrdem.Top = 98: lblOrdem.Width = 160
             cboOrdem.Left = 358: cboOrdem.Top = 111: cboOrdem.Width = 160
             lblOrdem.Visible = True: cboOrdem.Visible = True
-            topo = 140
+            lblSituacao.Left = 22: lblSituacao.Top = 136
+            cboSituacao.Left = 22: cboSituacao.Top = 149
+            topo = 176
         Case Else
             lblOrdem.Visible = False: cboOrdem.Visible = False
-            topo = 100
+            lblSituacao.Left = 22: lblSituacao.Top = 98
+            cboSituacao.Left = 22: cboSituacao.Top = 111
+            topo = 140
     End Select
     grdReg.Top = topo
     grdReg.Height = lblStatus.Top - 4 - topo
@@ -466,7 +474,7 @@ Private Sub PrepararFiltros()
             lblFiltro3.Visible = False
             cboFiltro3.Visible = False
             chkAbertas.Visible = False
-            MostrarSituacao False
+            SituacaoDoCadastro
             PreencherOrdem Array("codigo|C" & ChrW$(&HF3) & "digo", _
                                  "empresa|Empresa", _
                                  "cidade|UF e cidade", _
@@ -476,7 +484,7 @@ Private Sub PrepararFiltros()
             lblFiltro2.Visible = False: cboFiltro2.Visible = False
             lblFiltro3.Visible = False: cboFiltro3.Visible = False
             chkAbertas.Visible = False
-            MostrarSituacao False
+            SituacaoDoCadastro
             PreencherOrdem Array("codigo|C" & ChrW$(&HF3) & "digo", "empresa|Empresa", "nome|Contato")
     End Select
 
@@ -515,6 +523,33 @@ Private Sub MostrarSituacao(ByVal mostrar As Boolean)
     cboSituacao.ListIndex = 0
 End Sub
 
+'----------------------------------------------------------
+' Situacao do CADASTRO (clientes e contatos): Ativos, Inativos
+' ou Todos. Esta vai no SQL (cl.ativo / ct.ativo); abre em
+' Ativos, como a aba.
+'----------------------------------------------------------
+Private Sub SituacaoDoCadastro()
+    Dim op As Variant
+    lblSituacao.Visible = True
+    cboSituacao.Visible = True
+    cboSituacao.Clear
+    For Each op In modCRM.OpcoesSituacao()
+        cboSituacao.AddItem CStr(op)
+    Next op
+    cboSituacao.ListIndex = 0
+End Sub
+
+' Sem filtro de situacao: "(todas)" no atendimento, "Todos" no
+' cadastro (ultima opcao) - registro inativo tambem e achado.
+Private Sub SituacaoSemFiltro()
+    If Not cboSituacao.Visible Then Exit Sub
+    If mTabela = "oportunidades" Then
+        cboSituacao.ListIndex = 0
+    Else
+        cboSituacao.ListIndex = cboSituacao.ListCount - 1
+    End If
+End Sub
+
 Private Sub cboSituacao_Change()
     If Not mCarregando Then SairDoConjunto: Buscar
 End Sub
@@ -522,6 +557,7 @@ End Sub
 ' Mantem so as linhas da situacao escolhida (a consulta ja veio).
 Private Sub FiltrarPorSituacao()
     Dim alvo As String, i As Long, j As Long, n As Long, r() As Variant
+    If mTabela <> "oportunidades" Then Exit Sub   ' cadastro: a situacao foi no SQL
     If Not cboSituacao.Visible Then Exit Sub
     If cboSituacao.ListIndex <= 0 Then Exit Sub
     If IsEmpty(mDados) Then Exit Sub
@@ -597,7 +633,7 @@ End Sub
 Public Sub Buscar()
     Dim sql As String, params As Variant, cols As Variant
     Dim i As Long, j As Long, p As Variant, tela() As String
-    Dim filtro1 As String, filtro2 As String, filtro3 As String
+    Dim filtro1 As String, filtro2 As String, filtro3 As String, situacao As String
 
     On Error GoTo trata
     Me.MousePointer = fmMousePointerHourGlass
@@ -612,10 +648,14 @@ Public Sub Buscar()
         If cboFiltro3.ListIndex > 0 Then filtro3 = cboFiltro3.Value
     End If
 
+    If mTabela <> "oportunidades" And cboSituacao.Visible Then
+        situacao = modCRM.ChaveSituacao(CStr(cboSituacao.Value))
+    End If
+
     Select Case mTabela
         Case "clientes":      sql = modCRM.SQLClientes(txtBusca.Text, filtro1, filtro2, params, _
-                                                       filtro3, OrdemEscolhida())
-        Case "contatos":      sql = modCRM.SQLContatos(txtBusca.Text, params, OrdemEscolhida())
+                                                       filtro3, OrdemEscolhida(), , situacao)
+        Case "contatos":      sql = modCRM.SQLContatos(txtBusca.Text, params, OrdemEscolhida(), , situacao)
         Case "oportunidades": sql = modCRM.SQLOportunidades(txtBusca.Text, filtro1, filtro2, _
                                                             (chkAbertas.Value = True), params, _
                                                             filtro3, OrdemEscolhida())
@@ -654,7 +694,10 @@ Public Sub Buscar()
                             "   |   mude um filtro para ver todos"
     Else
         lblStatus.Caption = mGrade.ListCount & " registro(s)" & _
-                            IIf(cboSituacao.Visible And cboSituacao.ListIndex > 0, " em " & cboSituacao.Value, "") & _
+                            IIf(cboSituacao.Visible And cboSituacao.ListIndex > 0 And mTabela = "oportunidades", _
+                                " em " & cboSituacao.Value, "") & _
+                            IIf(mTabela <> "oportunidades" And cboSituacao.Visible, _
+                                " (" & LCase$(CStr(cboSituacao.Value)) & ")", "") & _
                             "   |   Consulta de " & Format$(Now, "hh:nn:ss")
     End If
     lblStatus.ForeColor = modTema.COR_TEXTO2
@@ -790,7 +833,7 @@ Private Function SelecionarID(ByVal idRegistro As Long) As Boolean
     On Error Resume Next
     chkAbertas.Value = False
     txtBusca.Text = ""
-    If cboSituacao.Visible Then cboSituacao.ListIndex = 0
+    SituacaoSemFiltro
     If cboFiltro1.Visible Then cboFiltro1.ListIndex = 0
     If cboFiltro2.Visible Then cboFiltro2.ListIndex = 0
     If cboFiltro3.Visible Then cboFiltro3.ListIndex = 0
