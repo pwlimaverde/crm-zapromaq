@@ -1,8 +1,8 @@
 # Tarefas: demandas 6, 5, 3 e 4
 
-- [ ] 6.1 Vínculo por campo na ficha + `modSchema.CamposK`
+- [x] 6.1 Vínculo por campo na ficha + `modSchema.CamposK`
   - Teste primeiro: `Confere CamposK` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 6.2 `modCRM.DadosDoContato` e `CriticarTrocaContato`
+- [x] 6.2 `modCRM.DadosDoContato` e `CriticarTrocaContato`
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 6.3 `frmVinculo.EscolherContatoDe` (passo 2 direto, sem Voltar) 🖥
   - Teste primeiro: contrato de compilação · Verificar: `-Rapido` + build `-Teste`

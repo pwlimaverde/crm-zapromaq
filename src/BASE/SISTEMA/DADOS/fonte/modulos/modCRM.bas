@@ -695,14 +695,50 @@ End Function
 ' RESUMO DE VINCULO - uma consulta, ao trocar o vinculo
 '==========================================================
 Public Function ResumoContato(ByVal idContato As Long) As String
-    Dim d As Variant
+    Dim d As Object
+    Set d = DadosDoContato(idContato)
+    If d Is Nothing Then Exit Function
+    ResumoContato = TextoResumoContato(d("nome"), d("cargo"), d("empresa"), d("cidade"), d("uf"), d("estagio"))
+End Function
+
+'----------------------------------------------------------
+' Tudo o que a ficha do atendimento mostra do contato, numa
+' consulta: trocar o contato atualiza cargo, telefone e e-mail
+' e da a empresa dele (a troca so vale dentro da mesma empresa).
+' Devolve um dicionario campo -> valor, ou Nothing.
+'----------------------------------------------------------
+Public Function DadosDoContato(ByVal idContato As Long) As Object
+    Dim d As Variant, r As Object, nomes As Variant, i As Long
     If idContato = 0 Then Exit Function
     d = modDB.Consultar( _
-        "SELECT ct.nome, ct.cargo, cl.empresa, cl.cidade, cl.uf, cl.estagio" & _
+        "SELECT ct.id_cliente, ct.nome, ct.cargo, ct.telefone, ct.email, cl.empresa, cl.cidade, cl.uf, cl.estagio" & _
         " FROM contatos ct LEFT JOIN clientes cl ON ct.id_cliente=cl.id WHERE ct.id=?", _
         Array(modDB.P(modDB.adInteger, idContato)))
     If IsEmpty(d) Then Exit Function
-    ResumoContato = TextoResumoContato(d(1, 1), d(1, 2), d(1, 3), d(1, 4), d(1, 5), d(1, 6))
+    ' gCampos tem o indice da coluna na matriz (como em IndiceDeCampos)
+    nomes = modDB.gCampos
+    Set r = CreateObject("Scripting.Dictionary")
+    For i = LBound(nomes) To UBound(nomes)
+        r(LCase$(nomes(i))) = d(1, i)
+    Next i
+    Set DadosDoContato = r
+End Function
+
+'----------------------------------------------------------
+' Troca de contato de um atendimento ja gravado: so dentro da
+' mesma empresa. O codigo AT- guarda o codigo do cliente e e
+' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
+' atendimento nao e gravavel pela ficha - trocar de empresa
+' deixaria o atendimento apontando para duas empresas.
+' idClienteAtual = 0: atendimento novo, ainda sem empresa.
+'----------------------------------------------------------
+Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
+    If idClienteAtual = 0 Then Exit Function
+    If idClienteNovo = idClienteAtual Then Exit Function
+    CriticarTrocaContato = "O contato escolhido é de outra empresa." & vbCrLf & vbCrLf & _
+        "O atendimento só troca de contato dentro da mesma empresa: o código AT- guarda " & _
+        "o código do cliente e não muda. Se o atendimento foi aberto na empresa errada, " & _
+        "encerre-o como Descartado e abra um novo apontando para ele como anterior."
 End Function
 
 Public Function ResumoCliente(ByVal idCliente As Long) As String

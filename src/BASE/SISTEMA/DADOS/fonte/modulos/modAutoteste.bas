@@ -67,6 +67,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "MontarCodigo", modCRM.MontarCodigo("AT", 11, 148), "AT-0011-0148"
     Confere "CodigoVisualCliente", modCRM.CodigoVisualCliente(7), "0007"
     Confere "CodigoVisualCliente nulo", modCRM.CodigoVisualCliente(Null), ""
+    ' item 6: o atendimento so troca de contato dentro da mesma empresa
+    ' (o codigo AT- e congelado e nomeia a pasta do cliente)
+    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
+    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
+    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True

@@ -44,6 +44,13 @@ try {
         Conferir ($aba + ': aba protegida') ([bool]$ws.ProtectContents)
         $ws.ExportAsFixedFormat(0, (Join-Path $pasta ('uso-' + $aba + '.pdf')))
     }
+    # item 6: os dados do contato (troca na ficha) vêm numa consulta só
+    $lo = $wb.Worksheets.Item('Contatos').ListObjects.Item(1)
+    $idCto = [int]$lo.ListColumns.Item('_id').DataBodyRange.Cells.Item(1, 1).Value2
+    $nomeCto = [string]$lo.ListColumns.Item('Contato').DataBodyRange.Cells.Item(1, 1).Value2
+    $dc = $xl.Run("'" + $n + "'!modCRM.DadosDoContato", $idCto)
+    Conferir ('DadosDoContato(' + $idCto + ') traz nome e empresa') ($null -ne $dc -and [string]$dc.Item('nome') -eq $nomeCto -and [int]$dc.Item('id_cliente') -gt 0) $nomeCto
+
     $ini = Get-Date
     $xl.Run("'" + $n + "'!modPainel.AtualizarBasePainel")
     $ms = [int]((Get-Date) - $ini).TotalMilliseconds
