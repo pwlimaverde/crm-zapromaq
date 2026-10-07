@@ -49,6 +49,9 @@ Modernizar o CRM Comercial Zapromaq **mantendo o modelo de execução atual** (p
 | D14 | 04/10 | Repositório público reorganizado: `src\BASE` (entregável), `agent-config\` (Claude Code, specs, ferramentas, `doc_dev`); `old\` fora; histórico anterior em bundle fora do repositório; git-flow | Versionar no GitHub sem dado real |
 | D15 | 04/10 | A BASE vai para a empresa como pacote do commit (`empacotar-base.ps1`), extraído **por cima** da BASE da rede; a versão da rede tem prioridade e volta ao repositório antes de cada ciclo | Ajustes feitos lá pelo Claude Desktop |
 | D16 | 04/10 | Processo de desenvolvimento do **agent-skills** (Addy Osmani, MIT): original na íntegra em `agent-config\vendor` (subtree), adaptação em `agent-config\adaptacao`, `.claude` gerado; specs do projeto e das stacks em `agent-config\specs` | Atualizar o original sem perder a adaptação |
+| D17 | 06/10 | Cadastro em lote: **SUSPEITO começa fora** e só entra por duplo clique; OK também alterna. Reverte a decisão do comercial de 17/09 | Relatos de 18 a 29/09: o suspeito que entrava sozinho virava cadastro repetido que ninguém revia (`specs/funcionalidades/001-demandas-6-5-3-4`) |
+| D18 | 06/10 | Atendimento anterior usa a coluna **existente** `oportunidades.id_atendimento_anterior` (esquema 1.0, já gravada pela IA): sem migração 004; só da mesma empresa e nunca o próprio, no front e na IA | Duas colunas com o mesmo sentido; migração estrutural evitável; a 003 segue reservada |
+| D19 | 06/10 | O front, como a IA, **só troca o contato do atendimento dentro da mesma empresa** (código AT- congelado); empresa errada = encerrar como Descartado e abrir um novo apontando para ele | Corrige o defeito R15 |
 
 ## 4. Correções trazidas pela revisão com a documentação (19/09)
 
@@ -108,6 +111,8 @@ O legado funcionava, mas a leitura linha a linha das fontes achou defeitos reais
 | R11 | Grade própria sem teclado (a ListBox tinha) | Regressão de usabilidade | Setas, PgUp/PgDn, Home/End, Enter abre |
 | R12 | Ficha aceitava aderência/porte fora de 1–3 (o lote recusava) | Dado inconsistente | Crítica na ficha |
 | R13 | Situação GRAVADO do lote sem cor | Selo neutro | Cor no tema |
+| R15 | (06/10) "Procurar" na edição de atendimento deixava escolher contato de outra empresa; o `Atualizar` grava `id_contato` mas não `id_cliente` | Atendimento apontando para duas empresas | Troca só na empresa do atendimento (`frmVinculo.EscolherContatoDe`) e checagem ao salvar (`modCRM.CriticarTrocaContato`) — D19 |
+| R16 | (06/10) Ficha guardava um único id de vínculo por tabela (`mVinculoID`) | Um segundo campo K gravaria o id do contato nele | Vínculo por campo (`modSchema.CamposK`, `mVinculos`) |
 | R14 | Backup periódico é cópia de arquivo com usuários conectados | Cópia pode sair inconsistente (registrado como AVISO no log) | **Pendente/recomendação**: exportação tabela a tabela para um banco novo, ou manter o diário (exclusivo) como cópia de referência |
 
 ## 5. Arquitetura alvo

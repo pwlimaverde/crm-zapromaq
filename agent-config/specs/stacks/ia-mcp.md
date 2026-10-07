@@ -53,7 +53,9 @@ src\BASE\IA\INSTALAR-MCP.bat | INSTALAR-MCP-DEV.bat | INSTALAR-CLAUDE-E-CODEX.ba
   como erro de protocolo.
 - Gravação: confere `config.versao_esquema` antes; `UPDATE` com versão; log com `origem = 'IA'` e
   autor. Os campos `ctx_*` são escritos **só** por aqui.
-- Mesmas regras de normalização do front (`modValidacao` ⇄ `Regras.ps1`).
+- Mesmas regras de normalização do front (`modValidacao` ⇄ `Regras.ps1`) e dos vínculos: troca de
+  contato e atendimento anterior (`abrir_atendimento`, `codigo_atendimento_anterior`) só dentro
+  da mesma empresa (`modCRM.CriticarTrocaContato`/`CriticarAnterior` no front).
 - O MCP de desenvolvimento grava só em `SISTEMA\DADOS\fonte`, guarda cópia e registra em
   `execucao\dev\alteracoes.log`; publicar exige confirmação.
 - Bibliotecas do mcp-dev carregadas por **lista fixa** de nomes (arquivo sobrando na rede é inofensivo).

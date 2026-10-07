@@ -19,6 +19,9 @@ Tabelas: `clientes`, `contatos`, `oportunidades`, `listas`, `metas`, `log_altera
 `clientes.id` é a identidade; `codigo_cliente` só para `Cliente`; `estagio` derivado (sem código →
 `Pré-cliente`). Códigos `CT-CCCC-NNNN`/`AT-CCCC-NNNN` congelados na criação (nomeiam ~480 pastas).
 Campos calculados (situação, quadro, dias parado, ciclo, meses) não existem no banco.
+`oportunidades.id_atendimento_anterior` (esquema 1.0, opcional) liga a retomada ao atendimento
+antigo: gravado pela ficha (campo K) e pela IA, sempre da **mesma empresa** e nunca o próprio
+(D18; sem DDL nova). `ativo` de clientes/contatos alimenta o filtro Ativos/Inativos/Todos.
 
 ## Onde fica
 

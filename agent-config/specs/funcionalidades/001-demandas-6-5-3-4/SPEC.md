@@ -1,6 +1,6 @@
 # Spec: demandas 6, 5, 3 e 4 do comercial
 
-> Situação: aprovada em 07/10/2026 (GATE 1, ver plan.md)
+> Concluída em 07/10/2026 — feature/demandas-6-5-3-4 (aprovada em 07/10/2026, GATE 1)
 
 Origem: documento de demandas de 29/09/2026 (relatos do comercial de 18 a 29/09/2026), itens
 6, 5, 3 e 4, nesta ordem. Itens 1, 2 e 7 ficam fora deste ciclo.
@@ -32,20 +32,23 @@ Origem: documento de demandas de 29/09/2026 (relatos do comercial de 18 a 29/09/
 
 ## Critérios de aceite
 
-- [ ] **6:** na edição de um atendimento, o botão ao lado do campo Contato abre direto a lista de
+Conferidos aqui (autoteste, teste de uso, testes do MCP, `verificar-tudo -Completo`); o que é
+tela fica nos itens 🖥 do [plan.md](plan.md), **pendentes na estação com Excel 2019**.
+
+- [x] **6:** na edição de um atendimento, o botão ao lado do campo Contato abre direto a lista de
       contatos da empresa (sem Voltar); a escolha atualiza o vínculo e cargo, telefone e e-mail
       somente leitura; salvar e reabrir mantém o contato. Contato de outra empresa é recusado ao
       salvar. Atendimento novo mantém os dois passos.
-- [ ] **5:** num lote com linhas OK, SUSPEITO, DUPLICADO e ERRO, o total inicial "vai cadastrar"
+- [x] **5:** num lote com linhas OK, SUSPEITO, DUPLICADO e ERRO, o total inicial "vai cadastrar"
       conta só as OK; duplo clique em OK tira a linha e em SUSPEITO inclui, com rótulo e total
       atualizados; DUPLICADO e ERRO mostram "Só OK e SUSPEITO alternam".
-- [ ] **3:** as abas Clientes e Contatos abrem só com ativos; em Todos os inativos aparecem em
+- [x] **3:** as abas Clientes e Contatos abrem só com ativos; em Todos os inativos aparecem em
       vermelho; "Limpar filtros" volta para Ativos; o filtro sobrevive ao Atualizar e à
       atualização automática; a ficha de clientes e contatos tem o mesmo filtro (abre em Ativos).
-- [ ] **4:** um atendimento (novo ou em edição) aponta para outro da mesma empresa; o vínculo
+- [x] **4:** um atendimento (novo ou em edição) aponta para outro da mesma empresa; o vínculo
       aparece ao reabrir (código AT-); um botão abre a ficha do anterior em leitura; dá para
       remover; apontar para si mesmo ou para outra empresa é recusado (front e IA).
-- [ ] Nada de dado real; esquema 1.0; nenhum contrato tocado (B7, `VERSAO-FRONT`, nomes de
+- [x] Nada de dado real; esquema 1.0; nenhum contrato tocado (B7, `VERSAO-FRONT`, nomes de
       controle do layout, ferramentas MCP, códigos `CT-`/`AT-`).
 
 ## Stacks tocadas
