@@ -94,6 +94,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "TabelaDaAba", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Clientes")), "clientes"
     Confere "TabelaDaAba fora", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Inicio")), ""
     Confere "RotuloStatus", modAcoes.RotuloStatus("contatos", 0, True), "Desativar"
+    ' item 5 (06/10/2026): SUSPEITO comeca fora; OK e SUSPEITO alternam
+    Confere "lote: SUSPEITO comeca ignorado", modLote.ComecaIgnorada("SUSPEITO"), True
+    Confere "lote: OK comeca entrando", modLote.ComecaIgnorada("OK"), False
+    Confere "lote: OK alterna", modLote.PodeAlternar("OK"), True
+    Confere "lote: SUSPEITO alterna", modLote.PodeAlternar("SUSPEITO"), True
+    Confere "lote: DUPLICADO nao alterna", modLote.PodeAlternar("DUPLICADO"), False
+    Confere "lote: ERRO nao alterna", modLote.PodeAlternar("ERRO"), False
+    Confere "lote: rotulo SUSPEITO incluido", modLote.RotuloLinha("SUSPEITO", False), "SUSPEITO - ENTRA"
+    Confere "lote: rotulo SUSPEITO fora", modLote.RotuloLinha("SUSPEITO", True), "SUSPEITO - FORA"
+    Confere "lote: rotulo OK ignorado", modLote.RotuloLinha("OK", True), "OK - IGNORAR"
+    Confere "lote: rotulo OK", modLote.RotuloLinha("OK", False), "OK"
+    Confere "lote: rotulo DUPLICADO", modLote.RotuloLinha("DUPLICADO", False), "DUPLICADO"
     Confere "NomeNormalizado", modLote.NomeNormalizado("Ind" & ChrW$(&HFA) & "stria D'" & ChrW$(&HC2) & "ngelo LTDA"), "D ANGELO"
 
     ' ---- tema e tela (visual)
