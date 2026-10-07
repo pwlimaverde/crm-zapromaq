@@ -514,9 +514,11 @@ Public Function SQLClientes(ByVal busca As String, ByVal estagio As String, _
                             ByVal responsavel As String, ByRef params As Variant, _
                             Optional ByVal qualificacao As String = "", _
                             Optional ByVal ordem As String = "", _
-                            Optional ByVal ids As Variant) As String
+                            Optional ByVal ids As Variant, _
+                            Optional ByVal situacao As String = "") As String
     Dim w As String, ps As New Collection
 
+    w = FiltroSituacao("cl.ativo", situacao)
     If Trim$(busca) <> "" Then
         ' So procura no CNPJ se o texto tiver digito. Sem isso, "%%"
         ' casa com QUALQUER cnpj preenchido e a busca devolve a base toda.
@@ -547,10 +549,12 @@ End Function
 
 Public Function SQLContatos(ByVal busca As String, ByRef params As Variant, _
                             Optional ByVal ordem As String = "", _
-                            Optional ByVal ids As Variant) As String
+                            Optional ByVal ids As Variant, _
+                            Optional ByVal situacao As String = "") As String
     Dim w As String, ps As New Collection, k As Long
+    w = FiltroSituacao("ct.ativo", situacao)
     If Trim$(busca) <> "" Then
-        w = " AND (ct.nome LIKE ? OR cl.empresa LIKE ? OR ct.email LIKE ? OR ct.codigo LIKE ?)"
+        w = w & " AND (ct.nome LIKE ? OR cl.empresa LIKE ? OR ct.email LIKE ? OR ct.codigo LIKE ?)"
         For k = 1 To 4
             ps.Add modDB.P(modDB.adVarWChar, PadraoLike(busca))
         Next k
@@ -604,6 +608,18 @@ Public Function SQLGrade(ByVal tabela As String, ByRef params As Variant, Option
         Case "clientes":      SQLGrade = SQLClientes("", "", "", params, "", "", ids)
         Case "contatos":      SQLGrade = SQLContatos("", params, "", ids)
         Case "oportunidades": SQLGrade = SQLOportunidades("", "", "", False, params, "", "", ids)
+    End Select
+End Function
+
+'----------------------------------------------------------
+' Situacao do cadastro (item 3): "ativos", "inativos" ou
+' "todos"/vazio (sem filtro). Constante booleana do proprio
+' SQL, nao parametro: nao vem de digitacao.
+'----------------------------------------------------------
+Private Function FiltroSituacao(ByVal coluna As String, ByVal situacao As String) As String
+    Select Case LCase$(situacao)
+        Case "ativos":   FiltroSituacao = " AND " & coluna & "=True"
+        Case "inativos": FiltroSituacao = " AND " & coluna & "=False"
     End Select
 End Function
 
