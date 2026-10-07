@@ -28,7 +28,7 @@
   - Teste primeiro: `Confere` + `testar-uso` · Verificar: `-Rapido` + build `-Teste`
 - [x] 4.3 Escolha, abertura e remoção do anterior na ficha 🖥
   - Teste primeiro: contrato + `Confere` · Verificar: `-Rapido` + build `-Teste`
-- [ ] 4.4 IA recusa anterior de outra empresa
+- [x] 4.4 IA recusa anterior de outra empresa
   - Teste primeiro: caso em `testar-mcp.ps1` · Verificar: padrão
 - [ ] F Fechamento: specs de stack, PLANO, contrato-banco, carimbo
   - Verificar: `-Completo`
