@@ -12,7 +12,7 @@
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
 - [x] 5.2 Aceite de ponta a ponta do lote
   - Teste primeiro: `testar-uso` (contra o `modLote` antigo) · Verificar: `-Rapido` + build `-Teste`
-- [ ] 5.3 `frmLote`: rótulos, ajuda, mensagem, cor do selo 🖥
+- [x] 5.3 `frmLote`: rótulos, ajuda, mensagem, cor do selo 🖥
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`
 - [ ] 3.1 SQL de clientes e contatos com `situacao`
   - Teste primeiro: `Confere` · Verificar: `-Rapido` + build `-Teste`

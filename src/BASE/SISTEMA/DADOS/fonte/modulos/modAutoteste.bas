@@ -106,6 +106,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: rotulo OK ignorado", modLote.RotuloLinha("OK", True), "OK - IGNORAR"
     Confere "lote: rotulo OK", modLote.RotuloLinha("OK", False), "OK"
     Confere "lote: rotulo DUPLICADO", modLote.RotuloLinha("DUPLICADO", False), "DUPLICADO"
+    Confere "lote: ajuda explica o duplo clique", (InStr(modLote.TextoAjuda(), "Suspeito come" & ChrW$(&HE7) & "a fora") > 0), True
+    Confere "lote: aviso de quem nao alterna", (Left$(modLote.AvisoNaoAlterna(), 25) = "S" & ChrW$(&HF3) & " OK e SUSPEITO alternam"), True
+    ' o selo da grade pinta pelo estado antes do " - " (SUSPEITO - FORA = SUSPEITO)
+    Dim g As New clsGrade
+    Confere "selo pelo prefixo", g.ChaveSelo("SUSPEITO - FORA"), "SUSPEITO"
+    Confere "selo sem prefixo", g.ChaveSelo("Em dia"), "Em dia"
     Confere "NomeNormalizado", modLote.NomeNormalizado("Ind" & ChrW$(&HFA) & "stria D'" & ChrW$(&HC2) & "ngelo LTDA"), "D ANGELO"
 
     ' ---- tema e tela (visual)

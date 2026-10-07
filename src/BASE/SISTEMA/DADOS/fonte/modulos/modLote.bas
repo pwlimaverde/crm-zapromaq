@@ -228,6 +228,20 @@ Public Function PodeAlternar(ByVal status As String) As Boolean
     PodeAlternar = (status = "OK" Or status = "SUSPEITO")
 End Function
 
+' Textos da tela (frmLote) que explicam a regra: ficam aqui, junto dela.
+Public Function TextoAjuda() As String
+    ' cabe nas 2 linhas de lblAjuda (736 x 26 pt)
+    TextoAjuda = "Cole o bloco da planilha de qualificação, uma empresa por linha: aderência, porte, " & _
+        "qualificação, empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observações. " & _
+        "Duplo clique alterna OK e SUSPEITO entre entrar e ficar fora; Suspeito começa fora."
+End Function
+
+Public Function AvisoNaoAlterna() As String
+    AvisoNaoAlterna = "Só OK e SUSPEITO alternam." & vbCrLf & vbCrLf & _
+        "DUPLICADO e ERRO não entram: um já está na base, o outro está " & _
+        "sem dado obrigatório. Corrija na planilha e confira de novo."
+End Function
+
 ' O rotulo da lista mostra o estado EFETIVO da linha.
 Public Function RotuloLinha(ByVal status As String, ByVal ignorar As Boolean) As String
     Select Case status
