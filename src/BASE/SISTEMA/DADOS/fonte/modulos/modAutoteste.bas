@@ -73,6 +73,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "CamposDe oportunidades", (UBound(modSchema.CamposDe("oportunidades")) >= 20), True
     Confere "ColunasPlanilha", (UBound(modSchema.ColunasPlanilha("oportunidades", False)) >= 5), True
     Confere "Parte", modSchema.Parte("a|b|c", 1), "b"
+    ' a ficha guarda um vinculo POR CAMPO K: com dois campos K na mesma
+    ' tabela, um id unico gravaria o contato no lugar do outro vinculo
+    Confere "CamposK oportunidades", modSchema.CamposK("oportunidades"), "id_contato"
+    Confere "CamposK contatos", modSchema.CamposK("contatos"), "id_cliente"
+    Confere "CamposK clientes", modSchema.CamposK("clientes"), ""
 
     ' ---- modGrade / modAcoes / modLote
     Confere "TabelaDaAba", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Clientes")), "clientes"

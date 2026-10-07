@@ -111,6 +111,23 @@ Public Function CamposDe(ByVal tabela As String) As Variant
 End Function
 
 '----------------------------------------------------------
+' Campos de VINCULO (tipo K) da tabela, na ordem da ficha,
+' separados por virgula. O primeiro e o vinculo principal (o
+' que o atendimento novo e o contato novo escolhem logo ao
+' abrir). A ficha guarda um id POR CAMPO: um id unico para a
+' tabela inteira gravaria o contato no lugar de outro vinculo.
+'----------------------------------------------------------
+Public Function CamposK(ByVal tabela As String) As String
+    Dim campos As Variant, i As Long, spec As Variant
+    campos = CamposDe(tabela)
+    If IsEmpty(campos) Then Exit Function
+    For i = LBound(campos) To UBound(campos)
+        spec = Split(campos(i), "|")
+        If spec(2) = "K" Then CamposK = CamposK & IIf(CamposK = "", "", ",") & spec(0)
+    Next i
+End Function
+
+'----------------------------------------------------------
 ' Colunas da grade: expressao|Titulo|largura
 '----------------------------------------------------------
 Public Function ColunasDe(ByVal tabela As String) As Variant
