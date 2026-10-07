@@ -2,7 +2,7 @@
   criar-banco-demo.ps1 - cria BASE\crm_zapromaq.accdb com dados FICTÍCIOS para
   demonstração e conferência visual do front: 20 empresas (16 clientes e 4
   pré-clientes), 20 contatos, 20 atendimentos em etapas e prazos variados e as
-  metas do ano corrente.
+  metas do ano corrente. Dois clientes e os contatos deles ficam inativos.
 
   A estrutura vem do dono dela (banco\esquema\criar-banco.ps1); as migrações
   pendentes são aplicadas no fim, como no banco de produção. Nenhum dado real:
@@ -115,7 +115,7 @@ try {
         @('INOX FICTICIO COMERCIO LTDA',         'NOVO HAMBURGO',    'RS', 'Metalurgia',              'Vendedor A', 2, 1, 'Reserva'),
         @('CARROCERIAS PROSPECTO LTDA',          'ERECHIM',          'RS', 'Automotivo',              'Vendedor B', 3, 2, 'Prioridade alta')
     )
-    $ids = @{}; $cods = @{}
+    $ids = @{}; $cods = @{}; $inativos = @(6, 12)
     for ($i = 0; $i -lt $empresas.Count; $i++) {
         $e = $empresas[$i]; $cod = if ($i -lt 16) { $i + 1 } else { $null }
         $c = [ordered]@{
@@ -127,6 +127,9 @@ try {
             observacoes = $(if ($i % 4 -eq 0) { 'Cadastro fictício para demonstração do CRM.' } else { $null })
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        # 2 clientes desativados (com os contatos deles, como faz a ficha): a grade abre em
+        # Ativos e mostra os inativos em vermelho só em Inativos/Todos
+        if ($inativos -contains $i) { $c['ativo'] = $false }
         $ids[$i] = Ins 'clientes' $c; $cods[$i] = $cod
     }
 
@@ -152,6 +155,7 @@ try {
             telefone = ('41999{0:000000}' -f (10000 + 777 * $i)); email = ('contato{0:00}@exemplo.com.br' -f ($i + 1))
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        if ($inativos -contains $ci) { $c['ativo'] = $false }
         $ctos[$i] = @{ id = (Ins 'contatos' $c); cli = $ci }
     }
 
@@ -221,4 +225,4 @@ finally { $cn.Close(); $cn.Dispose() }
 
 Write-Host ''
 Write-Host 'Banco de demonstração pronto:' $Banco
-Write-Host '  16 clientes, 4 pré-clientes, 20 contatos, 20 atendimentos, metas do ano. Tudo fictício.'
+Write-Host '  16 clientes, 4 pré-clientes, 20 contatos, 20 atendimentos, metas do ano (2 clientes e 2 contatos inativos). Tudo fictício.'
