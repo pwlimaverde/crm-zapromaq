@@ -63,6 +63,8 @@ try {
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
         Conferir ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
     }
+    # as macros acima religam os eventos; o resto do teste roda como começou (sem eventos)
+    $xl.EnableEvents = $false
 
     # item 6: os dados do contato (troca na ficha) vêm numa consulta só
     $lo = $wb.Worksheets.Item('Contatos').ListObjects.Item(1)
