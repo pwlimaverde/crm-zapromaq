@@ -44,7 +44,7 @@ CRM comercial da Zapromaq (vendas de máquinas industriais). O objetivo deste re
 - **Modelo de execução:** uma pasta compartilhada no servidor contém o banco `.accdb` e o `.xlsm` montado. O usuário copia o `.xlsm` dessa pasta para a própria máquina e usa a cópia local como front, acessando os dados pela rede.
 - **Tudo que é necessário para montar o `.xlsm` fica na pasta da rede:** fontes VBA, scripts de build, assets (logo, ícones) e dados de configuração. O build roda numa estação a partir da rede, com o que já vem no Windows (PowerShell 5.1 + automação COM do Excel).
 - **O entregável é uma pasta.** Copiar a pasta inteira para a rede tem de bastar para montar e rodar — sem caminhos absolutos da máquina de desenvolvimento e sem letra de unidade (use caminhos relativos à pasta ou UNC).
-- **A máquina de desenvolvimento tem Excel do Microsoft 365** (desde 04/10/2026) e o motor ACE: dá para montar com `MONTAR-FRONTEND.bat -Teste`, compilar e rodar autoteste e teste de uso aqui. Não é o Excel 2019 das estações — recurso que só existe no 365 passa aqui e quebra lá; a conferência final continua numa estação com 2019.
+- **A máquina de desenvolvimento tem Excel 2019 (16.0, 64 bits), o mesmo das estações, e é exclusiva para desenvolvimento, só com dados fictícios**, e o motor ACE: dá para montar com `MONTAR-FRONTEND.bat -Teste`, compilar e rodar autoteste e teste de uso aqui. Os itens 🖥 de tela também podem ser conferidos aqui; a publicação para a rede continua exigindo autorização e a conferência na estação de implantação.
 - **Ferramentas de desenvolvimento são livres** (git, Python, linters, testes, geradores) desde que fiquem só no desenvolvimento: nada disso pode ser pré-requisito para montar ou usar o sistema na rede.
 
 Repositório git na raiz `crm-zapromaq/`, público no GitHub (`pwlimaverde/crm-zapromaq`), com **git-flow** (merge `--no-ff`):
@@ -153,7 +153,7 @@ powershell -File SISTEMA\DADOS\ferramentas\sincronizar\trazer-da-rede.ps1 -Rede 
 powershell -File ..\..\agent-config\ferramentas\empacotar-base.ps1    # -> dist\BASE-vX.Y-....zip na raiz do repositório
 ```
 
-Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela prévia, e o build `-Teste` (Excel 365) compila e roda o autoteste (`modAutoteste`) e o teste de uso; a palavra final é o build numa estação com Excel 2019. Roteiro de implantação: `SISTEMA\DADOS\docs\implantacao.md`.
+Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela prévia, e o build `-Teste` (Excel 2019) compila e roda o autoteste (`modAutoteste`) e o teste de uso; a palavra final é o build numa estação com Excel 2019. Roteiro de implantação: `SISTEMA\DADOS\docs\implantacao.md`.
 
 ## Front (estado atual, Fases 4–6)
 
