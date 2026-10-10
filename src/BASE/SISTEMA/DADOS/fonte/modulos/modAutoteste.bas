@@ -92,6 +92,15 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "anterior no atendimento novo", modCRM.CriticarAnterior(0, 7, 3, 3), ""
     Confere "anterior = o proprio recusado", (modCRM.CriticarAnterior(10, 10, 3, 3) <> ""), True
     Confere "anterior de outra empresa recusado", (modCRM.CriticarAnterior(10, 7, 3, 4) <> ""), True
+    ' anterior que nao existe mais (empresa 0): recusa, mas nao diz "outra empresa"
+    Confere "anterior inexistente recusado", (modCRM.CriticarAnterior(10, 7, 3, 0) <> ""), True
+    Confere "anterior inexistente sem 'empresa'", (InStr(modCRM.CriticarAnterior(10, 7, 3, 0), "empresa") = 0), True
+    ' so se confere o anterior que MUDOU (ou no atendimento novo): o que a IA
+    ' gravou antes da regra nao trava a edicao de outro campo
+    Confere "anterior inalterado nao confere", modCRM.AnteriorPrecisaConferir(False, 7, 7), False
+    Confere "anterior trocado confere", modCRM.AnteriorPrecisaConferir(False, 7, 8), True
+    Confere "anterior no novo confere", modCRM.AnteriorPrecisaConferir(True, 0, 8), True
+    Confere "anterior removido nao confere", modCRM.AnteriorPrecisaConferir(False, 7, 0), False
     ' botao de cada campo de vinculo: so na edicao; o do contato so em
     ' atendimento ja gravado (o novo escolhe empresa e contato em 2 passos)
     Confere "botao contato na edicao", modCRM.BotaoVinculoAtivo("id_contato", True, False, 5), True

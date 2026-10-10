@@ -923,10 +923,27 @@ Public Function CriticarAnterior(ByVal idProprio As Long, ByVal idAnterior As Lo
     If idAnterior = 0 Then Exit Function
     If idAnterior = idProprio Then
         CriticarAnterior = "O atendimento anterior não pode ser o próprio atendimento."
+    ElseIf idClienteAnterior = 0 Then
+        ' consulta sem linha: o anterior foi apagado ou nunca existiu
+        CriticarAnterior = "O atendimento anterior escolhido não existe mais." & vbCrLf & vbCrLf & _
+                           "Escolha outro pelo botão ao lado do campo, ou remova o vínculo."
     ElseIf idClienteAnterior <> idCliente Then
         CriticarAnterior = "O atendimento anterior tem de ser da mesma empresa do contato." & vbCrLf & vbCrLf & _
                            "Escolha de novo pelo botão ao lado do campo, ou remova o vínculo."
     End If
+End Function
+
+'----------------------------------------------------------
+' Quando o anterior se confere ao salvar: no atendimento novo ou
+' quando o vinculo MUDOU na edicao (vazio nao se confere). O que ja
+' estava gravado - inclusive o que a IA gravou antes da regra da
+' mesma empresa - nao trava a edicao de outro campo; o contato nao
+' troca de empresa na edicao, entao o anterior lido continua valido.
+'----------------------------------------------------------
+Public Function AnteriorPrecisaConferir(ByVal novo As Boolean, ByVal idLido As Long, _
+                                        ByVal idAtual As Long) As Boolean
+    If idAtual = 0 Then Exit Function
+    AnteriorPrecisaConferir = (novo Or idAtual <> idLido)
 End Function
 
 Public Function ListarClientesParaVinculo(ByVal texto As String) As Variant

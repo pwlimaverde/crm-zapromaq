@@ -44,6 +44,7 @@ Private mVinculos As Object
 Private mCamposK As Variant        ' campos K da tabela (modSchema.CamposK)
 Private mClienteRegistro As Long   ' empresa (id_cliente) do registro exibido
 Private mContatoLido As Long       ' id_contato lido ao entrar em edicao
+Private mAnteriorLido As Long      ' id_atendimento_anterior lido ao entrar em edicao
 Private mAtivo As Boolean          ' registro exibido esta ativo?
 Private mConjunto As Variant       ' ids vindos da grade, na ordem da tela
 Private mPos As Long               ' posicao atual dentro de mConjunto
@@ -1064,7 +1065,7 @@ End Sub
 
 Private Sub cmdNovo_Click()
     Dim i As Long, spec As Variant
-    mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0
+    mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0: mAnteriorLido = 0
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         DefinirValor CStr(spec(0)), CStr(spec(2)), Null
@@ -1111,6 +1112,7 @@ Private Sub cmdEditar_Click()
     Next i
     mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
     mContatoLido = VinculoDe("id_contato")
+    mAnteriorLido = VinculoDe("id_atendimento_anterior")
     ' Empresa do atendimento lida do BANCO, nao da lista: o atendimento
     ' recem-criado que nao entra no filtro da ficha nao passa por
     ' ExibirRegistro, e a trava da troca de contato ficava sem empresa.
@@ -1423,10 +1425,11 @@ Private Function CriticarVinculos() As String
         If CriticarVinculos <> "" Then Exit Function
     End If
 
-    ' anterior: da mesma empresa e nao o proprio (o contato pode ter
-    ' mudado depois que o anterior foi escolhido)
+    ' anterior: da mesma empresa e nao o proprio. So o que mudou (ou o
+    ' do atendimento novo, cujo contato pode ter mudado depois): o ja
+    ' gravado nao trava a edicao de outro campo
     idAnt = VinculoDe("id_atendimento_anterior")
-    If idAnt = 0 Then Exit Function
+    If Not modCRM.AnteriorPrecisaConferir(mNovo, mAnteriorLido, idAnt) Then Exit Function
     idCliAnt = CLng(modDB.Nz(modDB.ConsultarValor("SELECT id_cliente FROM oportunidades WHERE id=?", Null, _
                                                   Array(modDB.P(modDB.adInteger, idAnt))), "0"))
     CriticarVinculos = modCRM.CriticarAnterior(mID, idAnt, ClienteDoAtendimento(), idCliAnt)
