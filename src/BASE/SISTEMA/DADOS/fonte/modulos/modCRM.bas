@@ -789,8 +789,15 @@ Public Function CodigoDoAtendimento(ByVal idAtendimento As Long) As String
                                                         Array(modDB.P(modDB.adInteger, idAtendimento))))
 End Function
 
-Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
-    If idClienteAtual = 0 Then Exit Function
+Public Function CriticarTrocaContato(ByVal novo As Boolean, ByVal idClienteAtual As Long, _
+                                     ByVal idClienteNovo As Long) As String
+    If novo Then Exit Function
+    If idClienteAtual = 0 Then
+        ' gravado sem empresa conhecida: recusa, nunca "qualquer empresa"
+        CriticarTrocaContato = "Não consegui conferir a empresa deste atendimento." & vbCrLf & vbCrLf & _
+            "Cancele, clique em Editar de novo e escolha o contato."
+        Exit Function
+    End If
     If idClienteNovo = idClienteAtual Then Exit Function
     CriticarTrocaContato = "O contato escolhido é de outra empresa." & vbCrLf & vbCrLf & _
         "O atendimento só troca de contato dentro da mesma empresa: o código AT- guarda " & _

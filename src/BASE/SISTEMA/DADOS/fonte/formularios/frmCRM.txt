@@ -1111,6 +1111,13 @@ Private Sub cmdEditar_Click()
     Next i
     mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
     mContatoLido = VinculoDe("id_contato")
+    ' Empresa do atendimento lida do BANCO, nao da lista: o atendimento
+    ' recem-criado que nao entra no filtro da ficha nao passa por
+    ' ExibirRegistro, e a trava da troca de contato ficava sem empresa.
+    ' Editar e a unica entrada na edicao de registro gravado.
+    If mTabela = "oportunidades" Then
+        mClienteRegistro = CLng(modDB.Nz(ValorPorNome(d, nomes, "id_cliente"), "0"))
+    End If
 
     ModoEdicao
     lblStatus.Caption = "Editando. Versão " & mVersao & " lida às " & Format$(Now, "hh:nn:ss") & "."
@@ -1411,7 +1418,8 @@ Private Function CriticarVinculos() As String
     If Not mNovo And VinculoDe("id_contato") <> mContatoLido Then
         Set d = modCRM.DadosDoContato(VinculoDe("id_contato"))
         If d Is Nothing Then CriticarVinculos = "O contato escolhido n" & ChrW$(&HE3) & "o existe mais.": Exit Function
-        CriticarVinculos = modCRM.CriticarTrocaContato(mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
+        ' mClienteRegistro veio do banco no Editar; 0 aqui e recusado
+        CriticarVinculos = modCRM.CriticarTrocaContato(False, mClienteRegistro, CLng(modDB.Nz(d("id_cliente"), "0")))
         If CriticarVinculos <> "" Then Exit Function
     End If
 

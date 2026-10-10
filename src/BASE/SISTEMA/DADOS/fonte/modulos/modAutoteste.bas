@@ -80,9 +80,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "ChaveSituacao vazio", modCRM.ChaveSituacao(""), "todos"
     ' item 6: o atendimento so troca de contato dentro da mesma empresa
     ' (o codigo AT- e congelado e nomeia a pasta do cliente)
-    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
-    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
-    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
+    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(False, 3, 3), ""
+    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(False, 3, 4) <> ""), True
+    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(True, 0, 4), ""
+    ' gravado sem empresa conhecida (0): recusa, nunca "qualquer empresa" - era o
+    ' furo do atendimento novo que nao entrava na lista e era editado em seguida
+    Confere "atendimento gravado sem empresa recusa", (modCRM.CriticarTrocaContato(False, 0, 4) <> ""), True
     ' item 4: o anterior nao pode ser o proprio atendimento nem de outra empresa
     Confere "anterior vazio aceito", modCRM.CriticarAnterior(10, 0, 3, 0), ""
     Confere "anterior da mesma empresa aceito", modCRM.CriticarAnterior(10, 7, 3, 3), ""
