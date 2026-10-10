@@ -57,10 +57,17 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   (abrir a ficha em leitura), ligados por `clsUI.LigarBotao` (o clique no texto chega por
   `UI_Acao`, porque controle de `Controls.Add` não dispara o evento do formulário). Regra de
   quando ficam ativos: `modCRM.BotaoVinculoAtivo`. Atendimento gravado só troca de contato
-  dentro da mesma empresa (`frmVinculo.EscolherContatoDe`, checagem ao salvar).
+  dentro da mesma empresa (`frmVinculo.EscolherContatoDe`, checagem ao salvar). A empresa do
+  atendimento vem do **banco** no Editar (`mClienteRegistro`), nunca só da lista; empresa 0 em
+  registro gravado é recusada (`CriticarTrocaContato`). O anterior só se confere quando muda
+  ou no atendimento novo (`modCRM.AnteriorPrecisaConferir`).
 - **Situação do cadastro** (Clientes/Contatos): grade com coluna oculta `_a` (depois de
   `_id`) e célula com lista em F4 (`modGrade.COL_SITUACAO`); a aba abre em Ativos, inativo em
-  vermelho; na ficha, `cboSituacao` vai no SQL (`modCRM.OpcoesSituacao`/`ChaveSituacao`).
+  vermelho; valor fora da lista volta para Ativos; na ficha, `cboSituacao` vai no SQL
+  (`modCRM.OpcoesSituacao`/`ChaveSituacao`).
+- **Edição de fonte VBA com acento:** a ferramenta Edit regrava o arquivo inteiro como UTF-8
+  e troca os acentos cp1252 por U+FFFD. Em arquivo com byte > 127 (ex.: `modCRM`, `frmCRM`,
+  `modLote`), troque o trecho por script que lê e grava em cp1252, e confira com `git diff`.
 - Nome de variável do formulário encobre função do VBA: em `frmCRM`, `Mid$` é `mID` — use
   `VBA.Mid$`.
 

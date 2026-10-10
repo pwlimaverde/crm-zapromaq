@@ -758,14 +758,6 @@ Public Function DadosDoContato(ByVal idContato As Long) As Object
 End Function
 
 '----------------------------------------------------------
-' Troca de contato de um atendimento ja gravado: so dentro da
-' mesma empresa. O codigo AT- guarda o codigo do cliente e e
-' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
-' atendimento nao e gravavel pela ficha - trocar de empresa
-' deixaria o atendimento apontando para duas empresas.
-' idClienteAtual = 0: atendimento novo, ainda sem empresa.
-'----------------------------------------------------------
-'----------------------------------------------------------
 ' Quando o botao de um campo de vinculo da ficha fica ativo.
 ' Sempre so na edicao. O do contato, so em atendimento JA
 ' GRAVADO: o novo escolhe empresa e contato pelo Procurar, em
@@ -789,8 +781,24 @@ Public Function CodigoDoAtendimento(ByVal idAtendimento As Long) As String
                                                         Array(modDB.P(modDB.adInteger, idAtendimento))))
 End Function
 
-Public Function CriticarTrocaContato(ByVal idClienteAtual As Long, ByVal idClienteNovo As Long) As String
-    If idClienteAtual = 0 Then Exit Function
+'----------------------------------------------------------
+' Troca de contato de um atendimento ja gravado: so dentro da
+' mesma empresa. O codigo AT- guarda o codigo do cliente e e
+' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
+' atendimento nao e gravavel pela ficha - trocar de empresa
+' deixaria o atendimento apontando para duas empresas.
+' novo = True: atendimento novo, ainda sem empresa (nao confere).
+' Gravado com idClienteAtual = 0 (empresa nao lida): recusa.
+'----------------------------------------------------------
+Public Function CriticarTrocaContato(ByVal novo As Boolean, ByVal idClienteAtual As Long, _
+                                     ByVal idClienteNovo As Long) As String
+    If novo Then Exit Function
+    If idClienteAtual = 0 Then
+        ' gravado sem empresa conhecida: recusa, nunca "qualquer empresa"
+        CriticarTrocaContato = "Não consegui conferir a empresa deste atendimento." & vbCrLf & vbCrLf & _
+            "Cancele, clique em Editar de novo e escolha o contato."
+        Exit Function
+    End If
     If idClienteNovo = idClienteAtual Then Exit Function
     CriticarTrocaContato = "O contato escolhido é de outra empresa." & vbCrLf & vbCrLf & _
         "O atendimento só troca de contato dentro da mesma empresa: o código AT- guarda " & _
@@ -916,10 +924,27 @@ Public Function CriticarAnterior(ByVal idProprio As Long, ByVal idAnterior As Lo
     If idAnterior = 0 Then Exit Function
     If idAnterior = idProprio Then
         CriticarAnterior = "O atendimento anterior não pode ser o próprio atendimento."
+    ElseIf idClienteAnterior = 0 Then
+        ' consulta sem linha: o anterior foi apagado ou nunca existiu
+        CriticarAnterior = "O atendimento anterior escolhido não existe mais." & vbCrLf & vbCrLf & _
+                           "Escolha outro pelo botão ao lado do campo, ou remova o vínculo."
     ElseIf idClienteAnterior <> idCliente Then
         CriticarAnterior = "O atendimento anterior tem de ser da mesma empresa do contato." & vbCrLf & vbCrLf & _
                            "Escolha de novo pelo botão ao lado do campo, ou remova o vínculo."
     End If
+End Function
+
+'----------------------------------------------------------
+' Quando o anterior se confere ao salvar: no atendimento novo ou
+' quando o vinculo MUDOU na edicao (vazio nao se confere). O que ja
+' estava gravado - inclusive o que a IA gravou antes da regra da
+' mesma empresa - nao trava a edicao de outro campo; o contato nao
+' troca de empresa na edicao, entao o anterior lido continua valido.
+'----------------------------------------------------------
+Public Function AnteriorPrecisaConferir(ByVal novo As Boolean, ByVal idLido As Long, _
+                                        ByVal idAtual As Long) As Boolean
+    If idAtual = 0 Then Exit Function
+    AnteriorPrecisaConferir = (novo Or idAtual <> idLido)
 End Function
 
 Public Function ListarClientesParaVinculo(ByVal texto As String) As Variant

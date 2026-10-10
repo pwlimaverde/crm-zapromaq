@@ -121,8 +121,11 @@ End Sub
 
 ' A cor do selo vem do estado ANTES de " - ": "SUSPEITO - FORA" e
 ' "SUSPEITO - ENTRA" (lote) pintam como SUSPEITO, sem uma cor por rotulo.
+' Excecao: "OK - IGNORAR" (OK fora do lote) pinta como IGNORAR (cinza);
+' com a cor de OK, a linha fora parecia igual a que entra.
 Public Function ChaveSelo(ByVal texto As String) As String
     Dim p As Long
+    If Right$(texto, 10) = " - IGNORAR" Then ChaveSelo = "IGNORAR": Exit Function
     p = InStr(texto, " - ")
     If p > 0 Then ChaveSelo = Left$(texto, p - 1) Else ChaveSelo = texto
 End Function

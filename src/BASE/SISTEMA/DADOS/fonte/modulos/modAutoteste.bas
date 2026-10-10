@@ -80,15 +80,27 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "ChaveSituacao vazio", modCRM.ChaveSituacao(""), "todos"
     ' item 6: o atendimento so troca de contato dentro da mesma empresa
     ' (o codigo AT- e congelado e nomeia a pasta do cliente)
-    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(3, 3), ""
-    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(3, 4) <> ""), True
-    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(0, 4), ""
+    Confere "troca de contato na mesma empresa", modCRM.CriticarTrocaContato(False, 3, 3), ""
+    Confere "troca de contato para outra empresa", (modCRM.CriticarTrocaContato(False, 3, 4) <> ""), True
+    Confere "atendimento novo nao confere empresa", modCRM.CriticarTrocaContato(True, 0, 4), ""
+    ' gravado sem empresa conhecida (0): recusa, nunca "qualquer empresa" - era o
+    ' furo do atendimento novo que nao entrava na lista e era editado em seguida
+    Confere "atendimento gravado sem empresa recusa", (modCRM.CriticarTrocaContato(False, 0, 4) <> ""), True
     ' item 4: o anterior nao pode ser o proprio atendimento nem de outra empresa
     Confere "anterior vazio aceito", modCRM.CriticarAnterior(10, 0, 3, 0), ""
     Confere "anterior da mesma empresa aceito", modCRM.CriticarAnterior(10, 7, 3, 3), ""
     Confere "anterior no atendimento novo", modCRM.CriticarAnterior(0, 7, 3, 3), ""
     Confere "anterior = o proprio recusado", (modCRM.CriticarAnterior(10, 10, 3, 3) <> ""), True
     Confere "anterior de outra empresa recusado", (modCRM.CriticarAnterior(10, 7, 3, 4) <> ""), True
+    ' anterior que nao existe mais (empresa 0): recusa, mas nao diz "outra empresa"
+    Confere "anterior inexistente recusado", (modCRM.CriticarAnterior(10, 7, 3, 0) <> ""), True
+    Confere "anterior inexistente sem 'empresa'", (InStr(modCRM.CriticarAnterior(10, 7, 3, 0), "empresa") = 0), True
+    ' so se confere o anterior que MUDOU (ou no atendimento novo): o que a IA
+    ' gravou antes da regra nao trava a edicao de outro campo
+    Confere "anterior inalterado nao confere", modCRM.AnteriorPrecisaConferir(False, 7, 7), False
+    Confere "anterior trocado confere", modCRM.AnteriorPrecisaConferir(False, 7, 8), True
+    Confere "anterior no novo confere", modCRM.AnteriorPrecisaConferir(True, 0, 8), True
+    Confere "anterior removido nao confere", modCRM.AnteriorPrecisaConferir(False, 7, 0), False
     ' botao de cada campo de vinculo: so na edicao; o do contato so em
     ' atendimento ja gravado (o novo escolhe empresa e contato em 2 passos)
     Confere "botao contato na edicao", modCRM.BotaoVinculoAtivo("id_contato", True, False, 5), True
@@ -126,12 +138,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: rotulo OK ignorado", modLote.RotuloLinha("OK", True), "OK - IGNORAR"
     Confere "lote: rotulo OK", modLote.RotuloLinha("OK", False), "OK"
     Confere "lote: rotulo DUPLICADO", modLote.RotuloLinha("DUPLICADO", False), "DUPLICADO"
+    ' DUPLICADO no lote que aponta para uma SUSPEITO (comeca fora) diz
+    ' que e preciso incluir a outra; apontando para OK, so o numero
+    Confere "lote: repetido de OK", modLote.MotivoRepetidoNoLote("3", "OK"), "CNPJ repetido na linha 3 deste lote"
+    Confere "lote: repetido de SUSPEITO pede incluir", (InStr(modLote.MotivoRepetidoNoLote("3", "SUSPEITO"), "inclua a linha 3") > 0), True
     Confere "lote: ajuda explica o duplo clique", (InStr(modLote.TextoAjuda(), "Suspeito come" & ChrW$(&HE7) & "a fora") > 0), True
     Confere "lote: aviso de quem nao alterna", (Left$(modLote.AvisoNaoAlterna(), 25) = "S" & ChrW$(&HF3) & " OK e SUSPEITO alternam"), True
     ' o selo da grade pinta pelo estado antes do " - " (SUSPEITO - FORA = SUSPEITO)
     Dim g As New clsGrade
     Confere "selo pelo prefixo", g.ChaveSelo("SUSPEITO - FORA"), "SUSPEITO"
     Confere "selo sem prefixo", g.ChaveSelo("Em dia"), "Em dia"
+    ' linha fora do lote pinta como IGNORAR (cinza), nao como OK (verde)
+    Confere "selo OK ignorado", g.ChaveSelo("OK - IGNORAR"), "IGNORAR"
     Confere "NomeNormalizado", modLote.NomeNormalizado("Ind" & ChrW$(&HFA) & "stria D'" & ChrW$(&HC2) & "ngelo LTDA"), "D ANGELO"
 
     ' ---- tema e tela (visual)
