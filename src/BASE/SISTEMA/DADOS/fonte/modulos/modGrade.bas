@@ -492,14 +492,33 @@ End Sub
 
 ' Mudou a celula de situacao (Workbook_SheetChange).
 Public Sub FiltrarSituacao(ByVal ws As Object)
+    Dim valor As String
     If Not TemSituacao(TabelaDaAba(ws)) Then Exit Sub
     If ws.ListObjects.Count = 0 Then Exit Sub
+    ' chamado de evento: erro aqui nao pode deixar o Excel com eventos
+    ' desligados nem a aba desprotegida (o mesmo cuidado do A04)
+    On Error GoTo falha
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     Desproteger ws
+    ' celula apagada (Delete) ou valor fora da lista: volta para o padrao,
+    ' para a celula dizer o mesmo que o filtro aplicado
+    valor = SituacaoValida(ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2)
+    If CStr(modDB.Nz(ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2)) <> valor Then
+        ws.Cells(LIN_BUSCA, COL_SITUACAO).Value2 = valor
+    End If
     AplicarSituacao ws, ws.ListObjects(1)
     Proteger ws
     Status ws
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Exit Sub
+falha:
+    Dim sErr As String
+    sErr = Err.Description
+    On Error Resume Next
+    Proteger ws
+    ws.Cells(LIN_STATUS, COL_INI).Value2 = "Erro ao filtrar a situacao: " & sErr
     Application.ScreenUpdating = True
     Application.EnableEvents = True
 End Sub

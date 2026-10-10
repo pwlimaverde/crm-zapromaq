@@ -62,6 +62,13 @@ try {
         $xl.Run("'" + $n + "'!modGrade.GradeLimparFiltros")
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
         Conferir ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
+        # célula vazia: o filtro e a célula voltam juntos para Ativos. Esvazia pelo valor:
+        # ClearContents na mesclagem F:G falha em Contatos (G é a _b oculta) - item 🖥
+        $xl.EnableEvents = $false
+        $ws.Range('F4').Value2 = ''
+        $xl.Run("'" + $n + "'!modGrade.FiltrarSituacao", $ws)
+        $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
+        Conferir ($aba + ': célula vazia volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=[' + [string]$ws.Range('F4').Value2 + ']')
     }
     # as macros acima religam os eventos; o resto do teste roda como começou (sem eventos)
     $xl.EnableEvents = $false
