@@ -64,6 +64,7 @@ Etapa 'texto sem caractere de controle' {
     }
     if ($ruins -gt 0) { cmd /c exit 1 } else { Write-Output 'nenhum caractere de controle'; cmd /c exit 0 }
 }
+Etapa 'editar-vba (troca em cp1252)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'testar-editar-vba.ps1') }
 Etapa 'testar-build-lib' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-build-lib.ps1') }
 if ($py) { Etapa 'roteador (sem rede)' { & $py.Source (Join-Path $ac 'roteador\testar_roteador.py') } }
 else { Pular 'roteador (sem rede)' 'Python não encontrado' }
