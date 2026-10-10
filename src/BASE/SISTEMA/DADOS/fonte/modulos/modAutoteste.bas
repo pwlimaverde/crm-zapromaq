@@ -110,6 +110,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     ' o anterior e da empresa do contato: sem contato nao ha o que listar
     Confere "botao anterior sem contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 0), False
     Confere "botao anterior com contato", modCRM.BotaoVinculoAtivo("id_atendimento_anterior", True, True, 5), True
+    ' troca de contato numa empresa so com contatos INATIVOS: a lista (so
+    ' ativos) vem vazia, mas a mensagem nao pode dizer "nao tem contato"
+    Confere "sem contato nenhum", (InStr(modCRM.TextoSemContato("EMPRESA X", 0), "ainda n" & ChrW$(&HE3) & "o tem contato cadastrado") > 0), True
+    Confere "so contatos inativos", (InStr(modCRM.TextoSemContato("EMPRESA X", 2), "2 contato(s) inativo(s)") > 0), True
+    Confere "so inativos nao diz 'nao tem contato cadastrado'", (InStr(modCRM.TextoSemContato("EMPRESA X", 2), "tem contato cadastrado") = 0), True
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True

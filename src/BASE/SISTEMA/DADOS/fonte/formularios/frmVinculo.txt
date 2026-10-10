@@ -67,8 +67,12 @@ Public Function EscolherContatoDe(ByVal idCliente As Long) As Boolean
     mModo = "contato"
     mTroca = True
     PassoContato idCliente
-    modTela.Encaixar Me
-    Me.Show
+    ' o aviso de empresa sem contato ativo (dentro do PassoContato) pode
+    ' ter cadastrado e escolhido o contato ANTES do Show: nada a mostrar
+    If Not mOk Then
+        modTela.Encaixar Me
+        Me.Show
+    End If
     EscolherContatoDe = mOk
 End Function
 
@@ -132,10 +136,12 @@ Private Sub PassoContato(ByVal idCliente As Long)
     Botao "cmdNovoContato", "Novo contato", modTema.ICO_CONTATO, True
     Botao "cmdSelecionar", "Selecionar", modTema.ICO_OK, True
     Reiniciar
-    ' empresa sem contato: o proximo passo natural e cadastrar um
+    ' empresa sem contato ATIVO: o proximo passo natural e cadastrar um. A
+    ' lista so traz ativos; o aviso diz se ha inativos (empresa desativada
+    ' desativa os contatos em cascata), para nao afirmar "nao tem contato"
     If mGrade.ListCount = 0 Then
-        If MsgBox(mEmpresa & " ainda n" & ChrW$(&HE3) & "o tem contato cadastrado." & vbCrLf & vbCrLf & _
-                  "Cadastrar o contato agora?", vbYesNo + vbQuestion, "CRM Zapromaq") = vbYes Then
+        If MsgBox(modCRM.TextoSemContato(mEmpresa, modCRM.ContarContatosInativos(idCliente)), _
+                  vbYesNo + vbQuestion, "CRM Zapromaq") = vbYes Then
             cmdNovoContato_Click
         End If
     End If
@@ -198,7 +204,7 @@ Private Sub Carregar()
         If mPasso = "atendimento" And Trim$(txtProcura.Text) = "" Then
             lblStatus.Caption = "Esta empresa n" & ChrW$(&HE3) & "o tem outro atendimento."
         ElseIf mPasso = "contato" And Trim$(txtProcura.Text) = "" Then
-            lblStatus.Caption = "Esta empresa ainda n" & ChrW$(&HE3) & "o tem contato: use Novo contato."
+            lblStatus.Caption = "Nenhum contato ativo nesta empresa: use Novo contato."
         Else
             lblStatus.Caption = "Nada encontrado. Confira o texto ou cadastre pelo bot" & ChrW$(&HE3) & "o abaixo."
         End If
@@ -402,5 +408,8 @@ End Function
 Private Sub Escolhe(ByVal idReg As Long)
     mEscolhido = idReg
     mOk = True
-    Me.Hide
+    ' escolha antes do Show (cadastro na hora pelo aviso da troca de
+    ' contato): Hide num formulario nao exibido, com a ficha modal por
+    ' cima, e o erro 402 "fechar ou ocultar o formulario modal superior"
+    If Me.Visible Then Me.Hide
 End Sub

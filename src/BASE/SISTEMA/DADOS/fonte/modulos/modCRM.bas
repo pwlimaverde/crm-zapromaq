@@ -887,6 +887,30 @@ Public Function ListarContatosParaVinculo(ByVal texto As String, Optional ByVal 
 End Function
 
 '----------------------------------------------------------
+' Contatos INATIVOS da empresa. A lista de vinculo so traz ativos;
+' empresa desativada desativa os contatos em cascata, e o aviso de
+' lista vazia nao pode dizer que ela "nao tem contato".
+'----------------------------------------------------------
+Public Function ContarContatosInativos(ByVal idCliente As Long) As Long
+    ContarContatosInativos = CLng(modDB.Nz(modDB.ConsultarValor( _
+        "SELECT COUNT(*) FROM contatos WHERE id_cliente=? AND ativo=False", 0, _
+        Array(modDB.P(modDB.adInteger, idCliente))), "0"))
+End Function
+
+' Aviso da escolha de contato quando a empresa nao tem contato ativo.
+Public Function TextoSemContato(ByVal empresa As String, ByVal inativos As Long) As String
+    If inativos > 0 Then
+        TextoSemContato = empresa & " n" & ChrW$(&HE3) & "o tem contato ativo: " & inativos & _
+            " contato(s) inativo(s)." & vbCrLf & vbCrLf & _
+            "Para usar um deles, reative-o antes (abas Clientes e Contatos, situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o Todos)." & _
+            vbCrLf & vbCrLf & "Cadastrar um contato novo agora?"
+    Else
+        TextoSemContato = empresa & " ainda n" & ChrW$(&HE3) & "o tem contato cadastrado." & vbCrLf & vbCrLf & _
+            "Cadastrar o contato agora?"
+    End If
+End Function
+
+'----------------------------------------------------------
 ' ATENDIMENTO ANTERIOR (item 4, retomada)
 ' Atendimento perdido ou descartado nao ganha proxima acao; se
 ' o interesse volta, abre-se um novo apontando para o antigo.
