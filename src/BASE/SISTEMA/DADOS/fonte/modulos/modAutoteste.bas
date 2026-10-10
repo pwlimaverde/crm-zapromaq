@@ -138,6 +138,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: rotulo OK ignorado", modLote.RotuloLinha("OK", True), "OK - IGNORAR"
     Confere "lote: rotulo OK", modLote.RotuloLinha("OK", False), "OK"
     Confere "lote: rotulo DUPLICADO", modLote.RotuloLinha("DUPLICADO", False), "DUPLICADO"
+    ' DUPLICADO no lote que aponta para uma SUSPEITO (comeca fora) diz
+    ' que e preciso incluir a outra; apontando para OK, so o numero
+    Confere "lote: repetido de OK", modLote.MotivoRepetidoNoLote("3", "OK"), "CNPJ repetido na linha 3 deste lote"
+    Confere "lote: repetido de SUSPEITO pede incluir", (InStr(modLote.MotivoRepetidoNoLote("3", "SUSPEITO"), "inclua a linha 3") > 0), True
     Confere "lote: ajuda explica o duplo clique", (InStr(modLote.TextoAjuda(), "Suspeito come" & ChrW$(&HE7) & "a fora") > 0), True
     Confere "lote: aviso de quem nao alterna", (Left$(modLote.AvisoNaoAlterna(), 25) = "S" & ChrW$(&HF3) & " OK e SUSPEITO alternam"), True
     ' o selo da grade pinta pelo estado antes do " - " (SUSPEITO - FORA = SUSPEITO)

@@ -173,11 +173,14 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
         ElseIf cnpjBase.Exists(c) Then
             Marcar d, "DUPLICADO", "CNPJ ja cadastrado: " & cnpjBase(c)
         ElseIf cnpjLote.Exists(c) Then
-            Marcar d, "DUPLICADO", "CNPJ repetido na linha " & cnpjLote(c) & " deste lote"
+            ' a primeira linha ja foi conferida: o estado dela e o final
+            Marcar d, "DUPLICADO", MotivoRepetidoNoLote(CStr(cnpjLote(c)("linha")), CStr(cnpjLote(c)("status")))
         ElseIf Not modValidacao.CNPJValido(c) Then
             Marcar d, "SUSPEITO", "digito verificador do CNPJ nao fecha"
         End If
-        If Not cnpjLote.Exists(c) Then cnpjLote.Add c, d("linha")
+        ' guarda a LINHA (o dicionario), nao so o numero: o motivo de quem
+        ' repetir depois precisa saber se ela entra ou comeca fora
+        If Not cnpjLote.Exists(c) Then cnpjLote.Add c, d
     Else
         ' Sem CNPJ o indice unico do banco nao protege nada:
         ' o Access aceita varios nulos. Sobra o nome.
@@ -240,6 +243,17 @@ Public Function AvisoNaoAlterna() As String
     AvisoNaoAlterna = "Só OK e SUSPEITO alternam." & vbCrLf & vbCrLf & _
         "DUPLICADO e ERRO não entram: um já está na base, o outro está " & _
         "sem dado obrigatório. Corrija na planilha e confira de novo."
+End Function
+
+' Motivo do DUPLICADO por CNPJ repetido no proprio lote. A primeira
+' linha e a que vale; se ela e SUSPEITO, comeca FORA e, sem aviso,
+' nenhuma das duas entraria - entao o motivo pede para inclui-la.
+Public Function MotivoRepetidoNoLote(ByVal linha As String, ByVal statusDela As String) As String
+    MotivoRepetidoNoLote = "CNPJ repetido na linha " & linha & " deste lote"
+    If statusDela = "SUSPEITO" Then
+        MotivoRepetidoNoLote = MotivoRepetidoNoLote & " (a linha " & linha & " e SUSPEITO e comeca fora:" & _
+                               " para cadastrar a empresa, inclua a linha " & linha & " com duplo clique)"
+    End If
 End Function
 
 ' O rotulo da lista mostra o estado EFETIVO da linha.

@@ -100,6 +100,13 @@ try {
     $ok2 = [bool]$xl.Run($rl + 'AlternarIgnorar', 2)
     Conferir 'lote: duplo clique na SUSPEITO inclui' ($ok2 -and [int]$xl.Run($rl + 'ACadastrar') -eq 1 -and -not [bool]$xl.Run($rl + 'Ignorada', 2))
     Conferir 'lote: DUPLICADO e ERRO não alternam' (-not [bool]$xl.Run($rl + 'AlternarIgnorar', 3) -and -not [bool]$xl.Run($rl + 'AlternarIgnorar', 4))
+    # DUPLICADO cuja primeira linha é SUSPEITO (começa fora): o motivo pede incluir a primeira
+    #   1 SUSPEITO (telefone com 9 dígitos); 2 DUPLICADO (CNPJ da linha 1). Fictício, nada é gravado.
+    $lote = @(('2' + $t + '2' + $t + $t + 'LOTE TESTE TRES LTDA' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + '419999999' + $t + $t + '11222333000181' + $t),
+              ('2' + $t + '2' + $t + $t + 'LOTE TESTE QUATRO LTDA' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + '11222333000181' + $t)) -join "`r`n"
+    [void]$xl.Run($rl + 'Analisar', $lote)
+    $mot = [string]$xl.Run($rl + 'Valor', 2, 'motivo')
+    Conferir 'lote: DUPLICADO de SUSPEITO pede incluir a linha 1' ([string]$xl.Run($rl + 'Valor', 1, 'status') -eq 'SUSPEITO' -and $mot -match 'inclua a linha 1') $mot
 
     $ini = Get-Date
     $xl.Run("'" + $n + "'!modPainel.AtualizarBasePainel")
