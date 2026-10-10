@@ -148,6 +148,8 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Dim g As New clsGrade
     Confere "selo pelo prefixo", g.ChaveSelo("SUSPEITO - FORA"), "SUSPEITO"
     Confere "selo sem prefixo", g.ChaveSelo("Em dia"), "Em dia"
+    ' linha fora do lote pinta como IGNORAR (cinza), nao como OK (verde)
+    Confere "selo OK ignorado", g.ChaveSelo("OK - IGNORAR"), "IGNORAR"
     Confere "NomeNormalizado", modLote.NomeNormalizado("Ind" & ChrW$(&HFA) & "stria D'" & ChrW$(&HC2) & "ngelo LTDA"), "D ANGELO"
 
     ' ---- tema e tela (visual)
