@@ -56,6 +56,8 @@ function Test-CodificacaoVba([string[]]$arqs) {
         if (Test-TemBom $b) { Add-Problema 'VBA' ((Get-Rel $p) + ': tem BOM UTF-8 - o VBE importa em Windows-1252 e o BOM vira lixo') }
         if (-not (Test-SoCrlf $b)) { Add-Problema 'VBA' ((Get-Rel $p) + ': quebra de linha que não é CRLF') }
         $txt = [System.Text.Encoding]::GetEncoding(1252).GetString($b)
+        # acento perdido: arquivo regravado como UTF-8 por editor que leu cp1252 como UTF-8 (U+FFFD = EF BF BD)
+        if ($txt.Contains([string]([char]0xEF) + [char]0xBF + [char]0xBD)) { Add-Problema 'VBA' ((Get-Rel $p) + ': caractere U+FFFD (EF BF BD) - acento perdido, o arquivo foi regravado como UTF-8') }
         if ($rxUtf8.IsMatch($txt)) { Add-Problema 'VBA' ((Get-Rel $p) + ': parece UTF-8 lido como Windows-1252 (sequência "Ã?")') }
         if ($p.EndsWith('.bas') -and -not $txt.StartsWith('Attribute VB_Name = "')) { Add-Problema 'VBA' ((Get-Rel $p) + ': .bas sem "Attribute VB_Name" na primeira linha') }
     }

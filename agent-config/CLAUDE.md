@@ -186,6 +186,7 @@ Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela pr�
 ## Armadilhas do ambiente VBA/Excel (se ainda for mexer no legado)
 
 - Fontes VBA misturam ASCII e **Windows-1252**; leia/grave em cp1252 com CRLF, senão os acentos corrompem na importação.
+- **Editar fonte VBA (`.bas`, `.cls`, `.txt` de `fonte\`) que tenha acento — ou inserir acento — só com `agent-config\ferramentas\editar-vba.ps1`** (`-Arquivo <fonte> -Antigo '...' -Novo '...'`, ou `-AntigoArquivo`/`-NovoArquivo` com texto em UTF-8). A ferramenta Edit do agente lê o arquivo como UTF-8: um único byte cp1252 > 127 faz ela trocar **todos** os acentos por U+FFFD e regravar o arquivo em UTF-8. Edit e Write continuam valendo para fonte só ASCII sem acento novo. Depois de qualquer edição, `git diff` mostrando só as linhas esperadas; o `verificar.py` recusa `EF BF BD` e acento em UTF-8.
 - Máximo de 25 continuações de linha por instrução (por isso `modSchema` usa um `Add` por campo).
 - Cor no Excel é `R + G*256 + B*65536`. Paleta da marca: azul `#172A67`, azul secundário `#153F71`, verde `#58B030`.
 - Nome de forma no Excel tem até 31 caracteres; botões usam `Placement = xlFreeFloating`.

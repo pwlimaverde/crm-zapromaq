@@ -65,9 +65,15 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   `_id`) e célula com lista em F4 (`modGrade.COL_SITUACAO`); a aba abre em Ativos, inativo em
   vermelho; valor fora da lista volta para Ativos; na ficha, `cboSituacao` vai no SQL
   (`modCRM.OpcoesSituacao`/`ChaveSituacao`).
-- **Edição de fonte VBA com acento:** a ferramenta Edit regrava o arquivo inteiro como UTF-8
-  e troca os acentos cp1252 por U+FFFD. Em arquivo com byte > 127 (ex.: `modCRM`, `frmCRM`,
-  `modLote`), troque o trecho por script que lê e grava em cp1252, e confira com `git diff`.
+- **Edição de fonte VBA com acento:** a ferramenta Edit do agente lê o arquivo como UTF-8 e,
+  se ele tiver qualquer byte cp1252 > 127, troca **todos** os acentos do arquivo por U+FFFD e
+  regrava tudo em UTF-8 (CRLF e ausência de BOM ficam; o acento se perde). Acento novo
+  digitado pelo Edit ou Write sai em UTF-8 (`C3 A7`), não cp1252 (`E7`). Arquivo só ASCII não
+  é afetado. Por isso: fonte VBA com acento (ex.: `modCRM`, `frmCRM`, `modLote`, `ThisWorkbook`)
+  ou trecho novo com acento se edita com `agent-config\ferramentas\editar-vba.ps1` (troca exata
+  em cp1252, recusa arquivo já corrompido, confere os bytes; testes em `testar-editar-vba.ps1`,
+  no `verificar-tudo -Rapido`). Rede de segurança: o `verificar.py` (e a conferência do MCP de
+  desenvolvimento) falha em `EF BF BD` e em fonte com acento gravado em UTF-8.
 - Nome de variável do formulário encobre função do VBA: em `frmCRM`, `Mid$` é `mID` — use
   `VBA.Mid$`.
 
