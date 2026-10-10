@@ -61,6 +61,14 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   atendimento vem do **banco** no Editar (`mClienteRegistro`), nunca só da lista; empresa 0 em
   registro gravado é recusada (`CriticarTrocaContato`). O anterior só se confere quando muda
   ou no atendimento novo (`modCRM.AnteriorPrecisaConferir`).
+- **Escolha antes do Show (`frmVinculo`):** a troca de contato monta o passo 2 antes de exibir
+  a tela; se a lista (só ativos) vem vazia, o aviso diz quantos contatos **inativos** a empresa
+  tem (`modCRM.TextoSemContato` + `ContarContatosInativos`: empresa desativada desativa os
+  contatos em cascata) e oferece o cadastro na hora. O contato cadastrado ali é escolhido
+  **antes do Show**: `Escolhe` só faz `Hide` se a tela estiver visível e `EscolherContatoDe`
+  não exibe a tela já resolvida — `Hide` em formulário não exibido, com a ficha modal por cima,
+  é o erro 402 do VBA. Teste: `testes\testar-uso.ps1` (formulário modal e timer temporários na
+  cópia).
 - **Situação do cadastro** (Clientes/Contatos): grade com coluna oculta `_a` (depois de
   `_id`) e célula com lista em F4 (`modGrade.COL_SITUACAO`); a aba abre em Ativos, inativo em
   vermelho; valor fora da lista volta para Ativos; na ficha, `cboSituacao` vai no SQL

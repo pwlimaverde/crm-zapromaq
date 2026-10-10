@@ -26,6 +26,9 @@ function Conferir([string]$nome, [bool]$ok, [string]$det = '') {
 }
 
 $xl = $null; $idExcel = 0; $sinal = Join-Path $env:TEMP ('crm-uso-' + $PID + '.ok')
+# o teste da troca de contato põe um formulário temporário na cópia (modelo de objeto do VBA)
+$vbomOriginal = Get-AcessoVBOM
+if ($vbomOriginal -ne 1) { Set-AcessoVBOM 1 }
 try {
     $xl = New-Excel ([ref]$idExcel)
     $xl.DisplayAlerts = $false
@@ -90,6 +93,90 @@ try {
     $lb = $xl.Run("'" + $n + "'!modCRM.ListarAtendimentosDoCliente", 1, 1, '')
     $ids = if ($lb -is [array]) { @(for ($k = 1; $k -le $lb.GetLength(0); $k++) { [int]$lb.GetValue($k, 1) }) } else { @() }
     Conferir 'anteriores sem o próprio atendimento' ($ids.Count -eq $qt - 1 -and $ids -notcontains 1) ($ids -join ',')
+
+    # Troca de contato pelo lápis (atendimento gravado) numa empresa só com
+    # contatos INATIVOS - o caminho do relato de 10/10/2026: a lista (só ativos)
+    # vem vazia; o aviso tem de dizer quantos inativos há, e não "não tem contato";
+    # "Sim" cadastra o contato na hora, e a escolha acontece ANTES do Show do
+    # frmVinculo, com a ficha modal por cima: Me.Hide nele era o erro 402.
+    # Nesta cópia: um formulário modal faz o papel da ficha e um timer do Windows
+    # responde Sim ao aviso, preenche o nome na ficha nova e salva. O contato de
+    # teste é apagado no fim (banco de demonstração volta como estava).
+    $sem = $xl.Run("'" + $n + "'!modDB.Consultar", 'SELECT TOP 1 ct.id_cliente FROM contatos ct WHERE ct.ativo=False AND ct.id_cliente NOT IN (SELECT id_cliente FROM contatos WHERE ativo=True) ORDER BY ct.id_cliente')
+    if ($sem -is [array]) {
+        $idSem = [int]$sem.GetValue(1, 1)
+        $lv = $xl.Run("'" + $n + "'!modCRM.ListarContatosParaVinculo", '', $idSem)
+        Conferir ('troca de contato: empresa ' + $idSem + ' só com inativos tem a lista vazia') (-not ($lv -is [array]))
+        $vbp = $wb.VBProject
+        $mt = $vbp.VBComponents.Add(1); $mt.Name = 'modTesteUso'
+        $mt.CodeModule.AddFromString(@'
+Option Explicit
+Private Declare PtrSafe Function SetTimer Lib "user32" (ByVal hWnd As LongPtr, ByVal nIDEvent As LongPtr, ByVal uElapse As Long, ByVal lpTimerFunc As LongPtr) As LongPtr
+Private Declare PtrSafe Function KillTimer Lib "user32" (ByVal hWnd As LongPtr, ByVal nIDEvent As LongPtr) As Long
+Private Declare PtrSafe Function FindWindowW Lib "user32" (ByVal cls As LongPtr, ByVal titulo As LongPtr) As LongPtr
+Private Declare PtrSafe Function SendMessageW Lib "user32" (ByVal hWnd As LongPtr, ByVal msg As Long, ByVal wp As LongPtr, ByVal lp As LongPtr) As LongPtr
+Private Declare PtrSafe Function GetDlgItemTextW Lib "user32" (ByVal hDlg As LongPtr, ByVal id As Long, ByVal buf As LongPtr, ByVal tam As Long) As Long
+Public gCliente As Long, gAviso As String, gResultado As String
+Private mTimer As LongPtr, mTiques As Long, mOcupado As Boolean, mSalvou As Boolean
+
+Public Function Rodar(ByVal idCliente As Long) As String
+    Dim f As New frmTesteModal
+    gCliente = idCliente
+    mTimer = SetTimer(0, 0, 300, AddressOf Tique)
+    f.Show
+    Unload f
+    KillTimer 0, mTimer
+    Rodar = gResultado & "|aviso=" & Replace(gAviso, vbCrLf, " ")
+End Function
+
+Public Sub Tique(ByVal h As LongPtr, ByVal m As Long, ByVal id As LongPtr, ByVal t As Long)
+    Dim dlg As LongPtr, f As Object, buf As String, n As Long
+    On Error Resume Next
+    If mOcupado Then Exit Sub
+    mOcupado = True
+    mTiques = mTiques + 1
+    If mTiques > 150 Then KillTimer 0, mTimer
+    dlg = FindWindowW(StrPtr("#32770"), StrPtr("CRM Zapromaq"))
+    If dlg <> 0 Then
+        buf = String$(1024, vbNullChar)
+        n = GetDlgItemTextW(dlg, &HFFFF&, StrPtr(buf), 1024)
+        If gAviso = "" Then gAviso = Left$(buf, n) Else gResultado = gResultado & "|outra caixa: " & Left$(buf, n)
+        SendMessageW dlg, &H111, 6, 0
+        SendMessageW dlg, &H111, 1, 0
+    ElseIf Not mSalvou Then
+        For Each f In VBA.UserForms
+            If TypeName(f) = "frmCRM" And f.Visible Then
+                f.Controls("c_nome").Value = "CONTATO TESTE USO"
+                mSalvou = True
+                f.UI_Acao "cmdSalvar"
+            End If
+        Next f
+    End If
+    mOcupado = False
+End Sub
+'@)
+        $ft = $vbp.VBComponents.Add(3); $ft.Name = 'frmTesteModal'
+        $ft.CodeModule.AddFromString(@'
+Private Sub UserForm_Activate()
+    Dim v As frmVinculo, ok As Boolean
+    Set v = New frmVinculo
+    On Error Resume Next
+    ok = v.EscolherContatoDe(modTesteUso.gCliente)
+    modTesteUso.gResultado = "erro=" & Err.Number & " " & Err.Description & "|ok=" & ok & "|id=" & v.IdEscolhido & modTesteUso.gResultado
+    On Error GoTo 0
+    Unload v
+    Me.Hide
+End Sub
+'@)
+        $r = [string]$xl.Run("'" + $n + "'!modTesteUso.Rodar", $idSem)
+        Write-Host ('  troca de contato: ' + $r)
+        Conferir 'troca de contato: aviso diz que os contatos são inativos' ($r -match 'contato\(s\) inativo\(s\)') $r
+        Conferir 'troca de contato: cadastro na hora volta escolhido, sem erro 402' ($r -like 'erro=0 *' -and $r -match '\|ok=(True|Verdadeiro)\|id=[1-9]') $r
+        # banco de demonstração volta como estava
+        $ex = "'" + $n + "'!modDB.Executar"
+        [void]$xl.Run($ex, "DELETE FROM log_alteracoes WHERE tabela='contatos' AND id_registro IN (SELECT id FROM contatos WHERE nome='CONTATO TESTE USO')")
+        [void]$xl.Run($ex, "DELETE FROM contatos WHERE nome='CONTATO TESTE USO'")
+    } else { Conferir 'banco de demonstração com empresa só de contatos inativos' $false 'rode testes\criar-banco-demo.ps1 -Recriar' }
 
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
@@ -164,6 +251,7 @@ try {
 } finally {
     if ($vigia) { Stop-Vigia $vigia $sinal }
     Close-Excel $xl $idExcel
+    if ($vbomOriginal -ne 1) { Set-AcessoVBOM $vbomOriginal }
     Remove-Item -LiteralPath $copia -Force -ErrorAction SilentlyContinue
 }
 Write-Host ''
