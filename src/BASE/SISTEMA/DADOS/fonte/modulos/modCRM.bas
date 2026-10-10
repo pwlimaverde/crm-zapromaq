@@ -758,14 +758,6 @@ Public Function DadosDoContato(ByVal idContato As Long) As Object
 End Function
 
 '----------------------------------------------------------
-' Troca de contato de um atendimento ja gravado: so dentro da
-' mesma empresa. O codigo AT- guarda o codigo do cliente e e
-' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
-' atendimento nao e gravavel pela ficha - trocar de empresa
-' deixaria o atendimento apontando para duas empresas.
-' idClienteAtual = 0: atendimento novo, ainda sem empresa.
-'----------------------------------------------------------
-'----------------------------------------------------------
 ' Quando o botao de um campo de vinculo da ficha fica ativo.
 ' Sempre so na edicao. O do contato, so em atendimento JA
 ' GRAVADO: o novo escolhe empresa e contato pelo Procurar, em
@@ -789,6 +781,15 @@ Public Function CodigoDoAtendimento(ByVal idAtendimento As Long) As String
                                                         Array(modDB.P(modDB.adInteger, idAtendimento))))
 End Function
 
+'----------------------------------------------------------
+' Troca de contato de um atendimento ja gravado: so dentro da
+' mesma empresa. O codigo AT- guarda o codigo do cliente e e
+' congelado (nomeia a pasta em 02 - CLIENTES), e o id_cliente do
+' atendimento nao e gravavel pela ficha - trocar de empresa
+' deixaria o atendimento apontando para duas empresas.
+' novo = True: atendimento novo, ainda sem empresa (nao confere).
+' Gravado com idClienteAtual = 0 (empresa nao lida): recusa.
+'----------------------------------------------------------
 Public Function CriticarTrocaContato(ByVal novo As Boolean, ByVal idClienteAtual As Long, _
                                      ByVal idClienteNovo As Long) As String
     If novo Then Exit Function
