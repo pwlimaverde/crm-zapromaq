@@ -48,7 +48,7 @@ Public Const LIN_BUSCA As Long = 4
 Public Const LIN_STATUS As Long = 5
 Public Const LIN_CAB As Long = 7
 Public Const COL_INI As Long = 2        ' coluna A e so respiro
-Public Const COL_SITUACAO As Long = 6   ' celula de situacao: F e G mescladas, na linha da busca
+Public Const COL_SITUACAO As Long = 6   ' celula de situacao: F (e G, se visivel), na linha da busca
 Private Const COL_LISTA As Long = 70    ' itens da lista de situacao, na linha LIN_MODO (4 pt)
 
 Private Const SENHA As String = "zpm"   ' travamento contra digitacao, nao e seguranca
@@ -414,7 +414,7 @@ End Sub
 ' SITUACAO DO CADASTRO (Clientes e Contatos)
 '
 ' Celula com lista na linha da pesquisa, a direita da caixa
-' (F e G mescladas; mesclagem no cabecalho e permitida). O
+' (F, mesclada com G quando G esta visivel; mesclagem no cabecalho e permitida). O
 ' valor fica na propria celula e sobrevive ao Atualizar, como
 ' a pesquisa. A lista aponta para 3 celulas da linha de
 ' controle, nao para um texto "a,b,c": referencia de faixa nao
@@ -448,8 +448,16 @@ Private Sub CaixaSituacao(ByVal ws As Worksheet, ByVal tabela As String, ByVal v
     Set lista = ws.Range(ws.Cells(LIN_MODO, COL_LISTA), ws.Cells(LIN_MODO, COL_LISTA + 2))
     lista.Value2 = modCRM.OpcoesSituacao()
     lista.Font.Color = modTema.COR_FUNDO
-    Set faixa = ws.Range(ws.Cells(LIN_BUSCA, COL_SITUACAO), ws.Cells(LIN_BUSCA, COL_SITUACAO + 1))
-    faixa.Merge
+    ' F e G mescladas so com G visivel. Em Contatos (colunas de trabalho)
+    ' G e a _b oculta: mesclar por cima dela nao da largura nenhuma e o
+    ' Excel recusa o Delete na celula ("celula mesclada") com a aba protegida.
+    ' Formatar ja ocultou as colunas de controle antes daqui.
+    If ws.Columns(COL_SITUACAO + 1).Hidden Then
+        Set faixa = ws.Cells(LIN_BUSCA, COL_SITUACAO)
+    Else
+        Set faixa = ws.Range(ws.Cells(LIN_BUSCA, COL_SITUACAO), ws.Cells(LIN_BUSCA, COL_SITUACAO + 1))
+        faixa.Merge
+    End If
     With faixa
         .Interior.Color = modTema.COR_BRANCO
         .Font.Name = "Segoe UI"
