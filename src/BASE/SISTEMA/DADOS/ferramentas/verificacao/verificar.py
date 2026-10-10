@@ -63,6 +63,21 @@ def verificar_codificacao_vba(arquivos):
         sem_crlf = b.replace(b'\r\n', b'')
         if b'\n' in sem_crlf or b'\r' in sem_crlf:
             falha('VBA', rel(p) + ': quebra de linha que não é CRLF')
+        # Acento PERDIDO: editor que le o arquivo como UTF-8 troca cada byte
+        # cp1252 (ex.: E3 = a com til) por U+FFFD e regrava em UTF-8 (EF BF BD).
+        # Em cp1252 isso e texto valido ("ï¿½"), entao as checagens abaixo nao
+        # pegavam. Aconteceu com a ferramenta Edit em 10/10/2026.
+        if b'\xef\xbf\xbd' in b:
+            falha('VBA', rel(p) + ': ' + str(b.count(b'\xef\xbf\xbd')) + ' caractere(s) U+FFFD (EF BF BD) - '
+                  'acento perdido, o arquivo foi regravado como UTF-8; restaure do git e edite em cp1252')
+        # Arquivo inteiro em UTF-8 (tem acento e decodifica como UTF-8): em cp1252
+        # real isso praticamente nao acontece. Pega acento novo gravado em UTF-8.
+        elif any(x > 127 for x in b):
+            try:
+                b.decode('utf-8')
+                falha('VBA', rel(p) + ': acentos gravados em UTF-8 - o VBE importa em Windows-1252')
+            except UnicodeDecodeError:
+                pass
         # UTF-8 gravado por engano aparece como "Ã§", "Ã£" etc. em cp1252
         txt = b.decode('cp1252')
         if re.search('Ã[\u0080-\u00ff]', txt):
