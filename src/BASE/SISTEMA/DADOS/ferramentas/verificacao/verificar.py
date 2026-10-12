@@ -398,8 +398,69 @@ def verificar_casos_regra():
         falha('Casos de regra', 'C%s só tem teste no %s' % (n, so))
 
 
+# Estrutura nova do esquema 1.1 (migração 003). Espelha a spec 003 (Contratos > Tabelas).
+ESQUEMA_11_TABELAS = {
+    'municipios': ['cod_ibge', 'nome', 'nome_busca', 'uf', 'lat', 'lon', 'fonte_carga'],
+    'planejamentos': ['id', 'codigo', 'controle', 'descricao', 'cod_municipio_base', 'raio_km', 'data_inicio',
+                      'data_fim', 'responsavel', 'situacao', 'observacoes', 'versao', 'criado_em', 'alterado_em',
+                      'alterado_por'],
+    'visitas': ['id', 'id_oportunidade', 'id_planejamento', 'situacao', 'data_agendada', 'hora_agendada',
+                'responsavel', 'tipo', 'observacoes', 'data_realizada', 'resultado', 'relato', 'motivo_cancelamento',
+                'versao', 'criado_em', 'alterado_em', 'alterado_por'],
+}
+ESQUEMA_11_LISTAS_NOVAS = ['chave', 'encerra', 'resultado', 'quadro', 'exige_familia']
+ESQUEMA_11_INDICES = ['ix_mun_uf_busca', 'ix_pln_codigo', 'ix_pln_controle', 'ix_vis_opo_sit', 'ix_vis_pln',
+                      'ix_vis_data']  # ix_lis_tipo_chave entra na fatia 1.5 (depois da carga da chave)
+
+
+def verificar_migracao_003():
+    pasta = os.path.join(DADOS, 'banco', 'migracoes')
+    arqs = [f for f in os.listdir(pasta) if f.startswith('003-') and f.endswith('.ps1')] if os.path.isdir(pasta) else []
+    if len(arqs) != 1:
+        falha('Esquema 1.1', 'migração 003 ausente em banco\\migracoes (003-*.ps1)')
+        return
+    txt = open(os.path.join(pasta, arqs[0]), encoding='utf-8-sig').read()
+    junto = re.sub(r"'\s*\+\s*\n\s*'", '', txt)
+    if "EsquemaDe = '1.0'" not in txt or "EsquemaPara = '1.1'" not in txt:
+        falha('Esquema 1.1', '003: EsquemaDe/EsquemaPara devem ser 1.0 -> 1.1')
+    tabelas = ddl_de_texto(junto)
+    for tabela, colunas in ESQUEMA_11_TABELAS.items():
+        if tabela not in tabelas:
+            falha('Esquema 1.1', '003: tabela ' + tabela + ' não é criada')
+            continue
+        faltam = [c for c in colunas if c not in tabelas[tabela]]
+        if faltam:
+            falha('Esquema 1.1', '003: ' + tabela + ' sem colunas ' + ', '.join(faltam))
+    for col in ESQUEMA_11_LISTAS_NOVAS:
+        if col not in tabelas.get('listas', set()):
+            falha('Esquema 1.1', '003: listas sem a coluna ' + col)
+    for ix in ESQUEMA_11_INDICES:
+        if ix not in junto:
+            falha('Esquema 1.1', '003: índice ' + ix + ' não é criado')
+
+
+def ddl_de_texto(junto):
+    # mesma leitura de ddl_colunas, aplicada a um texto; ALTER TABLE ... ADD COLUMN soma colunas
+    tabelas = {}
+    for m in re.finditer(r"CREATE TABLE (\w+) \((.*?)\)'", junto, re.S):
+        cols, prof, atual = [], 0, ''
+        for ch in m.group(2):
+            prof += (ch == '(') - (ch == ')')
+            if ch == ',' and prof == 0:
+                cols.append(atual)
+                atual = ''
+            else:
+                atual += ch
+        cols.append(atual)
+        tabelas.setdefault(m.group(1).lower(), set()).update(c.strip().split()[0].lower() for c in cols if c.strip())
+    for m in re.finditer(r"ALTER TABLE (\w+) ADD COLUMN (\w+)", junto, re.I):
+        tabelas.setdefault(m.group(1).lower(), set()).add(m.group(2).lower())
+    return tabelas
+
+
 def main():
     vba = fontes_vba()
+    verificar_migracao_003()
     verificar_casos_regra()
     verificar_formularios()
     verificar_codificacao_vba(vba)
