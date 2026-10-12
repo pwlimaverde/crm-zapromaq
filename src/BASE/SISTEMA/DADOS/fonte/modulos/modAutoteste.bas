@@ -28,7 +28,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     If versaoEsperada <> "" Then
         Confere "VERSAO_FRONT", modConfig.VERSAO_FRONT, versaoEsperada
     End If
-    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.0"
+    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.1"
 
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"

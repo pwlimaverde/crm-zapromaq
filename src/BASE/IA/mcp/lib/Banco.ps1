@@ -13,7 +13,9 @@ $script:ProvedorAce = $null
 # Versoes de esquema com que este servidor sabe trabalhar. O front grava
 # config.versao_esquema; se o banco estiver numa versao desconhecida, a
 # gravacao e recusada (leitura continua liberada).
-$script:EsquemasSuportados = @('1.0')
+# 1.1 = migração 003 (municípios, planejamentos, visitas, papel das listas). Com 1.0 o banco ainda
+# não tem as colunas novas: a leitura do que existe continua, e a gravação das colunas novas virá com as ferramentas.
+$script:EsquemasSuportados = @('1.0', '1.1')
 
 function Get-ProvedorAce {
     if ($script:ProvedorAce) { return $script:ProvedorAce }

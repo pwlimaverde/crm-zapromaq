@@ -116,7 +116,7 @@ try {
         Conferir 'crm_status' (-not $res.isError) $res.content[0].text
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
-        Conferir 'gravação liberada no esquema 1.0' ($st.gravacao_liberada -eq $true)
+        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (1.0 e 1.1)') (($st.versao_esquema -in @('1.0', '1.1')) -and $st.gravacao_liberada -eq $true)
 
         $d = Dados (Chamar 'buscar_clientes' ([ordered]@{ texto = "d'angelo" }))
         Conferir 'busca com apóstrofo' ($d.quantidade -eq 1)

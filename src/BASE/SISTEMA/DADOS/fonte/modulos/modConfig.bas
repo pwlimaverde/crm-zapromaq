@@ -12,7 +12,7 @@ Option Explicit
 ' grava este mesmo numero na tabela config do banco, e o
 ' Workbook_Open compara: copia antiga na estacao avisa sozinha.
 Public Const VERSAO_FRONT As String = "1.4"
-Public Const VERSAO_ESQUEMA As String = "1.0"
+Public Const VERSAO_ESQUEMA As String = "1.1"
 Public Const ABA_CONFIG As String = "Config"
 
 ' Ligado pelo Workbook_Open quando o arquivo esta rodando da pasta
