@@ -376,8 +376,31 @@ def verificar_municipios():
         falha('Municipios', 'UFs presentes: %d; esperado 27' % len(ufs))
 
 
+def verificar_casos_regra():
+    # Cada caso de regra (C01...) é provado nos dois lados: o autoteste do front (VBA) e o
+    # teste do conector (PowerShell). Caso só de um lado = regra que pode divergir sem aviso.
+    lados = {}
+    arquivos_casos = {
+        'front': os.path.join(FONTE, 'modulos', 'modAutoteste.bas'),
+        'conector': os.path.join(BASE, 'IA', 'teste', 'testar-mcp.ps1'),
+    }
+    for lado, caminho in arquivos_casos.items():
+        if not os.path.isfile(caminho):
+            falha('Casos de regra', 'arquivo de teste ausente: ' + rel(caminho))
+            return
+        txt = ler_cp1252(caminho) if lado == 'front' else open(caminho, encoding='utf-8-sig').read()
+        lados[lado] = set()
+        for linha in txt.split('\n'):
+            if re.search(r'\b(Confere|Conferir)\b', linha):
+                lados[lado].update(re.findall(r'\bC(\d\d)\b', linha))
+    for n in sorted(lados['front'] ^ lados['conector']):
+        so = 'front' if n in lados['front'] else 'conector'
+        falha('Casos de regra', 'C%s só tem teste no %s' % (n, so))
+
+
 def main():
     vba = fontes_vba()
+    verificar_casos_regra()
     verificar_formularios()
     verificar_codificacao_vba(vba)
     verificar_estrutura_vba(vba)

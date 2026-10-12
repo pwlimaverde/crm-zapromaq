@@ -36,6 +36,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
 
     ' ---- modValidacao
     Confere "Normalizar empresa", modValidacao.Normalizar("empresa", "  ind  d'angelo  "), "IND D'ANGELO"
+    ' ---- chave de lista (C01): mesma regra do conector (Regras.ps1)
+    Confere "ChaveLista C01 caixa e espaco", modValidacao.ChaveLista("pedido  fechado "), "PEDIDO FECHADO"
+    Confere "ChaveLista C01 acento", modValidacao.ChaveLista("Ped" & ChrW(237) & "do Fechado"), "PEDIDO FECHADO"
+    Confere "ChaveLista C01 til e cedilha", modValidacao.ChaveLista("Negocia" & ChrW(231) & ChrW(227) & "o " & ChrW(199) & " " & ChrW(209)), "NEGOCIACAO C N"
+    Confere "ChaveLista C01 vazio", modValidacao.ChaveLista("   "), ""
     Confere "Normalizar email", modValidacao.Normalizar("email", " A@B.COM "), "a@b.com"
     Confere "Normalizar cnpj", modValidacao.Normalizar("cnpj", "11.222.333/0001-81"), "11222333000181"
     Confere "Normalizar vazio vira nulo", IsNull(modValidacao.Normalizar("cidade", "   ")), True

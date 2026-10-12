@@ -7,7 +7,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
 
 - [x] 1.1 `gerar-municipios.py` + `municipios.csv` + `municipios.fonte.json`
   - Teste: `verificar.py` · Arquivos: `agent-config\ferramentas\gerar-municipios.py`, `banco\referencia\*`
-- [ ] 1.2 Função de chave de lista (C01) e checagem de casos compartilhados
+- [x] 1.2 Função de chave de lista (C01) e checagem de casos compartilhados
   - Teste: `Confere` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modValidacao.bas`, `Regras.ps1`, `verificar.py`
 - [ ] 1.3 DDL e `modSchema`
   - Teste: `verificar.py` · Arquivos: `banco\esquema\criar-banco.ps1`, `modSchema.bas`

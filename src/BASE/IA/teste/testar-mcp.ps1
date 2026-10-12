@@ -65,6 +65,12 @@ function Moderno($params, [string]$versao = '2026-07-28') {
     return $p
 }
 
+Write-Host '--- regras de lista (C01): chave, sem servidor'
+. (Join-Path $raizIA 'mcp\lib\Regras.ps1')
+Conferir 'C01 chave ignora espaços sobrando e caixa' ((ConvertTo-ChaveLista 'pedido  fechado ') -eq 'PEDIDO FECHADO')
+Conferir 'C01 chave ignora acento (Pedído)' ((ConvertTo-ChaveLista 'Pedído Fechado') -eq 'PEDIDO FECHADO')
+Conferir 'C01 chave tira til e cedilha' ((ConvertTo-ChaveLista 'Negociação Ç Ñ') -eq 'NEGOCIACAO C N')
+Conferir 'C01 chave de valor vazio é vazia' ((ConvertTo-ChaveLista '   ') -eq '')
 try {
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)

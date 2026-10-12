@@ -36,6 +36,19 @@ function ConvertTo-Normalizado([string]$campo, $valor) {
     return $s
 }
 
+# Chave de comparacao de lista (C01): sem caixa, sem acento, espacos aparados e colapsados.
+# Espelho de modValidacao.ChaveLista - a mesma regra nos dois lados. Dois valores com a mesma
+# chave sao o mesmo valor (ex.: "Pedido Fechado" e "PEDIDO  FECHADO ").
+function ConvertTo-ChaveLista([string]$texto) {
+    if ($null -eq $texto) { return '' }
+    $s = $texto.Replace([string][char]160, ' ').Trim().ToUpperInvariant()
+    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($c in $s.Normalize([Text.NormalizationForm]::FormD).ToCharArray()) {
+        if ([Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne [Globalization.UnicodeCategory]::NonSpacingMark) { [void]$sb.Append($c) }
+    }
+    return $sb.ToString()
+}
 function Test-CnpjValido([string]$v) {
     $s = Get-SoDigitos $v
     if ($s.Length -ne 14) { return $false }

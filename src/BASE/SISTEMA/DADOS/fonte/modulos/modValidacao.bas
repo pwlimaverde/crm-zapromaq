@@ -42,6 +42,24 @@ Public Function Normalizar(ByVal campo As String, ByVal valor As Variant) As Var
     If Len(s) = 0 Then Normalizar = Null Else Normalizar = s
 End Function
 
+' Chave de comparacao de lista (C01): sem caixa, sem acento, espacos aparados e colapsados.
+' Espelho de Regras.ps1 (ConvertTo-ChaveLista) - a mesma regra nos dois lados.
+Public Function ChaveLista(ByVal texto As String) As String
+    Dim s As String, origem As String, destino As String, i As Long
+    s = UCase$(Trim$(Replace(CStr(texto), Chr$(160), " ")))
+    Do While InStr(s, "  ") > 0
+        s = Replace(s, "  ", " ")
+    Loop
+    ' letras acentuadas maiusculas (Latin-1) e a letra sem acento de cada uma
+    origem = ChrW(193) & ChrW(192) & ChrW(194) & ChrW(195) & ChrW(196) & ChrW(201) & ChrW(200) & ChrW(202) & ChrW(203) & ChrW(205) & ChrW(204) & ChrW(206) & ChrW(207)
+    origem = origem & ChrW(211) & ChrW(210) & ChrW(212) & ChrW(213) & ChrW(214) & ChrW(218) & ChrW(217) & ChrW(219) & ChrW(220) & ChrW(199) & ChrW(209)
+    destino = "AAAAAEEEEIIIIOOOOOUUUUCN"
+    For i = 1 To Len(origem)
+        s = Replace(s, Mid$(origem, i, 1), Mid$(destino, i, 1))
+    Next i
+    ChaveLista = s
+End Function
+
 Public Function SoDigitos(ByVal s As String) As String
     Dim i As Long, c As String, r As String
     For i = 1 To Len(s)
