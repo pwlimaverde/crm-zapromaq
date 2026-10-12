@@ -66,6 +66,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Quadro funil", modCalc.QuadroDoCodigo("FUNIL"), "2. Funil comercial"
     Confere "C06 valor inativo gravado: sem a marca", modCRM.ValorDaLista("Perdido (inativo)"), "Perdido"
     Confere "C06 valor ativo: nada a tirar", modCRM.ValorDaLista("Perdido"), "Perdido"
+    ' ---- regras de lista da Fase 2 (C03, C04, C05): mesma regra do conector (modListas)
+    Confere "C05 UF valida", modListas.UFValida("sp"), True
+    Confere "C05 UF fora das 27", modListas.UFValida("XX"), False
+    Confere "C05 UF com espaco sobrando", modListas.UFValida(" SP "), False
+    Confere "C04 resultado com encerra Nao e recusado", modListas.PapelEtapaValido(False, "GANHO") <> "", True
+    Confere "C04 PERDA com encerra Sim passa", modListas.PapelEtapaValido(True, "PERDA"), ""
+    Confere "C04 sem resultado e sem encerra passa", modListas.PapelEtapaValido(False, ""), ""
+    Confere "C04 resultado fora de GANHO/PERDA e recusado", modListas.PapelEtapaValido(True, "TALVEZ") <> "", True
+    Confere "C03 desativar a unica GANHO e recusado", modListas.DesativarEtapaPermitido("Pedido Fechado", Array("PEDIDO FECHADO", "PERDIDO"), Array("GANHO", "PERDA"), Array(True, True)), False
+    Confere "C03 uma de duas PERDA pode sair", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, True)), True
+    Confere "C03 etapa sem resultado pode sair", modListas.DesativarEtapaPermitido("Negociacao", Array("NEGOCIACAO"), Array(""), Array(True)), True
+    Confere "C03 a outra PERDA ja inativa: a ultima e recusada", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, False)), False
     Confere "Dias parado", modCalc.DiasParado(Date - 10), 10
     Confere "Ciclo", modCalc.Ciclo(DateSerial(2026, 1, 1), DateSerial(2026, 1, 31)), 30
     Confere "Mes referencia", modCalc.MesReferencia(DateSerial(2026, 9, 19)), 202609

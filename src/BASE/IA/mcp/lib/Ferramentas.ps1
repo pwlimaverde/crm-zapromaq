@@ -156,13 +156,41 @@ function Invoke-CrmStatus($a) {
     }
 }
 
+# Espelho de Get-ColunasDaLista (SISTEMA\DADOS\lib\Comum.ps1): onde cada lista é usada. Mudou lá, muda aqui.
+$script:ColunasDaLista = @{
+    UF = @('clientes:uf'); Segmento = @('clientes:segmento'); Qualificacao = @('clientes:qualificacao')
+    Responsavel = @('clientes:responsavel', 'oportunidades:responsavel')
+    Etapa = @('oportunidades:etapa'); Familia = @('oportunidades:familia'); Categoria = @('oportunidades:categoria')
+    Origem = @('oportunidades:origem'); Prioridade = @('oportunidades:prioridade'); Motivo = @('oportunidades:motivo_desfecho')
+}
+
 function Invoke-ListarOpcoes($a) {
     $tipo = [string](Get-Arg $a 'tipo' '')
     if ($tipo -eq '') {
         $tipos = Invoke-Consulta 'SELECT DISTINCT tipo FROM listas ORDER BY tipo' @()
         return [ordered]@{ tipos = @($tipos | ForEach-Object { $_.tipo }) }
     }
-    return [ordered]@{ tipo = $tipo; valores = @(Get-ValoresLista $null $tipo) }
+    if (-not ((Test-TemArg $a 'detalhar') -and $a.detalhar -eq $true)) {
+        return [ordered]@{ tipo = $tipo; valores = @(Get-ValoresLista $null $tipo) }
+    }
+    # detalhar: inativos também, com o uso (atendimentos e clientes) e, na etapa, o papel
+    $linhas = Invoke-Consulta 'SELECT valor, ordem, ativo, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo=? ORDER BY ordem, valor' @((P 'texto' $tipo))
+    $colunas = @($script:ColunasDaLista[$tipo])
+    $itens = @($linhas | ForEach-Object {
+        $linha = $_
+        $uso = 0
+        foreach ($tc in $colunas) {
+            $parte = $tc.Split(':')
+            $uso += [int](Invoke-Valor ('SELECT COUNT(*) FROM ' + $parte[0] + ' WHERE ' + $parte[1] + '=?') @((P 'texto' ([string]$linha.valor))))
+        }
+        $item = [ordered]@{ valor = [string]$linha.valor; ordem = $linha.ordem; ativo = [bool]$linha.ativo; uso = $uso }
+        if ($tipo -eq 'Etapa') {
+            $item['encerra'] = [bool]$linha.encerra; $item['resultado'] = [string]$linha.resultado
+            $item['quadro'] = [string]$linha.quadro; $item['exige_familia'] = [bool]$linha.exige_familia
+        }
+        $item
+    })
+    return [ordered]@{ tipo = $tipo; itens = $itens }
 }
 
 function Invoke-BuscarClientes($a) {
@@ -1389,13 +1417,17 @@ function Invoke-GerenciarLista($a) {
     $tipo = ([string]$a.tipo).Trim(); $valor = ([string]$a.valor).Trim(); $acao = [string]$a.acao
     if ($tipo -eq '' -or $valor -eq '') { throw 'Informe tipo e valor.' }
     if ($valor.Length -gt 120) { throw 'Valor aceita no máximo 120 caracteres.' }
+    if ($acao -notin @('incluir', 'ativar', 'desativar', 'ordenar', 'definir_papel')) { throw 'acao deve ser incluir, ativar, desativar, ordenar ou definir_papel.' }
     return Invoke-Transacao {
         param($ctx)
         $tipos = @($ctx.Consultar('SELECT DISTINCT tipo FROM listas', @()) | ForEach-Object { [string]$_.tipo })
         $tipoOk = $tipos | Where-Object { $_ -ieq $tipo } | Select-Object -First 1
         if (-not $tipoOk) { throw ("Lista '" + $tipo + "' não existe. Listas: " + ($tipos -join ' | ')) }
+        $ehEtapa = ($tipoOk -eq 'Etapa')
         $ex = $ctx.Consultar('SELECT * FROM listas WHERE tipo=? AND valor=?', @((P 'texto' $tipoOk), (P 'texto' $valor)))
         $ordem = $null; if (Test-TemArg $a 'ordem') { $ordem = [int]$a.ordem }
+        # C05: UF só entra se for uma das 27
+        if ($tipoOk -eq 'UF' -and $acao -eq 'incluir' -and -not (Test-UFValida $valor)) { throw ("'" + $valor + "' não é uma UF do Brasil (C05).") }
         switch ($acao) {
             'incluir' {
                 if ($ex.Count -gt 0) {
@@ -1403,7 +1435,19 @@ function Invoke-GerenciarLista($a) {
                     throw ("'" + $valor + "' já existe na lista " + $tipoOk + $sufixo + '.')
                 }
                 if ($null -eq $ordem) { $ordem = [int]$ctx.Valor('SELECT MAX(ordem) FROM listas WHERE tipo=?', @((P 'texto' $tipoOk))) + 1 }
-                [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                if ($ehEtapa) {
+                    # etapa nova nasce aberta, no funil, sem família, a menos que o pedido diga o contrário (C04 vale)
+                    $enc = (Test-TemArg $a 'encerra') -and [bool]$a.encerra
+                    $res = ''; if (Test-TemArg $a 'resultado') { $res = ([string]$a.resultado).Trim().ToUpperInvariant() }
+                    $erro = Test-PapelEtapaValido $enc $res; if ($erro) { throw $erro }
+                    $quad = 'FUNIL'; if (Test-TemArg $a 'quadro') { $quad = ([string]$a.quadro).Trim().ToUpperInvariant() }
+                    if ($quad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
+                    $fam = (Test-TemArg $a 'exige_familia') -and [bool]$a.exige_familia
+                    $resP = $null; if ($res -ne '') { $resP = $res }
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
+                } else {
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                }
                 $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
                 $ctx.Log('listas', $id, 'valor', '', ($tipoOk + ': ' + $valor), 'INSERIR')
             }
@@ -1417,15 +1461,66 @@ function Invoke-GerenciarLista($a) {
                 } else {
                     $novo = ($acao -eq 'ativar')
                     if ([bool]$r.ativo -eq $novo) { throw ("'" + $valor + "' já está no estado pedido.") }
+                    # C03: não desativa a última etapa ativa de ganho ou de perda
+                    if (-not $novo -and $ehEtapa -and -not (Test-DesativarEtapaPermitido (Get-PapeisEtapa $ctx) $valor)) {
+                        throw ("'" + $valor + "' é a última etapa ativa de " + [string]$r.resultado + ': sem ela o funil não fecha. Ative outra antes (C03).')
+                    }
                     [void]$ctx.Executar('UPDATE listas SET ativo=? WHERE id=?', @((P 'logico' $novo), (P 'inteiro' $id)))
                     $ac = 'DESATIVACAO'; if ($novo) { $ac = 'REATIVACAO' }
                     $ctx.Log('listas', $id, 'ativo', [string](-not $novo), [string]$novo, $ac)
                 }
             }
-            default { throw 'acao deve ser incluir, ativar, desativar ou ordenar.' }
+            'definir_papel' {
+                if (-not $ehEtapa) { throw 'definir_papel só existe para a lista Etapa: as outras listas não têm papel.' }
+                if ($ex.Count -eq 0) { throw ("'" + $valor + "' não existe na lista Etapa.") }
+                $r = $ex[0]; $id = [int]$r.id
+                $novoEnc = [bool]$r.encerra; if (Test-TemArg $a 'encerra') { $novoEnc = [bool]$a.encerra }
+                $novoRes = [string]$r.resultado; if (Test-TemArg $a 'resultado') { $novoRes = ([string]$a.resultado).Trim().ToUpperInvariant() }
+                $novoQuad = [string]$r.quadro; if (Test-TemArg $a 'quadro') { $novoQuad = ([string]$a.quadro).Trim().ToUpperInvariant() }
+                $novoFam = [bool]$r.exige_familia; if (Test-TemArg $a 'exige_familia') { $novoFam = [bool]$a.exige_familia }
+                $erro = Test-PapelEtapaValido $novoEnc $novoRes; if ($erro) { throw $erro }
+                if ($novoQuad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
+                $antRes = [string]$r.resultado
+                $mud = [ordered]@{}
+                if ($novoEnc -ne [bool]$r.encerra) { $mud['encerra'] = @{ Tipo = 'logico'; Antigo = [bool]$r.encerra; Novo = $novoEnc } }
+                if ($novoRes -ne $antRes) { $mud['resultado'] = @{ Tipo = 'texto'; Antigo = $antRes; Novo = $novoRes } }
+                if ($novoQuad -ne [string]$r.quadro) { $mud['quadro'] = @{ Tipo = 'texto'; Antigo = [string]$r.quadro; Novo = $novoQuad } }
+                if ($novoFam -ne [bool]$r.exige_familia) { $mud['exige_familia'] = @{ Tipo = 'logico'; Antigo = [bool]$r.exige_familia; Novo = $novoFam } }
+                if ($mud.Count -eq 0) { return [ordered]@{ gravado = $false; mensagem = 'Nada a alterar.' } }
+                # C03 também vale ao tirar o resultado de uma etapa ativa
+                if ($antRes -ne '' -and $novoRes -ne $antRes -and [bool]$r.ativo -and -not (Test-DesativarEtapaPermitido (Get-PapeisEtapa $ctx) $valor)) {
+                    throw ("'" + $valor + "' é a última etapa ativa de " + $antRes + ': mude a outra antes (C03).')
+                }
+                # mudar 'encerra' muda a situação de todo atendimento nessa etapa: pede confirmação com a contagem
+                $afetados = 0
+                if ($mud.Contains('encerra')) {
+                    $afetados = [int]$ctx.Valor('SELECT COUNT(*) FROM oportunidades WHERE etapa=?', @((P 'texto' $valor)))
+                    if ($afetados -gt 0 -and -not ((Test-TemArg $a 'confirmar') -and $a.confirmar -eq $true)) {
+                        throw ("Mudar 'encerra' de '" + $valor + "' muda a situação de " + $afetados + ' atendimento(s). Repita com confirmar=true para gravar.')
+                    }
+                }
+                # controle de versão: a linha tem de ter os valores antigos (a tabela não tem coluna versao)
+                $filtro = 'id=? AND encerra=? AND quadro=? AND exige_familia=?'
+                $pars = @((P 'inteiro' $id), (P 'logico' ([bool]$r.encerra)), (P 'texto' ([string]$r.quadro)), (P 'logico' ([bool]$r.exige_familia)))
+                if ($antRes -eq '') { $filtro += ' AND (resultado IS NULL OR resultado=?)'; $pars += (P 'texto' '') } else { $filtro += ' AND resultado=?'; $pars += (P 'texto' $antRes) }
+                $resGravar = $null; if ($novoRes -ne '') { $resGravar = $novoRes }
+                $valoresNovos = @((P 'logico' $novoEnc), (P 'texto' $resGravar), (P 'texto' $novoQuad), (P 'logico' $novoFam))
+                $n = $ctx.Executar(('UPDATE listas SET encerra=?, resultado=?, quadro=?, exige_familia=? WHERE ' + $filtro), ($valoresNovos + $pars))
+                if ($n -ne 1) { throw "Conflito: a etapa '$valor' foi alterada por outra pessoa agora. Nada foi gravado; leia de novo com listar_opcoes." }
+                foreach ($c in $mud.Keys) { $ctx.Log('listas', $id, $c, [string]$mud[$c].Antigo, [string]$mud[$c].Novo, 'ALTERAR') }
+                return [ordered]@{ gravado = $true; tipo = $tipoOk; valor = $valor; acao = $acao; alterados = @($mud.Keys)
+                    papel = [ordered]@{ encerra = $novoEnc; resultado = $novoRes; quadro = $novoQuad; exige_familia = $novoFam }
+                    atendimentos_afetados = $afetados; valores_ativos = @(Get-ValoresLista $ctx $tipoOk) }
+            }
         }
         return [ordered]@{ gravado = $true; tipo = $tipoOk; valor = $valor; acao = $acao; valores_ativos = @(Get-ValoresLista $ctx $tipoOk) }
     }
+}
+
+# Papel de todas as etapas (valor, resultado, ativo) para a regra C03.
+function Get-PapeisEtapa($ctx) {
+    $linhas = $ctx.Consultar("SELECT valor, ativo, resultado FROM listas WHERE tipo='Etapa'", @())
+    return @($linhas | ForEach-Object { [pscustomobject]@{ valor = [string]$_.valor; ativo = [bool]$_.ativo; resultado = [string]$_.resultado } })
 }
 
 function Invoke-ListarMetas($a) {
@@ -1539,7 +1634,10 @@ $script:Ferramentas = @(
                        'Desativar Etapa ou Responsavel afeta o funil e a fila de todos: confirme com o usuário.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('tipo', 'valor', 'acao'); properties = [ordered]@{
             tipo = [ordered]@{ type = 'string' }; valor = [ordered]@{ type = 'string'; maxLength = 120 }
-            acao = [ordered]@{ type = 'string'; enum = @('incluir', 'ativar', 'desativar', 'ordenar') }
+            acao = [ordered]@{ type = 'string'; enum = @('incluir', 'ativar', 'desativar', 'ordenar', 'definir_papel') }
+            encerra = [ordered]@{ type = 'boolean' }; resultado = [ordered]@{ type = 'string'; enum = @('', 'GANHO', 'PERDA') }
+            quadro = [ordered]@{ type = 'string'; enum = @('FUNIL', 'PROSPECCAO') }; exige_familia = [ordered]@{ type = 'boolean' }
+            confirmar = [ordered]@{ type = 'boolean'; description = 'Obrigatório (true) ao mudar encerra de etapa com atendimentos.' }
             ordem = [ordered]@{ type = 'integer' }; autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -1610,7 +1708,8 @@ $script:Ferramentas = @(
         name = 'listar_opcoes'; title = 'Opções das listas suspensas'; handler = 'Invoke-ListarOpcoes'; annotations = $script:SoLeitura
         description = 'Valores aceitos em campos de lista (Etapa, Responsavel, Familia, Origem, Prioridade, Motivo, Segmento, UF, Categoria). Sem "tipo", devolve os tipos existentes. Consulte antes de gravar um campo de lista.'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
-            tipo = [ordered]@{ type = 'string'; description = 'Nome da lista, ex.: Etapa' } } }
+            tipo = [ordered]@{ type = 'string'; description = 'Nome da lista, ex.: Etapa' }
+            detalhar = [ordered]@{ type = 'boolean'; description = 'Traz também os inativos, o uso e, na Etapa, o papel.' } } }
     },
     [ordered]@{
         name = 'buscar_clientes'; title = 'Buscar clientes'; handler = 'Invoke-BuscarClientes'; annotations = $script:SoLeitura

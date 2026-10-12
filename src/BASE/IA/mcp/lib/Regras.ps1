@@ -48,6 +48,31 @@ function ConvertTo-ChaveLista([string]$texto) {
     }
     return $sb.ToString()
 }
+
+# Regras de lista da Fase 2 (C03, C04, C05). Espelho do modListas no front: mudar aqui exige mudar la.
+$script:UFsBrasil = @('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO')
+
+# C05: UF só entra se for uma das 27 (maiúscula, sem espaço sobrando).
+function Test-UFValida([string]$uf) {
+    return ($script:UFsBrasil -ccontains $uf.ToUpperInvariant())
+}
+
+# C04: resultado (GANHO/PERDA) só existe em etapa que encerra. Devolve a mensagem ou $null.
+function Test-PapelEtapaValido([bool]$encerra, [string]$resultado) {
+    if ($resultado -notin @('', 'GANHO', 'PERDA')) { return 'Resultado deve ser GANHO, PERDA ou vazio.' }
+    if ($resultado -ne '' -and -not $encerra) { return 'Resultado só pode ser GANHO ou PERDA em etapa que encerra o atendimento (C04).' }
+    return $null
+}
+
+# C03: desativar uma etapa com resultado só é permitido se sobrar outra ATIVA com o mesmo resultado.
+# $papeis: linhas com valor, resultado e ativo (todas as etapas).
+function Test-DesativarEtapaPermitido($papeis, [string]$valor) {
+    $chave = ConvertTo-ChaveLista $valor
+    $alvo = @($papeis | Where-Object { (ConvertTo-ChaveLista $_.valor) -eq $chave }) | Select-Object -First 1
+    if ($null -eq $alvo -or [string]$alvo.resultado -eq '') { return $true }
+    $outras = @($papeis | Where-Object { $_.ativo -and (ConvertTo-ChaveLista $_.valor) -ne $chave -and [string]$_.resultado -eq [string]$alvo.resultado })
+    return ($outras.Count -gt 0)
+}
 function Test-CnpjValido([string]$v) {
     $s = Get-SoDigitos $v
     if ($s.Length -ne 14) { return $false }

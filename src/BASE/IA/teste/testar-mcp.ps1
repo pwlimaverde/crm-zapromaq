@@ -93,7 +93,55 @@ try {
     Conferir 'C06 inativa que é outra gravada no registro é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Descartado' })
 } finally { Set-AtivoEtapa 'Perdido' $true }
 
+Write-Host '--- regras de lista da Fase 2 (C03, C04, C05): puras, sem servidor'
+Conferir 'C05 UF de uma das 27 passa' (Test-UFValida 'sp')
+Conferir 'C05 UF fora das 27 é recusada' (-not (Test-UFValida 'XX'))
+Conferir 'C05 UF com espaço fora é recusada' (-not (Test-UFValida ' SP '))
+Conferir 'C04 resultado GANHO com encerra Não é recusado' ($null -ne (Test-PapelEtapaValido $false 'GANHO'))
+Conferir 'C04 resultado PERDA com encerra Sim passa' ($null -eq (Test-PapelEtapaValido $true 'PERDA'))
+Conferir 'C04 sem resultado e sem encerra passa' ($null -eq (Test-PapelEtapaValido $false ''))
+Conferir 'C04 resultado fora de GANHO/PERDA é recusado' ($null -ne (Test-PapelEtapaValido $true 'TALVEZ'))
+$papeis = @(
+    [pscustomobject]@{ valor = 'Pedido Fechado'; resultado = 'GANHO'; ativo = $true }
+    [pscustomobject]@{ valor = 'Perdido'; resultado = 'PERDA'; ativo = $true }
+    [pscustomobject]@{ valor = 'Descartado'; resultado = 'PERDA'; ativo = $true }
+    [pscustomobject]@{ valor = 'Negociação'; resultado = ''; ativo = $true }
+)
+Conferir 'C03 desativar a única GANHO é recusado' (-not (Test-DesativarEtapaPermitido $papeis 'Pedido Fechado'))
+Conferir 'C03 desativar uma de duas PERDA passa' (Test-DesativarEtapaPermitido $papeis 'Perdido')
+Conferir 'C03 desativar etapa sem resultado passa' (Test-DesativarEtapaPermitido $papeis 'Negociação')
+$semDescartado = @($papeis | Where-Object { $_.valor -ne 'Descartado' })
+Conferir 'C03 com a outra PERDA já inativa, a última PERDA é recusada' (-not (Test-DesativarEtapaPermitido $semDescartado 'Perdido'))
+
 try {
+Write-Host '--- gerenciar_lista (Fase 2): regras C03, C04, C05 e papel, no banco de demonstração'
+function Mensagem([scriptblock]$bloco) { try { $null = & $bloco; return '' } catch { return [string]$_.Exception.Message } }
+function Lista([string]$acao, [string]$tipo, [string]$valor, $extra = @{}) {
+    $p = [ordered]@{ tipo = $tipo; valor = $valor; acao = $acao }
+    foreach ($k in $extra.Keys) { $p[$k] = $extra[$k] }
+    return (Invoke-GerenciarLista ([pscustomobject]$p))
+}
+Conferir 'C05 incluir UF inválida é recusado com a regra' ((Mensagem { Lista 'incluir' 'UF' 'XX' }) -match 'C05')
+Conferir 'C04 definir_papel com resultado e encerra Não é recusado' ((Mensagem { Lista 'definir_papel' 'Etapa' 'Negociação' @{ encerra = $false; resultado = 'GANHO' } }) -match 'C04')
+Conferir 'C03 desativar a única etapa GANHO é recusado' ((Mensagem { Lista 'desativar' 'Etapa' 'Pedido Fechado' }) -match 'C03')
+Conferir 'C03 e C04: uma das duas PERDA pode ser desativada' ((Mensagem {
+        try { Lista 'desativar' 'Etapa' 'Descartado' | Out-Null } finally { Lista 'ativar' 'Etapa' 'Descartado' | Out-Null } }) -eq '')
+Conferir 'definir_papel que muda encerra com atendimentos pede confirmar' ((Mensagem { Lista 'definir_papel' 'Etapa' 'Negociação' @{ encerra = $true } }) -match 'confirmar')
+$antes = Lista 'definir_papel' 'Etapa' 'Negociação' @{ quadro = 'FUNIL' }
+Conferir 'definir_papel sem mudança devolve gravado false' ($antes.gravado -eq $false)
+try {
+    $muda = Lista 'definir_papel' 'Etapa' 'Negociação' @{ quadro = 'PROSPECCAO' }
+    Conferir 'definir_papel muda quadro e devolve o papel novo' ($muda.gravado -eq $true -and $muda.papel.quadro -eq 'PROSPECCAO' -and @($muda.alterados) -contains 'quadro')
+} finally {
+    $volta = Lista 'definir_papel' 'Etapa' 'Negociação' @{ quadro = 'FUNIL' }
+    Conferir 'definir_papel restaurou o quadro original (FUNIL)' ($volta.papel.quadro -eq 'FUNIL')
+}
+Conferir 'definir_papel em lista sem papel é recusado' ((Mensagem { Lista 'definir_papel' 'Responsavel' 'X' @{ quadro = 'FUNIL' } }) -match 'Etapa|não existe|Lista')
+$det = Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'Etapa'; detalhar = $true })
+$pf = @($det.itens | Where-Object { $_.valor -eq 'Pedido Fechado' }) | Select-Object -First 1
+Conferir 'listar_opcoes detalhar traz o papel da etapa (Pedido Fechado = GANHO, encerra)' ($null -ne $pf -and $pf.resultado -eq 'GANHO' -and $pf.encerra -eq $true)
+Conferir 'listar_opcoes detalhar traz o uso de cada valor' ($null -ne $pf -and $pf.uso -ge 0 -and $null -ne $pf.ativo)
+Conferir 'listar_opcoes sem detalhar continua só com a lista de valores' (-not ((Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'Etapa' })).PSObject.Properties.Name -contains 'itens'))
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

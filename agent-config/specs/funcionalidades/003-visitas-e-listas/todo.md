@@ -30,11 +30,11 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
 
 ## Fase 2 — Gerenciamento (publicação A)
 
-- [ ] 2.1 Regras (C02–C05, `encerra` em uso) — `Confere` · `modListas.bas` (novo)
+- [x] 2.1 Regras (C02–C05, `encerra` em uso) — `Confere` · `modListas.bas` (novo)
 - [ ] 2.2 Gravação com log e conflito — `testar-uso.ps1` · `modListas.bas`
 - [ ] 2.3 Feed e cache — `Confere` · `modFeed.bas`
 - [ ] 2.4 `frmListas` + botão Gerenciamento — `verificar.py` + prévia · `frmListas.txt`, `frmListas.json`, `abas.json` · 🖥B 1366×768
-- [ ] 2.5 `gerenciar_lista` e `listar_opcoes` — `testar-mcp.ps1` · `Ferramentas.ps1`, `SKILL.md`
+- [ ] 2.5 (parcial: gerenciar_lista definir_papel e C03–C05, listar_opcoes detalhar prontos; falta SKILL.md) `gerenciar_lista` e `listar_opcoes` — `testar-mcp.ps1` · `Ferramentas.ps1`, `SKILL.md`
 
 ## Fase 3 — Visitas no atendimento (publicação B)
 
