@@ -20,7 +20,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
 - [~] 1.7 Montagem nos 12 passos (feito: fluxo completo com -Teste, 12 passos, troca e teste de uso; PENDENTE: falha forçada em cada passo 9 a 12 como teste automatizado), `Config!B2` provisório/definitivo, mensagens, `-Teste` só TESTE
   - Teste: `Conferir` em `testar-build-lib.ps1` · Arquivos: `build\montar-frontend.ps1`, `MONTAR-FRONTEND.bat`, `testes\testar-uso.ps1`
   - 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação · 🖥N `Replace` e nomes da trava na rede
-- [ ] 1.8 Papel das etapas lido da lista; valor inativo (C06, C07)
+- [x] 1.8 Papel das etapas lido da lista; valor inativo (C06, C07)
   - Teste: `Confere` + `testar-uso.ps1` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modCalc`, `modCRM`, `modMenu`, `modGrade`, `modAcoes`, `modPainel`, `modRelatorio`, `modValidacao`, `modLote`, `frmCRM.txt`, `Regras.ps1`, `Ferramentas.ps1`
   - 🖥B ficha com valor inativo marcado
 - [x] 1.9 Conector 1.0/1.1; front 1.1; banco de demonstração

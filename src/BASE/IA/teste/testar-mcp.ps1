@@ -71,6 +71,28 @@ Conferir 'C01 chave ignora espaços sobrando e caixa' ((ConvertTo-ChaveLista 'pe
 Conferir 'C01 chave ignora acento (Pedído)' ((ConvertTo-ChaveLista 'Pedído Fechado') -eq 'PEDIDO FECHADO')
 Conferir 'C01 chave tira til e cedilha' ((ConvertTo-ChaveLista 'Negociação Ç Ñ') -eq 'NEGOCIACAO C N')
 Conferir 'C01 chave de valor vazio é vazia' ((ConvertTo-ChaveLista '   ') -eq '')
+
+Write-Host '--- valor inativo (C06, D-j): só o que já está gravado no registro passa'
+. (Join-Path $raizIA 'mcp\lib\Protocolo.ps1')
+. (Join-Path $raizIA 'mcp\lib\Banco.ps1')
+. (Join-Path $raizIA 'mcp\lib\Ferramentas.ps1')
+$script:CaminhoBanco = Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb'
+function Recusa([scriptblock]$bloco) { try { $null = & $bloco; return [bool]$false } catch { return [bool]$true } }
+# o banco de demonstração não tem etapa inativa: desativa 'Perdido' só durante estes casos e restaura
+function Set-AtivoEtapa([string]$valor, [bool]$ativo) {
+    $cn = Open-Conexao
+    try { $c = New-Comando $cn 'UPDATE listas SET ativo=? WHERE tipo=? AND valor=?' @((P 'logico' $ativo), (P 'texto' 'Etapa'), (P 'texto' $valor)) $null; [void]$c.ExecuteNonQuery(); $c.Dispose() }
+    finally { $cn.Close(); $cn.Dispose() }
+}
+try {
+    Set-AtivoEtapa 'Perdido' $false
+    Conferir 'C06 etapa ativa passa' ((Resolve-ValorLista $null 'Etapa' 'etapa' 'Negociação') -eq 'Negociação')
+    Conferir 'C06 etapa inativa não gravada é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Negociação' })
+    Conferir 'C06 etapa inativa já gravada no registro passa' ((Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Perdido') -eq 'Perdido')
+    Conferir 'C06 inativa gravada aceita o próprio texto, sem diferença de caixa' ((Resolve-ValorLista $null 'Etapa' 'etapa' 'perdido' 'Perdido') -eq 'Perdido')
+    Conferir 'C06 inativa que é outra gravada no registro é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Descartado' })
+} finally { Set-AtivoEtapa 'Perdido' $true }
+
 try {
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
@@ -134,8 +156,8 @@ try {
         Conferir 'versão sobe 1' ($g.versao -eq ([int]$at.versao + 1))
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$at.versao; tentativas = 9 })
         Conferir 'versão antiga é recusada (conflito)' ($res.isError -and $res.content[0].text -match 'Conflito')
-        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; etapa = 'Perdido' })
-        Conferir 'Perdido sem motivo é recusado' ($res.isError -and $res.content[0].text -match 'motivo')
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; etapa = 'Pedido Fechado' })
+        Conferir 'Pedido Fechado sem motivo é recusado' ($res.isError -and $res.content[0].text -match 'motivo')
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; etapa = 'Etapa Inventada' })
         Conferir 'etapa fora da lista é recusada' ($res.isError -and $res.content[0].text -match 'lista')
         # retomada (item 4): o anterior tem de ser da mesma empresa do contato (o front também recusa).

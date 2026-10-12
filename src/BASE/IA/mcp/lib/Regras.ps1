@@ -6,14 +6,13 @@
   venha do vendedor ou da IA.
 #>
 
-$script:EtapasEncerradas = @('Pedido Fechado', 'Perdido', 'Descartado')
-$script:EtapasProspeccao = @('Contato Inicial', 'Sem Retorno', 'Retorno Agendado', 'Descartado')
-# etapas que exigem familia de maquina (modValidacao.CriticarOportunidade)
-$script:EtapasComFamilia = @(
-    ('Elabora' + [char]0x00E7 + [char]0x00E3 + 'o da Proposta'),
-    ('Negocia' + [char]0x00E7 + [char]0x00E3 + 'o'),
-    ('Proposta em An' + [char]0x00E1 + 'lise'),
-    'Proposta em Stand By')
+# Papel de uma etapa (Get-PapelEtapas, da tabela listas). Etapa sem linha: aberta, funil, sem familia.
+function Get-PapelEtapa([string]$etapa) {
+    $mapa = Get-PapelEtapas
+    $chave = ConvertTo-ChaveLista $etapa
+    if ($mapa.ContainsKey($chave)) { return $mapa[$chave] }
+    return @{ valor = $etapa; encerra = $false; resultado = ''; quadro = 'FUNIL'; exige_familia = $false }
+}
 
 function Get-SoDigitos([string]$s) {
     if ($null -eq $s) { return '' }
@@ -95,7 +94,7 @@ function ConvertTo-DataOuNulo($v) {
 function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm) {
     if (-not $temContato) { return '' }
     if ([string]::IsNullOrEmpty($etapa)) { return 'Sem etapa definida' }
-    if ($script:EtapasEncerradas -contains $etapa) { return 'Encerrado' }
+    if ((Get-PapelEtapa $etapa).encerra) { return 'Encerrado' }
     $hoje = (Get-Date).Date
     $ret = ConvertTo-DataOuNulo $retomarEm
     if ($ret -and $ret -le $hoje) { return 'Retomar hoje' }
@@ -111,7 +110,7 @@ function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm
 
 function Get-Quadro([string]$etapa) {
     if ([string]::IsNullOrEmpty($etapa)) { return '' }
-    if ($script:EtapasProspeccao -contains $etapa) { return ('1. Prospec' + [char]0x00E7 + [char]0x00E3 + 'o') }
+    if ((Get-PapelEtapa $etapa).quadro -eq 'PROSPECCAO') { return ('1. Prospec' + [char]0x00E7 + [char]0x00E3 + 'o') }
     return '2. Funil comercial'
 }
 

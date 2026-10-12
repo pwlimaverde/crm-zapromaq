@@ -54,16 +54,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Telefone certo aceito", modValidacao.CriticarTelefone("41999990000"), ""
 
     ' ---- modCalc (regras da planilha 3.6)
-    Confere "Situacao encerrado", modCalc.Situacao(True, "Perdido", Null, Null), "Encerrado"
+    Confere "Situacao encerrado", modCalc.SituacaoDaEtapa(True, Null, Null), "Encerrado"
     Confere "Situacao sem etapa", modCalc.Situacao(True, "", Null, Null), "Sem etapa definida"
-    Confere "Situacao atrasada", modCalc.Situacao(True, "Contato Inicial", Date - 1, Null), _
+    Confere "Situacao atrasada", modCalc.SituacaoDaEtapa(False, Date - 1, Null), _
             "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
-    Confere "Situacao retomar", modCalc.Situacao(True, "Contato Inicial", Null, Date), "Retomar hoje"
-    Confere "Situacao sem acao", modCalc.Situacao(True, "Contato Inicial", Null, Null), _
+    Confere "Situacao retomar", modCalc.SituacaoDaEtapa(False, Null, Date), "Retomar hoje"
+    Confere "Situacao sem acao", modCalc.SituacaoDaEtapa(False, Null, Null), _
             "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
-    Confere "Situacao em dia", modCalc.Situacao(True, "Contato Inicial", Date + 30, Null), "Em dia"
-    Confere "Quadro prospeccao", modCalc.Quadro("Contato Inicial"), "1. Prospec" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
-    Confere "Quadro funil", modCalc.Quadro("Pedido Fechado"), "2. Funil comercial"
+    Confere "Situacao em dia", modCalc.SituacaoDaEtapa(False, Date + 30, Null), "Em dia"
+    Confere "Quadro prospeccao", modCalc.QuadroDoCodigo("PROSPECCAO"), "1. Prospec" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
+    Confere "Quadro funil", modCalc.QuadroDoCodigo("FUNIL"), "2. Funil comercial"
+    Confere "C06 valor inativo gravado: sem a marca", modCRM.ValorDaLista("Perdido (inativo)"), "Perdido"
+    Confere "C06 valor ativo: nada a tirar", modCRM.ValorDaLista("Perdido"), "Perdido"
     Confere "Dias parado", modCalc.DiasParado(Date - 10), 10
     Confere "Ciclo", modCalc.Ciclo(DateSerial(2026, 1, 1), DateSerial(2026, 1, 31)), 30
     Confere "Mes referencia", modCalc.MesReferencia(DateSerial(2026, 9, 19)), 202609

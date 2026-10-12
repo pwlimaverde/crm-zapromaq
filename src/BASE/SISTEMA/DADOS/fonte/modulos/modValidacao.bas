@@ -220,22 +220,23 @@ Public Function CriticarOportunidade(ByVal d As Object) As String
     End If
 
     ' o que a etapa exige
-    Select Case etapa
-        Case "Pedido Fechado", "Perdido", "Descartado"
-            If modDB.Nz(d("motivo_desfecho")) = "" Then
-                CriticarOportunidade = "Etapa """ & etapa & """ exige o motivo de desfecho."
-                Exit Function
-            End If
-            If IsNull(d("dt_desfecho")) Then
-                CriticarOportunidade = "Etapa """ & etapa & """ exige a data do desfecho."
-                Exit Function
-            End If
-        Case "Elaboração da Proposta", "Negociação", "Proposta em Análise", "Proposta em Stand By"
-            If modDB.Nz(d("familia")) = "" Then
-                CriticarOportunidade = "Etapa """ & etapa & """ exige a família de máquina."
-                Exit Function
-            End If
-    End Select
+    ' o que a etapa exige: o papel vem da lista (Encerra e Exige familia)
+    If modCRM.EtapaEncerra(etapa) Then
+        If modDB.Nz(d("motivo_desfecho")) = "" Then
+            CriticarOportunidade = "Etapa """ & etapa & """ exige o motivo de desfecho."
+            Exit Function
+        End If
+        If IsNull(d("dt_desfecho")) Then
+            CriticarOportunidade = "Etapa """ & etapa & """ exige a data do desfecho."
+            Exit Function
+        End If
+    End If
+    If modCRM.EtapaExigeFamilia(etapa) Then
+        If modDB.Nz(d("familia")) = "" Then
+            CriticarOportunidade = "Etapa """ & etapa & """ exige a família de máquina."
+            Exit Function
+        End If
+    End If
 End Function
 
 '----------------------------------------------------------
@@ -244,15 +245,12 @@ End Function
 Public Function AvisarOportunidade(ByVal d As Object) As String
     Dim etapa As String
     etapa = modDB.Nz(d("etapa"))
-    If etapa = "Pedido Fechado" And IsNull(d("valor")) Then
+    If modCRM.EtapaResultado(etapa) = "GANHO" And IsNull(d("valor")) Then
         AvisarOportunidade = "Pedido fechado sem valor informado. Deseja salvar assim mesmo?"
         Exit Function
     End If
-    If Not modCalcEncerrada(etapa) And IsNull(d("dt_prox_acao")) And IsNull(d("retomar_em")) Then
+    If Not modCRM.EtapaEncerra(etapa) And IsNull(d("dt_prox_acao")) And IsNull(d("retomar_em")) Then
         AvisarOportunidade = "Sem próxima ação e sem data de retomada: este atendimento vai sumir da fila da manhã. Salvar assim mesmo?"
     End If
 End Function
 
-Private Function modCalcEncerrada(ByVal etapa As String) As Boolean
-    modCalcEncerrada = (etapa = "Pedido Fechado" Or etapa = "Perdido" Or etapa = "Descartado")
-End Function

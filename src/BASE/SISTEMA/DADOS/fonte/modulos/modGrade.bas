@@ -629,7 +629,7 @@ End Sub
 Private Sub Condicionais(ByVal ws As Worksheet, ByVal lo As ListObject, _
                          ByVal cols As Variant, ByVal nc As Long, ByVal nl As Long, _
                          ByVal tabela As String)
-    Dim jSit As Long, jEta As Long, j As Long, p As Variant
+    Dim jSit As Long, jEta As Long, j As Long, p As Variant, v As Variant
     Dim colSit As Range, lin1 As Long, refSit As String, refEta As String
 
     If nl = 0 Then Exit Sub
@@ -661,8 +661,10 @@ Private Sub Condicionais(ByVal ws As Worksheet, ByVal lo As ListObject, _
     ' Excel em portugues) - com OR a regra falhava calada e Perdido
     ' e Descartado nunca esmaeciam.
     If refEta <> "" Then
-        RegraLinha lo.DataBodyRange, "=" & refEta & "=""Perdido""", -1, modTema.COR_DESABILITADO_TEXTO, False
-        RegraLinha lo.DataBodyRange, "=" & refEta & "=""Descartado""", -1, modTema.COR_DESABILITADO_TEXTO, False
+        ' etapas de resultado PERDA (aba Listas): uma regra por valor, com o texto gravado
+        For Each v In modCRM.EtapasComResultado("PERDA")
+            RegraLinha lo.DataBodyRange, "=" & refEta & "=""" & Replace(CStr(v), """", """""") & """", -1, modTema.COR_DESABILITADO_TEXTO, False
+        Next v
     End If
 
     If refSit = "" Then Exit Sub

@@ -929,6 +929,8 @@ Private Sub DefinirValor(ByVal campo As String, ByVal tipo As String, ByVal v As
         Case Else
             If campo = "cnpj" Then
                 ctl.Value = modValidacao.FormatarCNPJ(v)
+            ElseIf TypeName(ctl) = "ComboBox" Then
+                modCRM.MostrarValorDeLista ctl, CStr(v)
             Else
                 ctl.Value = CStr(v)
             End If
@@ -942,6 +944,7 @@ Private Function ValorCampo(ByVal campo As String) As String
     On Error GoTo 0
     If ctl Is Nothing Then Exit Function
     ValorCampo = Trim$(CStr(ctl.Value))
+    If TypeName(ctl) = "ComboBox" Then ValorCampo = modCRM.ValorDaLista(ValorCampo)
 End Function
 
 '==========================================================
@@ -1072,7 +1075,7 @@ Private Sub cmdNovo_Click()
     Next i
     If mTabela = "oportunidades" Then
         DefinirValor "dt_entrada", "D", Date
-        DefinirValor "etapa", "L", "Contato Inicial"
+        DefinirValor "etapa", "L", modCRM.EtapaPadrao()
         DefinirValor "tentativas", "N", 0
     End If
     AtualizarResumos

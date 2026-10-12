@@ -139,7 +139,7 @@ Public Function DesativarCliente(ByVal idCliente As Long) As Boolean
 
     nCt = Contar("SELECT COUNT(*) FROM contatos WHERE id_cliente=? AND ativo=True", idCliente)
     nOp = Contar("SELECT COUNT(*) FROM oportunidades WHERE id_cliente=?" & _
-                 " AND etapa NOT IN ('Pedido Fechado','Perdido','Descartado')", idCliente)
+                 " AND etapa NOT IN (" & modCRM.SqlEtapasEncerradas() & ")", idCliente)
 
     aviso = "Desativar este cliente?" & vbCrLf & vbCrLf & TextoDoCliente(idCliente) & vbCrLf & vbCrLf & _
             "Junto com ele são desativados " & nCt & " contato(s)."

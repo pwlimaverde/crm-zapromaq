@@ -126,6 +126,11 @@ try {
     [void]$cmd.ExecuteNonQuery(); $cmd.Dispose()
 } finally { $cn.Close(); $cn.Dispose() }
 
+# banco padrão sai no esquema atual (1.1), como o de demonstração; o caso da migração fica em 1.0 de propósito
+if (-not $CasosDaMigracao) {
+    & (Join-Path $raizBase 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1') -Banco $banco | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'as migrações do banco de teste falharam' }
+}
 Write-Host ''
 Write-Host 'Banco de teste pronto:' $banco
 Write-Host '  4 clientes, 2 pré-clientes, 4 contatos, 9 atendimentos, listas preenchidas. Tudo fictício.'

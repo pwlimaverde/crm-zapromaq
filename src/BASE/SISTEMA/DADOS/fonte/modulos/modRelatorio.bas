@@ -198,7 +198,7 @@ Private Function CsvAtendimentos(ByVal d As Variant, ByVal nomes As Variant) As 
 End Function
 
 Private Function EmAberto(ByVal etapa As String) As Boolean
-    EmAberto = Not (etapa = "Pedido Fechado" Or etapa = "Perdido" Or etapa = "Descartado")
+    EmAberto = Not modCRM.EtapaEncerra(etapa)
 End Function
 
 ' A aba BasePainel ja e bloco;chave;valor1..3 - com cabecalho legivel
@@ -268,7 +268,7 @@ Private Function TextoLeiaMe(ByVal nAt As Long, ByVal nCl As Long) As String
         "  clientes.csv           " & nCl & " empresa(s): clientes e pre-clientes" & vbCrLf & _
         "  painel.pdf             o Painel como estava na tela" & vbCrLf & vbCrLf & _
         "DEFINICOES" & vbCrLf & _
-        "  Em aberto = etapa diferente de Pedido Fechado, Perdido e Descartado." & vbCrLf & _
+        "  Em aberto = etapa que nao encerra o atendimento (aba Listas, Encerra = Nao)." & vbCrLf & _
         "  Situacao: Acao atrasada (proxima acao vencida), Retomar hoje, Acao nesta semana, Em dia," & vbCrLf & _
         "  Sem proxima acao, Encerrado. Valores em reais (R$)." & vbCrLf & vbCrLf
     t = t & "PEDIDO SUGERIDO PARA O CLAUDE (anexe os CSVs e, se quiser, o painel.pdf)" & vbCrLf & _

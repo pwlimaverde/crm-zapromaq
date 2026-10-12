@@ -458,8 +458,51 @@ def ddl_de_texto(junto):
     return tabelas
 
 
+# Nomes de etapa que o programa NAO pode fixar em codigo: o papel vem da tabela listas (spec 003, D-c).
+ETAPAS_FIXAS = ['Pedido Fechado', 'Perdido', 'Descartado', 'Contato Inicial', 'Sem Retorno', 'Retorno Agendado',
+                'Elaboração da Proposta', 'Negociação', 'Proposta em Análise', 'Proposta em Stand By']
+# Onde o nome pode aparecer: teste de regra com dados de exemplo e amostra visual do formulario de calibracao
+ETAPAS_EXCECOES = {'modAutoteste.bas', 'frmCalibracao.txt'}
+
+
+def sem_comentario(linha, comentario):
+    # tira o comentario da linha, sem mexer no que esta dentro de aspas
+    dentro = False
+    for i, ch in enumerate(linha):
+        if ch == '"':
+            dentro = not dentro
+        elif ch == comentario and not dentro:
+            return linha[:i]
+    return linha
+
+
+def verificar_textos_de_etapa(vba):
+    alvos = []
+    for p in vba:
+        if os.path.basename(p) not in ETAPAS_EXCECOES:
+            alvos.append((p, "'"))
+    pasta_ps = os.path.join(BASE, 'IA', 'mcp', 'lib')
+    if os.path.isdir(pasta_ps):
+        for nome in sorted(os.listdir(pasta_ps)):
+            if nome.endswith('.ps1'):
+                alvos.append((os.path.join(pasta_ps, nome), '#'))
+    for caminho, marca in alvos:
+        txt = open(caminho, encoding='cp1252' if caminho.endswith(('.bas', '.cls', '.txt')) else 'utf-8-sig',
+                   errors='replace').read()
+        for n, linha in enumerate(txt.replace('\r\n', '\n').split('\n'), 1):
+            if '2. Negocia' in linha:            # titulo de secao do formulario, nao regra de etapa
+                continue
+            codigo = sem_comentario(linha, marca)
+            for nome in ETAPAS_FIXAS:
+                # so literal entre aspas conta ("Perdidos" de um rotulo nao e a etapa Perdido)
+                if ('"' + nome + '"') in codigo or ("'" + nome + "'") in codigo:
+                    falha('Etapas', rel(caminho) + ':' + str(n) + ': texto fixo de etapa "' + nome + '" no codigo')
+                    break
+
+
 def main():
     vba = fontes_vba()
+    verificar_textos_de_etapa(vba)
     verificar_migracao_003()
     verificar_casos_regra()
     verificar_formularios()

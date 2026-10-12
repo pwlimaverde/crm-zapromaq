@@ -38,10 +38,13 @@ function Get-ValoresLista($ctx, [string]$tipo) {
 }
 
 # Devolve o valor exatamente como está na lista (acerta maiúsculas); lança se não existir.
-function Resolve-ValorLista($ctx, [string]$tipo, [string]$campo, $valor) {
+# Valor INATIVO só passa se for o próprio valor já gravado no registro ($atual): D-j, C06.
+function Resolve-ValorLista($ctx, [string]$tipo, [string]$campo, $valor, $atual = $null) {
     if ($null -eq $valor -or [string]$valor -eq '') { return $null }
     $validos = Get-ValoresLista $ctx $tipo
-    foreach ($v in $validos) { if ($v -ieq ([string]$valor).Trim()) { return $v } }
+    $texto = ([string]$valor).Trim()
+    foreach ($v in $validos) { if ($v -ieq $texto) { return $v } }
+    if ($null -ne $atual -and [string]$atual -ieq $texto) { return [string]$atual }
     throw ("Campo '" + $campo + "': '" + $valor + "' não está na lista " + $tipo + ". Valores aceitos: " + ($validos -join ' | '))
 }
 
@@ -224,7 +227,7 @@ function Invoke-BuscarAtendimentos($a) {
     if (Test-TemArg $a 'responsavel') { [void]$w.Add('o.responsavel=?'); [void]$p.Add((P 'texto' $a.responsavel)) }
     if (Test-TemArg $a 'codigo_cliente') { [void]$w.Add('c.codigo_cliente=?'); [void]$p.Add((P 'inteiro' ([int]$a.codigo_cliente))) }
     if ([bool](Get-Arg $a 'somente_abertos' $true)) {
-        [void]$w.Add("o.etapa NOT IN ('Pedido Fechado', 'Perdido', 'Descartado')")
+        [void]$w.Add('o.etapa NOT IN (' + $script:SqlEtapasEncerradas + ')')
     }
     $filtroSituacao = [string](Get-Arg $a 'situacao' '')
     # Com filtro de situação (calculada fora do banco) lê o conjunto e corta depois.
@@ -449,7 +452,9 @@ $script:MsgPlanejamentoPassado = ('O planejamento só vale de hoje em diante: o 
                                  'Para período passado use atendimentos_por_interacao. Nada foi consultado.')
 $script:CamposPlanejamentoPadrao = @($script:CamposInteracaoPadrao + @('quadro', 'categoria', 'codigo_contato', 'vencida'))
 # em aberto = etapa não encerrada; etapa vazia também é atendimento em aberto
-$script:SqlAtendimentoAberto = "(o.etapa IS NULL OR o.etapa NOT IN ('Pedido Fechado', 'Perdido', 'Descartado'))"
+# etapas que encerram (tabela listas, Encerra = Sim): subconsulta, sem nome de etapa no codigo
+$script:SqlEtapasEncerradas = "SELECT l.valor FROM listas AS l WHERE l.tipo='Etapa' AND l.encerra=True"
+$script:SqlAtendimentoAberto = "(o.etapa IS NULL OR o.etapa NOT IN (" + $script:SqlEtapasEncerradas + "))"
 $script:QuadroFunil = '2. Funil comercial'
 
 function Get-PeriodoPlanejamento($a) {
@@ -825,7 +830,7 @@ function Invoke-AtualizarAtendimento($a) {
         $mud = [ordered]@{}
         foreach ($campo in $script:DefsAtendimento.Keys) {
             if (-not (Test-TemArg $a $campo)) { continue }
-            $v = ConvertTo-CampoAtendimento $ctx $campo $a.$campo
+            $v = ConvertTo-CampoAtendimento $ctx $campo $a.$campo $atual[$campo]
             $novo[$campo] = $v
             if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Tipo = $script:DefsAtendimento[$campo][0]; Novo = $v; Antigo = $atual[$campo] } }
         }
@@ -874,7 +879,7 @@ function Invoke-AtualizarCadastroCliente($a) {
             if ($tipo -eq 'inteiro') {
                 if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
             } elseif ($lista) {
-                $v = Resolve-ValorLista $ctx $lista $campo $v
+                $v = Resolve-ValorLista $ctx $lista $campo $v $atual[$campo]
             } else {
                 $v = ConvertTo-Normalizado $campo $v
                 Assert-Tamanho $campo $v
@@ -1121,8 +1126,8 @@ function Invoke-AtualizarContato($a) {
                 if ($mud.Count -eq 1) { $acao = if ($v) { 'REATIVACAO' } else { 'DESATIVACAO' } }
                 if (-not $v) {
                     $abertos = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_contato=? AND etapa NOT IN (' +
-                                               (($script:EtapasEncerradas | ForEach-Object { '?' }) -join ',') + ')'),
-                                               (@((P 'inteiro' ([int]$atual.id))) + @($script:EtapasEncerradas | ForEach-Object { P 'texto' $_ })))
+                                               $script:SqlEtapasEncerradas + ')'),
+                                               (@((P 'inteiro' ([int]$atual.id)))))
                     if ($abertos -gt 0) { [void]$avisos.Add('Contato desativado com ' + $abertos + ' atendimento(s) em aberto; eles continuam como estão.') }
                 }
             }
@@ -1150,16 +1155,16 @@ function Get-CriticaAtendimento($novo) {
     $dDes = ConvertTo-DataOuNulo $novo.dt_desfecho
     if ($dEnt -and $dPro -and $dPro -lt $dEnt) { throw 'A data da proposta é anterior à data de entrada.' }
     if ($dEnt -and $dDes -and $dDes -lt $dEnt) { throw 'A data do desfecho é anterior à data de entrada.' }
-    if ($script:EtapasEncerradas -contains $etapa) {
+    if ((Get-PapelEtapa $etapa).encerra) {
         if ([string]$novo.motivo_desfecho -eq '') { throw ('Etapa "' + $etapa + '" exige motivo_desfecho.') }
         if (-not $dDes) { throw ('Etapa "' + $etapa + '" exige dt_desfecho.') }
     }
-    if ($script:EtapasComFamilia -contains $etapa -and [string]$novo.familia -eq '') {
+    if ((Get-PapelEtapa $etapa).exige_familia -and [string]$novo.familia -eq '') {
         throw ('Etapa "' + $etapa + '" exige a família de máquina.')
     }
     $avisos = New-Object System.Collections.ArrayList
-    if ($etapa -eq 'Pedido Fechado' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
-    if (($script:EtapasEncerradas -notcontains $etapa) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
+    if ((Get-PapelEtapa $etapa).resultado -eq 'GANHO' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
+    if ((-not (Get-PapelEtapa $etapa).encerra) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
         [void]$avisos.Add('Sem próxima ação e sem data de retomada: o atendimento some da fila da manhã.')
     }
     return ,$avisos
@@ -1174,14 +1179,14 @@ $script:DefsAtendimento = [ordered]@{
     prox_acao = @('memo', $null); dt_entrada = @('data', $null); dt_proposta = @('data', $null); ultima_interacao = @('data', $null)
     dt_prox_acao = @('data', $null); retomar_em = @('data', $null); dt_desfecho = @('data', $null)
 }
-function ConvertTo-CampoAtendimento($ctx, [string]$campo, $v) {
+function ConvertTo-CampoAtendimento($ctx, [string]$campo, $v, $atual = $null) {
     $tipo = $script:DefsAtendimento[$campo][0]; $lista = $script:DefsAtendimento[$campo][1]
     switch ($tipo) {
         'data'    { return (ConvertTo-Data $campo $v) }
         'moeda'   { if ($null -ne $v) { $v = [decimal]$v; if ($v -lt 0) { throw 'O valor não pode ser negativo.' } }; return $v }
         'inteiro' { if ($null -ne $v) { $v = [int]$v; if ($v -lt 0) { throw "Campo '$campo' não pode ser negativo." } }; return $v }
         default   {
-            if ($lista) { return (Resolve-ValorLista $ctx $lista $campo $v) }
+            if ($lista) { return (Resolve-ValorLista $ctx $lista $campo $v $atual) }
             $v = ConvertTo-Normalizado $campo $v; Assert-Tamanho $campo $v; return $v
         }
     }
@@ -1207,14 +1212,14 @@ function Invoke-PromoverNaTransacao($ctx, $cli) {
 }
 
 # Normaliza e critica um campo de cliente (mesmas regras de atualizar_cadastro_cliente).
-function ConvertTo-CampoCliente($ctx, [string]$campo, $v, [int]$idProprio) {
+function ConvertTo-CampoCliente($ctx, [string]$campo, $v, [int]$idProprio, $atual = $null) {
     $defs = @{ uf = 'UF'; segmento = 'Segmento'; responsavel = 'Responsavel' }
     if ($campo -in @('aderencia', 'porte')) {
         if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
         return $v
     }
-    if ($defs.ContainsKey($campo)) { return (Resolve-ValorLista $ctx $defs[$campo] $campo $v) }
-    if ($campo -eq 'qualificacao' -and @(Get-ValoresLista $ctx 'Qualificacao').Count -gt 0) { return (Resolve-ValorLista $ctx 'Qualificacao' $campo $v) }
+    if ($defs.ContainsKey($campo)) { return (Resolve-ValorLista $ctx $defs[$campo] $campo $v $atual) }
+    if ($campo -eq 'qualificacao' -and @(Get-ValoresLista $ctx 'Qualificacao').Count -gt 0) { return (Resolve-ValorLista $ctx 'Qualificacao' $campo $v $atual) }
     $v = ConvertTo-Normalizado $campo $v
     Assert-Tamanho $campo $v
     switch ($campo) {
@@ -1299,12 +1304,10 @@ function Invoke-SituacaoCliente($a) {
         $cli = Get-ClienteNaTransacao $ctx $a
         Assert-Versao $cli $a
         $id = [int]$cli.id
-        $encerr = (($script:EtapasEncerradas | ForEach-Object { '?' }) -join ',')
-        $pEnc = @($script:EtapasEncerradas | ForEach-Object { P 'texto' $_ })
         switch ($acao) {
             'desativar' {
                 if (-not [bool]$cli.ativo) { throw 'A empresa já está inativa.' }
-                $nOp = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_cliente=? AND etapa NOT IN (' + $encerr + ')'), (@((P 'inteiro' $id)) + $pEnc))
+                $nOp = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_cliente=? AND etapa NOT IN (' + $script:SqlEtapasEncerradas + ')'), (@((P 'inteiro' $id))))
                 [void](Set-AtivoEm $ctx 'clientes' 'id=?' $id $false 'DESATIVACAO' ([string]$nOp + ' oportunidade(s) em aberto mantida(s)'))
                 $nCt = Set-AtivoEm $ctx 'contatos' 'id_cliente=?' $id $false 'DESATIVACAO' 'cascata da desativação do cliente'
                 $aviso = $null
@@ -1703,7 +1706,7 @@ $script:Ferramentas = @(
         name = 'atualizar_atendimento'; title = 'Atualizar atendimento'; handler = 'Invoke-AtualizarAtendimento'; annotations = $script:Gravacao
         description = ('Altera campos de um atendimento. Leia antes com obter_atendimento e passe a "versao" lida: se alguém alterou depois, a gravação é recusada em vez de sobrescrever. ' +
                        'Envie só os campos que mudam. Campos de lista precisam de valor existente (listar_opcoes). Datas em AAAA-MM-DD. ' +
-                       'Etapa Pedido Fechado/Perdido/Descartado exige motivo_desfecho e dt_desfecho.')
+                       'Etapa que encerra o atendimento (aba Listas, Encerra = Sim) exige motivo_desfecho e dt_desfecho.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo', 'versao'); properties = [ordered]@{
             codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             versao = [ordered]@{ type = 'integer'; description = 'Versão lida em obter_atendimento' }

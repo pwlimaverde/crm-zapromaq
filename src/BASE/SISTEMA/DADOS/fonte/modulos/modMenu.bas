@@ -86,7 +86,7 @@ Public Sub FilaDaManha()
         " op.retomar_em, op.valor, op.responsavel" & _
         " FROM (oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
         " LEFT JOIN clientes cl ON op.id_cliente=cl.id" & _
-        " WHERE op.etapa NOT IN ('Pedido Fechado','Perdido','Descartado')" & _
+        " WHERE op.etapa NOT IN (" & modCRM.SqlEtapasEncerradas() & ")" & _
         " AND ((op.dt_prox_acao IS NOT NULL AND op.dt_prox_acao <= ?)" & _
         "   OR (op.retomar_em IS NOT NULL AND op.retomar_em <= ?))" & _
         " ORDER BY IIf(op.dt_prox_acao Is Null,1,0), op.dt_prox_acao, op.valor DESC, op.id", _
