@@ -1,69 +1,79 @@
-# Tarefas: visitas, planejamentos, listas padrão e conector completo
+# Tarefas (refeitas em 12/10/2026)
 
-Ciclo: teste falha → código → `verificar-tudo` no nível certo → commit. Testes de banco só no
-banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
+Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commit. Plano e ordem em
+[plan.md](plan.md). 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
 
-## Fase 1 — Base, migração 003 e montagem única (publicação A)
+## Fase 1: concluir (publicação A)
 
-- [x] 1.1 `gerar-municipios.py` + `municipios.csv` + `municipios.fonte.json`
-  - Teste: `verificar.py` · Arquivos: `agent-config\ferramentas\gerar-municipios.py`, `banco\referencia\*`
-- [x] 1.2 Função de chave de lista (C01) e checagem de casos compartilhados
-  - Teste: `Confere` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modValidacao.bas`, `Regras.ps1`, `verificar.py`
-- [x] 1.3 DDL e `modSchema`
-  - Teste: `verificar.py` · Arquivos: `banco\esquema\criar-banco.ps1`, `modSchema.bas`
-- [x] 1.4 Banco de teste com variantes, duplicata, órfão e etapa especial ausente
-  - Teste: (infraestrutura do 1.5) · Arquivos: `IA\teste\criar-banco-teste.ps1`
-- [x] 1.5 Migração 003 (C17, C18, papel, índice, idempotência, relatório)
-  - Teste: caso que aplica no banco de teste · Arquivos: `banco\migracoes\003-municipios-visitas-papel-listas.ps1`
-- [x] 1.6 Rotina de atualização do banco (trava, backup + H0, cópia, conferências, troca, volta)
-  - Teste: `Conferir` em `testar-build-lib.ps1` (C19, C20) · Arquivos: `banco\aplicar-migracoes.ps1`, `lib\Comum.ps1`
-- [~] 1.7 Montagem nos 12 passos (feito: fluxo completo com -Teste, 12 passos, troca e teste de uso; PENDENTE: falha forçada em cada passo 9 a 12 como teste automatizado), `Config!B2` provisório/definitivo, mensagens, `-Teste` só TESTE
-  - Teste: `Conferir` em `testar-build-lib.ps1` · Arquivos: `build\montar-frontend.ps1`, `MONTAR-FRONTEND.bat`, `testes\testar-uso.ps1`
-  - 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação · 🖥N `Replace` e nomes da trava na rede
-- [x] 1.8 Papel das etapas lido da lista; valor inativo (C06, C07)
-  - Teste: `Confere` + `testar-uso.ps1` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modCalc`, `modCRM`, `modMenu`, `modGrade`, `modAcoes`, `modPainel`, `modRelatorio`, `modValidacao`, `modLote`, `frmCRM.txt`, `Regras.ps1`, `Ferramentas.ps1`
-  - 🖥B ficha com valor inativo marcado
-- [x] 1.9 Conector 1.0/1.1; front 1.1; banco de demonstração
-  - Teste: `testar-mcp.ps1` + `testar-uso.ps1` · Arquivos: `modConfig.bas`, `Banco.ps1`, `servidor.ps1`, `criar-banco-demo.ps1`
-- [x] 1.10 Empacotamento em pasta + `MANIFESTO.json`
-  - Teste: `Conferir` em `testar-build-lib.ps1` (passo 1) + checagem no `verificar-tudo` · Arquivos: `agent-config\ferramentas\empacotar-base.ps1`
+- [x] 1.1 Base de municípios do IBGE (`803b9d6`)
+- [x] 1.2 Chave de lista C01 nos dois lados (`fbc8701`)
+- [x] 1.3 Estrutura do esquema 1.1 (`d4042ab`)
+- [x] 1.4 Casos problemáticos no banco de teste (`7f5fd47`)
+- [x] 1.5 Migração 003: carga, unificação, órfãos, papel (`62fe3c6`)
+- [x] 1.6 Rotina tudo ou nada, C19 e C20 (`d2748f1`)
+- [x] 1.7 Montagem em 12 passos (`f959adb`); falha forçada automatizada nos passos 9 a 12 ainda pendente (1.7b)
+- [x] 1.8 Papel das etapas lido da lista; valor inativo, C06 e C07 (`e633c12`)
+- [x] 1.9 Esquema 1.1 no front e no conector; banco de demonstração (`998f8d7`)
+- [x] 1.10 MANIFESTO.json e conferência no passo 1 (`fd815e1`)
+- [ ] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
+- [ ] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
+- [ ] 1.11 Documentação da Fase 1 (`banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `contrato-banco`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+) — `verificar.py`
+- [ ] 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação; trava falsa
 
-## Fase 2 — Gerenciamento (publicação A)
+## Fase 2: gerenciamento de listas (publicação A)
 
-- [x] 2.1 Regras (C02–C05, `encerra` em uso) — `Confere` · `modListas.bas` (novo)
-- [ ] 2.2 Gravação com log e conflito — `testar-uso.ps1` · `modListas.bas`
-- [ ] 2.3 Feed e cache — `Confere` · `modFeed.bas`
-- [ ] 2.4 `frmListas` + botão Gerenciamento — `verificar.py` + prévia · `frmListas.txt`, `frmListas.json`, `abas.json` · 🖥B 1366×768
-- [ ] 2.5 (parcial: gerenciar_lista definir_papel e C03–C05, listar_opcoes detalhar prontos; falta SKILL.md) `gerenciar_lista` e `listar_opcoes` — `testar-mcp.ps1` · `Ferramentas.ps1`, `SKILL.md`
+- [x] 2.1 Regras C03, C04, C05 nos dois lados (`d4a8c5a`)
+- [x] 2.5a `gerenciar_lista` com `definir_papel` e `listar_opcoes` com `detalhar` no conector (`d4a8c5a`), testes em `testar-mcp`
+- [ ] 2.2a Gravação no front (incluir, ativar, desativar, ordenar), log e conflito — `testar-uso` + `Confere` (C02)
+- [ ] 2.2b `definir_papel` no front: C04, contagem de atendimentos, `confirmar` — `testar-uso`
+- [ ] 2.3 Feed e cache de `listas` (`modFeed`) — `Confere`
+- [ ] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`
+- [ ] 2.4b `frmListas` código (combo, grade, botões, confirmação de encerra) — `testar-uso` + `verificar.py`
+- [ ] 2.4c Botão Gerenciamento no Início — 🖥B em 1366×768
+- [ ] 2.5b Documentação e `SKILL.md`, `IA\LEIA-ME.md`, `front-vba.md`, `visual-layout.md`, `ia-mcp.md`
+- [ ] Checkpoint A: `verificar-tudo -Completo`, 🖥B acima, autorização do usuário
 
-## Fase 3 — Visitas no atendimento (publicação B)
+## Fase 3: visitas no atendimento (publicação B)
 
-- [ ] 3.1 Regras C08–C13 — `Confere` · `modVisita.bas` (novo)
-- [ ] 3.2 Gravação V6/V7 e conflito — `testar-uso.ps1` · `modVisita.bas`, `modCRM.bas`
-- [ ] 3.3 Ficha da visita, botão Visitas (n), feed — `Confere` + `verificar.py` · `frmCRM.txt`, `modSchema.bas`, `modFeed.bas` · 🖥B
-- [ ] 3.4 Ferramentas de visita — `testar-mcp.ps1` · `Ferramentas.ps1`, `SKILL.md`
+- [ ] 3.1 Regras V2–V5, V8 e texto V6 (C08–C12) nos dois lados — `Confere` e `testar-mcp`
+- [ ] 3.2a Gravação no conector: `criar_visita`, `atualizar_visita`, V6/V7 na transação — `testar-mcp`
+- [ ] 3.2b Gravação no front (`modVisita.bas`) — `testar-uso`
+- [ ] 3.3a Botão `Visitas (n)` na ficha do atendimento — `verificar.py` (layout)
+- [ ] 3.3b Ficha da visita (`frmCRM`, tabela `visitas`) e feed de `visitas` — `testar-uso` + prévia; 🖥B
+- [ ] 3.4 Ferramentas `listar_visitas`, `alterar_situacao_visita`, resumo em `obter_atendimento` — `testar-mcp`
+- [ ] Checkpoint B: 🖥B acima; banco exclusivo na janela (A3)
 
-## Fase 4 — Planejamentos (publicação C)
+## Fase 4: planejamentos (publicação C)
 
-- [ ] 4.1 `nome_busca` + haversine — `Confere` · `modPlanejamento.bas` (novo)
-- [ ] 4.2 P1–P4 e ordem (C14–C16) — `Confere`
-- [ ] 4.3 Gravação de planejamento — `testar-uso.ps1`
-- [ ] 4.4 Gerar visitas — `testar-uso.ps1`
-- [ ] 4.5 Lançamento (rotina) — `testar-uso.ps1`
-- [ ] 4.6 `clsGrade` com marcação — `verificar.py` + `testar-uso.ps1` · `clsGrade.cls`
-- [ ] 4.7 `frmPlanejamento` + `frmVinculo` modo `municipio` — `verificar.py` + prévia · `frmPlanejamento.txt`, `frmPlanejamento.json`, `frmVinculo.txt` · 🖥B três páginas
-- [ ] 4.8 Aba Planejamentos + feed — `testar-uso.ps1` · `abas.json`, `modGrade.bas`, `modFeed.bas`, `ThisWorkbook.txt` · 🖥B seletor e duplo clique
-- [ ] 4.9 Ferramentas de planejamento e municípios — `testar-mcp.ps1` · `Ferramentas.ps1`, `SKILL.md`
+- [ ] 4.1 `nome_busca` e haversine — `Confere` e `testar-mcp`
+- [ ] 4.2 P1–P4 e ordem dos candidatos (C14–C16) — `Confere` e `testar-mcp`
+- [ ] 4.3a Gravar planejamento (`PL-`, período, raio 1–500), VBA e conector — `testar-uso`
+- [ ] 4.3b Encerrar e reabrir (P3) — `testar-uso`
+- [ ] 4.4 Gerar visitas em transação, V8 dentro dela, corrida recusada — `testar-uso`
+- [ ] 4.5 Lançamento de datas e resultados (rotina) — `testar-uso` e `testar-mcp`
+- [ ] 4.6 `clsGrade` com marcação — `verificar.py` e `testar-uso`
+- [ ] 4.7a `frmPlanejamento` layout (cabeçalho e três páginas) — prévia e `verificar.py`
+- [ ] 4.7b Páginas Visitas e Candidatos — `testar-uso`
+- [ ] 4.7c Página Lançamento — `testar-uso`
+- [ ] 4.7d `frmVinculo` modo `municipio` — `verificar.py` e `testar-uso`
+- [ ] 4.8 Aba Planejamentos (seletor, duplo clique, feed) — `testar-uso`; 🖥B
+- [ ] 4.9a Ferramentas de planejamento (5) — `testar-mcp`
+- [ ] 4.9b Candidatos, `gerar_visitas`, lotes, `buscar_municipios`, `resolver_cidade` — `testar-mcp`
+- [ ] Checkpoint C: 🖥B das três páginas em 1366×768; autorização
 
-## Fase 5 — Exportação (publicação C)
+## Fase 5: exportação (publicação C)
 
-- [ ] 5.1 Linha do CSV — `Confere` · `modRelatorio.bas`
-- [ ] 5.2 Gravação do arquivo — `testar-uso.ps1` · 🖥B abrir no Excel 2019
-- [ ] 5.3 `exportar_roteiro`, `exportar_base`, só 1.1 — `testar-mcp.ps1` · `Ferramentas.ps1`, `Banco.ps1`
+- [ ] 5.1 Linha do CSV (depende de A2) — `Confere`
+- [ ] 5.2 Gravação do arquivo em `modRelatorio.bas` — `testar-uso`; 🖥B abrir no Excel 2019
+- [ ] 5.3 `exportar_roteiro`, `exportar_base`; conector com 41 ferramentas — `testar-mcp`
 
-## Documentação (por fase, no mesmo commit da fatia que muda a stack)
+## Documentação final (com a publicação C)
 
-- [ ] Fase 1: `banco-access.md`, `build-operacao-powershell.md`, `ferramentas-dev.md`, `contrato-banco.md`, `levar-para-a-empresa.md`, `implantacao.md`, `CLAUDE.md` (Comandos), `PLANO.md`
-- [ ] Fase 2: `front-vba.md`, `visual-layout.md`, `ia-mcp.md`, `SKILL.md`, `IA\LEIA-ME.md`
-- [ ] Fases 3–5: `front-vba.md`, `visual-layout.md`, `ia-mcp.md`, `SKILL.md`, `IA\LEIA-ME.md`, `contrato-banco.md`
-- [ ] Final: `SPEC.md` carimbada com `> Concluída em dd/mm/aaaa — feature/<nome>`
+- [ ] `SPEC.md` carimbada com `> Concluída em dd/mm/aaaa — feature/visitas-e-listas`
+- [ ] `PLANO.md` com as decisões D21+ e o estado de cada fase
+
+## Decisões pendentes do usuário
+
+- [ ] A1 Etapa com papel editável e UF só validada na inclusão (confirmar até o checkpoint A)
+- [ ] A2 Nome e telefone do contato no CSV e no conector (até a Fase 5)
+- [ ] A3 Janela da publicação B com banco exclusivo (até o checkpoint B)
