@@ -51,6 +51,12 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   `Tag` (`ui:botao:<variante>`) via `clsUI`; depois de mudar `Enabled`, `mUI.Pintar`.
   `clsGrade` substitui a ListBox (`ColumnWidths`, `Cabecalho`, `Carregar`, `ListIndex`).
 - Abas criadas por automação não têm CodeName: eventos em `ThisWorkbook` (`Workbook_Sheet*`).
+- **Colunas calculadas da grade** (`modSchema.ColunasPlanilha`, calculadas em
+  `modGrade.CelulaDaColuna`, que serve a montagem e o feed): `codigo_visual`, `situacao` e
+  `telefone_atendimento` (Oportunidades, D20: telefone do contato; sem ele, o geral da empresa
+  — `telefone_empresa` no SELECT de `SQLOportunidades`; sem os dois, vazio —
+  `modCRM.TelefoneDoAtendimento`). Coluna calculada nova entra também na lista `calculados`
+  do `verificar.py` e de `IA\mcp-dev\lib\Conferencia.ps1`. As colunas ocultas `_b`, `_id`, `_a` vêm sempre depois da última visível.
 - **Vínculos da ficha por campo:** cada campo K (`modSchema.CamposK`) guarda o próprio id
   (`frmCRM.mVinculos`, sincronizado por `DefinirValor`); nunca um id único por tabela.
   Cada campo K ganha, em tempo de execução, os botões `kb_<campo>` (trocar) e `kv_<campo>`

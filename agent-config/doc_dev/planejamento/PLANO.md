@@ -52,6 +52,7 @@ Modernizar o CRM Comercial Zapromaq **mantendo o modelo de execução atual** (p
 | D17 | 06/10 | Cadastro em lote: **SUSPEITO começa fora** e só entra por duplo clique; OK também alterna. Reverte a decisão do comercial de 17/09 | Relatos de 18 a 29/09: o suspeito que entrava sozinho virava cadastro repetido que ninguém revia (`specs/funcionalidades/001-demandas-6-5-3-4`) |
 | D18 | 06/10 | Atendimento anterior usa a coluna **existente** `oportunidades.id_atendimento_anterior` (esquema 1.0, já gravada pela IA): sem migração 004; só da mesma empresa e nunca o próprio, no front e na IA | Duas colunas com o mesmo sentido; migração estrutural evitável; a 003 segue reservada |
 | D19 | 06/10 | O front, como a IA, **só troca o contato do atendimento dentro da mesma empresa** (código AT- congelado); empresa errada = encerrar como Descartado e abrir um novo apontando para ele | Corrige o defeito R15 |
+| D20 | 12/10 | Grade de Oportunidades ganha a coluna **Telefone** logo depois de Contato: o telefone do contato; sem ele, o **telefone geral da empresa** (`clientes.telefone`); sem os dois, vazio. Regra no código (`modCRM.TelefoneDoAtendimento`), sem migração; ficha e abas Clientes/Contatos não mudam | Ligar sem abrir a ficha; contato sem telefone ainda tem o da empresa (`specs/funcionalidades/002-telefone-oportunidades`) |
 
 ## 4. Correções trazidas pela revisão com a documentação (19/09)
 
