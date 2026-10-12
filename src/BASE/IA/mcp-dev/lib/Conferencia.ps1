@@ -145,7 +145,7 @@ function Test-Esquema {
     $schema = Read-Cp1252 (Join-Varios $script:PastaFonte 'modulos' 'modSchema.bas')
     $crm = Read-Cp1252 (Join-Varios $script:PastaFonte 'modulos' 'modCRM.bas')
     $consultas = [ordered]@{ clientes = 'SQLClientes'; contatos = 'SQLContatos'; oportunidades = 'SQLOportunidades' }
-    $calculados = @('codigo_visual', 'situacao')
+    $calculados = @('codigo_visual', 'situacao', 'telefone_atendimento')
     foreach ($tabela in $consultas.Keys) {
         $funcao = $consultas[$tabela]
         $sel = Get-ColunasSelect $crm $funcao

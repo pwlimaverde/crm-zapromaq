@@ -214,7 +214,7 @@ End Function
 '
 ' Campo aqui tem de existir na consulta correspondente de
 ' modCRM (SQLClientes, SQLContatos, SQLOportunidades), fora
-' os dois calculados: codigo_visual e situacao.
+' os calculados: codigo_visual, situacao e telefone_atendimento.
 '----------------------------------------------------------
 Public Function ColunasPlanilha(ByVal tabela As String, _
                                 ByVal completo As Boolean) As Variant
@@ -263,8 +263,10 @@ Public Function ColunasPlanilha(ByVal tabela As String, _
     Add c, "situacao|Situa" & Chr$(231) & Chr$(227) & "o|18|T"
     Add c, "etapa|Etapa|20|T"
     Add c, "responsavel|Resp.|13|T"
-    Add c, "empresa|Empresa|42|T"
+    Add c, "empresa|Empresa|36|T"
     Add c, "contato|Contato|24|T"
+    ' D20: o do contato; sem ele, o geral da empresa (modCRM.TelefoneDoAtendimento)
+    Add c, "telefone_atendimento|Telefone|15|F"
     Add c, "valor|Valor (R$)|15|C"
     Add c, "dt_prox_acao|Pr" & Chr$(243) & "x. a" & Chr$(231) & Chr$(227) & "o|13|D"
     If completo Then

@@ -946,6 +946,11 @@ Private Function CelulaDaColuna(ByVal linha As Long, ByVal nome As String, _
         Case "codigo_visual"
             CelulaDaColuna = modCRM.CodigoVisualCliente(CampoDaLinha(linha, "codigo_cliente"))
             Exit Function
+        Case "telefone_atendimento"
+            ' D20: o do contato; sem ele, o geral da empresa
+            CelulaDaColuna = modCRM.TelefoneDoAtendimento(CampoDaLinha(linha, "telefone"), _
+                                                          CampoDaLinha(linha, "telefone_empresa"))
+            Exit Function
     End Select
 
     v = CampoDaLinha(linha, nome)

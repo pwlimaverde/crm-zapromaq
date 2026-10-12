@@ -592,6 +592,7 @@ Public Function SQLOportunidades(ByVal busca As String, ByVal etapa As String, _
     params = ParaMatriz(ps)
     SQLOportunidades = "SELECT op.id, op.codigo, op.id_contato, op.id_cliente, cl.empresa," & _
         " cl.cidade, cl.uf, cl.segmento, ct.nome AS contato, ct.cargo, ct.telefone, ct.email," & _
+        " cl.telefone AS telefone_empresa," & _
         " op.orcamento, op.etapa, op.responsavel, op.maquina, op.familia, op.categoria," & _
         " op.tipo_venda, op.valor, op.origem, op.prioridade, op.dt_entrada, op.dt_proposta," & _
         " op.ultima_interacao, op.tentativas, op.prox_acao, op.dt_prox_acao, op.retomar_em," & _
@@ -601,6 +602,19 @@ Public Function SQLOportunidades(ByVal busca As String, ByVal etapa As String, _
         " LEFT JOIN clientes cl ON op.id_cliente=cl.id)" & _
         " LEFT JOIN oportunidades ant ON op.id_atendimento_anterior=ant.id" & _
         " WHERE 1=1" & w & OrdemOportunidades(ordem)
+End Function
+
+' D20: telefone da linha na grade de Oportunidades - o do contato; sem
+' ele, o telefone geral da empresa do atendimento; sem os dois, vazio.
+' Nulo e texto em branco contam como "sem telefone". Nulo se trata
+' aqui, nao no SQL (NZ nao existe via OLE DB).
+Public Function TelefoneDoAtendimento(ByVal doContato As Variant, _
+                                      ByVal daEmpresa As Variant) As String
+    If Trim$(modDB.Nz(doContato)) <> "" Then
+        TelefoneDoAtendimento = modValidacao.FormatarTelefone(doContato)
+    ElseIf Trim$(modDB.Nz(daEmpresa)) <> "" Then
+        TelefoneDoAtendimento = modValidacao.FormatarTelefone(daEmpresa)
+    End If
 End Function
 
 ' Consulta completa de uma tabela de grade (sem filtro de tela),

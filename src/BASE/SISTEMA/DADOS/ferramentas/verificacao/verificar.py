@@ -188,7 +188,7 @@ def verificar_esquema():
     schema = ler_cp1252(os.path.join(FONTE, 'modulos', 'modSchema.bas'))
     crm = ler_cp1252(os.path.join(FONTE, 'modulos', 'modCRM.bas'))
     consultas = {'clientes': 'SQLClientes', 'contatos': 'SQLContatos', 'oportunidades': 'SQLOportunidades'}
-    calculados = {'codigo_visual', 'situacao'}
+    calculados = {'codigo_visual', 'situacao', 'telefone_atendimento'}
     for tabela, funcao in consultas.items():
         sel = colunas_select(crm, funcao)
         if not sel:
