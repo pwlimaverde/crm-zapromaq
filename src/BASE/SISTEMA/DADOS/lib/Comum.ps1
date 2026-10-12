@@ -159,3 +159,14 @@ function Get-ChaveLista([string]$texto) {
     }
     return $sb.ToString()
 }
+
+# Onde cada tipo de lista é guardado (tabela:coluna). Única fonte: migração 003 e conferência.
+# Uma lista sem coluna aqui não tem uso registrado (ex.: papel das etapas fica na própria listas).
+function Get-ColunasDaLista {
+    return @{
+        UF = @('clientes:uf'); Segmento = @('clientes:segmento'); Qualificacao = @('clientes:qualificacao')
+        Responsavel = @('clientes:responsavel', 'oportunidades:responsavel')
+        Etapa = @('oportunidades:etapa'); Familia = @('oportunidades:familia'); Categoria = @('oportunidades:categoria')
+        Origem = @('oportunidades:origem'); Prioridade = @('oportunidades:prioridade'); Motivo = @('oportunidades:motivo_desfecho')
+    }
+}

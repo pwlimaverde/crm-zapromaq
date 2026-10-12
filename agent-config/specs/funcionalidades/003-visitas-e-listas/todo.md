@@ -15,7 +15,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
   - Teste: (infraestrutura do 1.5) · Arquivos: `IA\teste\criar-banco-teste.ps1`
 - [x] 1.5 Migração 003 (C17, C18, papel, índice, idempotência, relatório)
   - Teste: caso que aplica no banco de teste · Arquivos: `banco\migracoes\003-municipios-visitas-papel-listas.ps1`
-- [ ] 1.6 Rotina de atualização do banco (trava, backup + H0, cópia, conferências, troca, volta)
+- [x] 1.6 Rotina de atualização do banco (trava, backup + H0, cópia, conferências, troca, volta)
   - Teste: `Conferir` em `testar-build-lib.ps1` (C19, C20) · Arquivos: `banco\aplicar-migracoes.ps1`, `lib\Comum.ps1`
 - [ ] 1.7 Montagem nos 12 passos, `Config!B2` provisório/definitivo, mensagens, `-Teste` só TESTE
   - Teste: `Conferir` em `testar-build-lib.ps1` · Arquivos: `build\montar-frontend.ps1`, `MONTAR-FRONTEND.bat`, `testes\testar-uso.ps1`

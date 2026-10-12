@@ -133,12 +133,7 @@
             }
 
             # 3. onde cada valor é usado (comparação exata) ---------------
-            $colunasDaLista = @{
-                UF = @('clientes:uf'); Segmento = @('clientes:segmento'); Qualificacao = @('clientes:qualificacao')
-                Responsavel = @('clientes:responsavel', 'oportunidades:responsavel')
-                Etapa = @('oportunidades:etapa'); Familia = @('oportunidades:familia'); Categoria = @('oportunidades:categoria')
-                Origem = @('oportunidades:origem'); Prioridade = @('oportunidades:prioridade'); Motivo = @('oportunidades:motivo_desfecho')
-            }
+            $colunasDaLista = Get-ColunasDaLista
             $usos = @{}
             foreach ($tipo in $colunasDaLista.Keys) {
                 $usos[$tipo] = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.ArrayList]'

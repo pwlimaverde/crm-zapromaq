@@ -110,6 +110,12 @@ try {
         [int](Invoke-Escalar $cn 'SELECT SUM(versao) FROM oportunidades' @() $null))
     Conferir 'segunda aplicação sem erro' ($null -eq $erro) $erro
     Conferir 'segunda aplicação não altera contagens nem versões' (($antes -join ',') -eq ($depois -join ','))
+    Write-Host '--- conferências da cópia (passo 8 da montagem)'
+    . (Join-Path $raizBase 'SISTEMA\DADOS\lib\AtualizacaoBanco.ps1')
+    # o runner (aplicar-migracoes) grava a versão do esquema depois da migração estrutural
+    Set-ConfigBanco $cn 'versao_esquema' '1.1' $null
+    $problemas = Get-ProblemasDoBanco $cn 5571
+    Conferir 'cópia migrada passa nas conferências do passo 8' ($problemas.Count -eq 0) ($problemas -join '; ')
 } finally {
     if ($cn) { $cn.Close(); $cn.Dispose() }
     Remove-Item -LiteralPath $copia -Force -ErrorAction SilentlyContinue
