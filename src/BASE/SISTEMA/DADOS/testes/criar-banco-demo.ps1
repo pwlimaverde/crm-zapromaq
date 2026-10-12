@@ -133,6 +133,9 @@ try {
             observacoes = $(if ($i % 4 -eq 0) { 'Cadastro fictício para demonstração do CRM.' } else { $null })
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        # empresa sem telefone geral (com o contato 15 também sem): a coluna Telefone
+        # da grade de Oportunidades fica vazia nesse atendimento (testar-uso.ps1)
+        if ($i -eq 15) { $c['telefone'] = $null }
         # 2 clientes desativados (com os contatos deles, como faz a ficha): a grade abre em
         # Ativos e mostra os inativos em vermelho só em Inativos/Todos
         if ($inativos -contains $i) { $c['ativo'] = $false }
@@ -162,6 +165,9 @@ try {
             telefone = ('41999{0:000000}' -f (10000 + 777 * $i)); email = ('contato{0:00}@exemplo.com.br' -f ($i + 1))
         }
         foreach ($k in $base.Keys) { $c[$k] = $base[$k] }
+        # contatos sem telefone: o 17 (empresa 1, que tem telefone geral) mostra o da
+        # empresa na grade de Oportunidades; o 15 (empresa 15, sem telefone) fica vazio
+        if (@(15, 17) -contains $i) { $c['telefone'] = $null }
         if ($inativos -contains $ci) { $c['ativo'] = $false }
         $ctos[$i] = @{ id = (Ins 'contatos' $c); cli = $ci }
         if ($inativos -contains $ci) { Desativado 'contatos' $ctos[$i].id }

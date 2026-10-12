@@ -115,12 +115,21 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "sem contato nenhum", (InStr(modCRM.TextoSemContato("EMPRESA X", 0), "ainda n" & ChrW$(&HE3) & "o tem contato cadastrado") > 0), True
     Confere "so contatos inativos", (InStr(modCRM.TextoSemContato("EMPRESA X", 2), "2 contato(s) inativo(s)") > 0), True
     Confere "so inativos nao diz 'nao tem contato cadastrado'", (InStr(modCRM.TextoSemContato("EMPRESA X", 2), "tem contato cadastrado") = 0), True
+    ' D20: telefone da grade de Oportunidades - o do contato; sem ele, o geral
+    ' da empresa; sem os dois, vazio. Sempre formatado.
+    Confere "telefone do contato", modCRM.TelefoneDoAtendimento("41999990000", "4133330000"), "(41) 99999-0000"
+    Confere "contato sem telefone usa o da empresa", modCRM.TelefoneDoAtendimento(Null, "4133330000"), "(41) 3333-0000"
+    Confere "contato com telefone em branco usa o da empresa", modCRM.TelefoneDoAtendimento("  ", "4133330000"), "(41) 3333-0000"
+    Confere "sem telefone nenhum fica vazio", modCRM.TelefoneDoAtendimento(Null, Null), ""
 
     ' ---- modSchema
     Confere "CamposDe clientes", (UBound(modSchema.CamposDe("clientes")) >= 10), True
     Confere "CamposDe oportunidades", (UBound(modSchema.CamposDe("oportunidades")) >= 20), True
     Confere "ColunasPlanilha", (UBound(modSchema.ColunasPlanilha("oportunidades", False)) >= 5), True
     Confere "Parte", modSchema.Parte("a|b|c", 1), "b"
+    ' D20: Telefone logo depois de Contato, na grade minima e no Ver tudo
+    Confere "Telefone depois de Contato (minima)", (InStr(CamposDaGrade("oportunidades", False), ",contato:Contato,telefone_atendimento:Telefone,") > 0), True
+    Confere "Telefone depois de Contato (Ver tudo)", (InStr(CamposDaGrade("oportunidades", True), ",contato:Contato,telefone_atendimento:Telefone,") > 0), True
     ' a ficha guarda um vinculo POR CAMPO K: com dois campos K na mesma
     ' tabela, um id unico gravaria o contato no lugar do outro vinculo
     Confere "CamposK oportunidades", modSchema.CamposK("oportunidades"), "id_contato,id_atendimento_anterior"
@@ -219,6 +228,15 @@ Private Sub ContratoFormularios()
         ui.LigarBotao Nothing, Nothing, Nothing, "neutro"
     End If
 End Sub
+
+' ",campo:Titulo,campo:Titulo," das colunas da grade, na ordem.
+Private Function CamposDaGrade(ByVal tabela As String, ByVal completo As Boolean) As String
+    Dim c As Variant, s As String
+    For Each c In modSchema.ColunasPlanilha(tabela, completo)
+        s = s & "," & modSchema.Parte(CStr(c), 0) & ":" & modSchema.Parte(CStr(c), 1)
+    Next c
+    CamposDaGrade = s & ","
+End Function
 
 ' CStr(Null) e erro: o relato da falha nao pode quebrar o autoteste.
 Private Function Texto(ByVal v As Variant) As String

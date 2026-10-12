@@ -78,6 +78,38 @@ try {
     # as macros acima religam os eventos; o resto do teste roda como começou (sem eventos)
     $xl.EnableEvents = $false
 
+    # D20: coluna Telefone na grade de Oportunidades, logo depois de Contato - o telefone
+    # do contato; sem ele, o geral da empresa; sem os dois, vazio. Cada linha contra o
+    # banco; o banco de demonstração tem ao menos um atendimento de cada caso.
+    $lo = $wb.Worksheets.Item('Oportunidades').ListObjects.Item(1)
+    $cabs = @(foreach ($c in $lo.ListColumns) { [string]$c.Name })
+    $iCto = [array]::IndexOf($cabs, 'Contato')
+    Conferir 'Oportunidades: Telefone logo depois de Contato' ($iCto -ge 0 -and $cabs[$iCto + 1] -eq 'Telefone') ($cabs -join '|')
+    if ($cabs -contains 'Telefone') {
+        function Fone($v) {
+            $s = if ($null -eq $v -or $v -is [DBNull]) { '' } else { ([string]$v) -replace '\D', '' }
+            if ($s.Length -eq 11) { return '(' + $s.Substring(0, 2) + ') ' + $s.Substring(2, 5) + '-' + $s.Substring(7, 4) }
+            if ($s.Length -eq 10) { return '(' + $s.Substring(0, 2) + ') ' + $s.Substring(2, 4) + '-' + $s.Substring(6, 4) }
+            return $s
+        }
+        $tb = $xl.Run("'" + $n + "'!modDB.Consultar", 'SELECT op.id, ct.telefone, cl.telefone FROM (oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id) LEFT JOIN clientes cl ON op.id_cliente=cl.id')
+        $esp = @{}; $casos = @{ contato = 0; empresa = 0; vazio = 0 }
+        for ($k = 1; $k -le $tb.GetLength(0); $k++) {
+            $fc = Fone $tb.GetValue($k, 2); $fe = Fone $tb.GetValue($k, 3)
+            if ($fc) { $esp[[int]$tb.GetValue($k, 1)] = $fc; $casos.contato++ }
+            elseif ($fe) { $esp[[int]$tb.GetValue($k, 1)] = $fe; $casos.empresa++ }
+            else { $esp[[int]$tb.GetValue($k, 1)] = ''; $casos.vazio++ }
+        }
+        $vIds = $lo.ListColumns.Item('_id').DataBodyRange.Value2
+        $vTel = $lo.ListColumns.Item('Telefone').DataBodyRange.Value2
+        $erradas = @()
+        for ($k = 1; $k -le $vIds.GetLength(0); $k++) {
+            $id = [int]$vIds.GetValue($k, 1); $obt = [string]$vTel.GetValue($k, 1)
+            if ($obt -ne $esp[$id]) { $erradas += ('id ' + $id + ': [' + $obt + '] esperado [' + $esp[$id] + ']') }
+        }
+        Conferir ('Oportunidades: Telefone = contato (' + $casos.contato + '), empresa (' + $casos.empresa + '), vazio (' + $casos.vazio + ')') ($erradas.Count -eq 0 -and $casos.empresa -ge 1 -and $casos.vazio -ge 1) (($erradas -join '; ') + ' (sem caso de empresa/vazio? rode testes\criar-banco-demo.ps1 -Recriar)')
+    }
+
     # item 6: os dados do contato (troca na ficha) vêm numa consulta só
     $lo = $wb.Worksheets.Item('Contatos').ListObjects.Item(1)
     $idCto = [int]$lo.ListColumns.Item('_id').DataBodyRange.Cells.Item(1, 1).Value2
