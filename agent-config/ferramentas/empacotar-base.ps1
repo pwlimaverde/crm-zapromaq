@@ -67,6 +67,19 @@ try {
         $novo = $arq.CreateEntry('BASE/IA/instrucoes/' + $skill + '.zip')
         $para = $novo.Open(); $mem.Position = 0; $mem.CopyTo($para); $para.Dispose(); $mem.Dispose()
     }
+    # MANIFESTO.json: caminho e SHA-256 de cada arquivo do pacote; a montagem na empresa confere (passo 1)
+    $linhas = New-Object System.Collections.ArrayList
+    foreach ($e in @($arq.Entries | Where-Object { $_.FullName -notmatch '/$' -and $_.FullName -ne 'BASE/SISTEMA/DADOS/MANIFESTO.json' })) {
+        $fs = $e.Open()
+        try { $sha = [System.Security.Cryptography.SHA256]::Create(); $hash = ([BitConverter]::ToString($sha.ComputeHash($fs))).Replace('-', '').ToLowerInvariant() }
+        finally { $fs.Dispose() }
+        [void]$linhas.Add([ordered]@{ caminho = $e.FullName.Substring(5); sha256 = $hash })
+    }
+    $manifesto = [ordered]@{ versao = $versao; commit = $commit; arquivos = @($linhas) }
+    $bytesMan = [System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $manifesto -Depth 4))
+    $ent = $arq.CreateEntry('BASE/SISTEMA/DADOS/MANIFESTO.json')
+    $ps = $ent.Open(); $ps.Write($bytesMan, 0, $bytesMan.Length); $ps.Dispose()
+    $manifestoLinhas = $linhas.Count
     # conferência: nada que seja da rede ou dado pode estar no pacote
     $proibidos = @($arq.Entries | Where-Object {
         $_.FullName -match '\.(accdb|laccdb|mdb|ldb|xlsm|xlsx|xls|log|pdf|bmp)$' -or
@@ -87,6 +100,7 @@ Write-Host ''
 Write-Host ('Pacote: ' + $zip)
 Write-Host ('  versão no VERSAO.txt: ' + $versao + '   commit ' + $commit + ' (' + $ramo + ')   ' + $total + ' arquivos, ' + $skills.Count + ' skill(s) .zip')
 Write-Host ('  ' + [math]::Round((Get-Item -LiteralPath $zip).Length / 1KB) + ' KB')
+Write-Host ('  MANIFESTO.json: ' + $manifestoLinhas + ' arquivo(s) com SHA-256 (conferido na montagem, passo 1)')
 Write-Host ''
 Write-Host 'Na empresa: extraia POR CIMA da pasta BASE da rede (substituir os arquivos),'
 Write-Host 'NUNCA apague a BASE antes - o banco e o .xlsm publicados estão nela.'

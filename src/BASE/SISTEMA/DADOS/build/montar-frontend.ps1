@@ -106,6 +106,8 @@ try {
     $log.L('[1/12] pacote de municípios...')
     $motivoPacote = Test-PacoteMunicipios $dados
     if ($motivoPacote) { Parar-NoPasso 1 $motivoPacote }
+    $motivoManifesto = Test-Manifesto $raiz
+    if ($motivoManifesto) { Parar-NoPasso 1 $motivoManifesto }
     $totalMunicipios = [int]((Get-Content -LiteralPath (Join-Path $dados 'banco\referencia\municipios.fonte.json') -Raw -Encoding UTF8 | ConvertFrom-Json).total)
 
     # ------------------------------------------------------------ passos 3 a 8: trava, esquema, backup, cópia, migração na cópia, conferências

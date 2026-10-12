@@ -156,6 +156,21 @@ try {
     Conferir 'C19: nada criado em publicação nem backup' (-not (Test-Path -LiteralPath (Join-Path $tmpT 'publicacao')) -and -not (Test-Path -LiteralPath (Join-Path $tmpT 'backup')))
 } finally { Remove-Item -LiteralPath $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- pacote: MANIFESTO.json (1.10)'
+$tmpM = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-manifesto-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path (Join-Path $tmpM 'SISTEMA\DADOS') -Force | Out-Null
+try {
+    [IO.File]::WriteAllText((Join-Path $tmpM 'SISTEMA\DADOS\a.txt'), 'um', [Text.Encoding]::ASCII)
+    $man = Join-Path $tmpM 'SISTEMA\DADOS\MANIFESTO.json'
+    $hashA = Get-HashArquivo (Join-Path $tmpM 'SISTEMA\DADOS\a.txt')
+    [IO.File]::WriteAllText($man, ('{"arquivos":[{"caminho":"SISTEMA/DADOS/a.txt","sha256":"' + $hashA + '"}]}'), [Text.Encoding]::UTF8)
+    Conferir 'manifesto confere com os arquivos do pacote' ((Test-Manifesto $tmpM) -eq '') (Test-Manifesto $tmpM)
+    [IO.File]::WriteAllText((Join-Path $tmpM 'SISTEMA\DADOS\a.txt'), 'dois', [Text.Encoding]::ASCII)
+    Conferir 'arquivo alterado depois do pacote é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
+    Remove-Item -LiteralPath (Join-Path $tmpM 'SISTEMA\DADOS\a.txt') -Force
+    Conferir 'arquivo listado e ausente é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
+} finally { Remove-Item -LiteralPath $tmpM -Recurse -Force -ErrorAction SilentlyContinue }
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1

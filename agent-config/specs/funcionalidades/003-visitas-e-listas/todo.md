@@ -25,7 +25,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
   - 🖥B ficha com valor inativo marcado
 - [x] 1.9 Conector 1.0/1.1; front 1.1; banco de demonstração
   - Teste: `testar-mcp.ps1` + `testar-uso.ps1` · Arquivos: `modConfig.bas`, `Banco.ps1`, `servidor.ps1`, `criar-banco-demo.ps1`
-- [ ] 1.10 Empacotamento em pasta + `MANIFESTO.json`
+- [x] 1.10 Empacotamento em pasta + `MANIFESTO.json`
   - Teste: `Conferir` em `testar-build-lib.ps1` (passo 1) + checagem no `verificar-tudo` · Arquivos: `agent-config\ferramentas\empacotar-base.ps1`
 
 ## Fase 2 — Gerenciamento (publicação A)

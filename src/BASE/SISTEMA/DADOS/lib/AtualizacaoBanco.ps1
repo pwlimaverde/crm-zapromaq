@@ -47,6 +47,21 @@ function Test-PacoteMunicipios([string]$dados) {
     return ''
 }
 
+# Passo 1 (pacote): cada arquivo do MANIFESTO.json tem de existir com o SHA-256 gravado. O manifesto
+# só existe no pacote da empresa (empacotar-base.ps1); na pasta de desenvolvimento não há, e não se confere.
+# Devolve o motivo; vazio = pacote aprovado.
+function Test-Manifesto([string]$pastaBase) {
+    $man = Join-Path $pastaBase 'SISTEMA\DADOS\MANIFESTO.json'
+    if (-not (Test-Path -LiteralPath $man)) { return '' }
+    $lista = Get-Content -LiteralPath $man -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($a in @($lista.arquivos)) {
+        $arq = Join-Path $pastaBase ([string]$a.caminho -replace '/', '\')
+        if (-not (Test-Path -LiteralPath $arq)) { return 'arquivo do pacote ausente: ' + $a.caminho }
+        if ((Get-HashArquivo $arq) -ne [string]$a.sha256) { return 'arquivo do pacote alterado depois de gerado: ' + $a.caminho }
+    }
+    return ''
+}
+
 # -Teste só roda sobre banco de TESTE: nunca sobre o de produção. Devolve o motivo; vazio = aceito.
 function Test-ModoTeste([string]$ambiente) {
     if ($ambiente -eq 'TESTE') { return '' }
