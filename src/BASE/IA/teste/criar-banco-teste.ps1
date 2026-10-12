@@ -5,13 +5,14 @@
   A estrutura vem do dono dela (SISTEMA\DADOS\banco\esquema\criar-banco.ps1);
   este script só acrescenta listas e registros de exemplo. Nenhum dado real.
 #>
-param([switch]$Recriar)
+param([switch]$Recriar, [string]$Banco = '', [switch]$CasosDaMigracao)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Data
 
 $raizIA   = Split-Path -Parent $PSScriptRoot
 $raizBase = Split-Path -Parent $raizIA
-$banco    = Join-Path $raizBase 'crm_zapromaq.accdb'
+if (-not $Banco) { $Banco = Join-Path $raizBase 'crm_zapromaq.accdb' }
+$banco    = $Banco
 $esquema  = Join-Path $raizBase 'SISTEMA\DADOS\banco\esquema\criar-banco.ps1'
 
 if ((Test-Path $banco) -and -not $Recriar) {
@@ -51,10 +52,8 @@ $agora = Get-Date
 try {
     # ------------------------------------------------------------ listas (valores do CRM 3.6)
     $listas = [ordered]@{
-        # casos da migração 003 (fictícios): 'PEDIDO FECHADO' é variante de 'Pedido Fechado' (C17, mais usada
-        # vence); 'Perdido' NÃO está na lista, embora seja etapa especial e esteja em uso (C18: entra inativa)
         Etapa = @('Contato Inicial', 'Sem Retorno', 'Retorno Agendado', 'Descartado', 'Levantamento Técnico',
-                  'Elaboração da Proposta', 'Negociação', 'Proposta em Análise', 'Proposta em Stand By', 'Pedido Fechado', 'PEDIDO FECHADO')
+                  'Elaboração da Proposta', 'Negociação', 'Proposta em Análise', 'Proposta em Stand By', 'Pedido Fechado', 'Perdido')
         Familia = @('A Definir', 'Calandra de Chapas', 'Calandra de Tubos / Perfis', 'Conformação de Tubos',
                     'Corte de Chapas à Laser', 'Corte de Tubos à Laser e Serra', 'Curvadora de Tubos / Perfis', 'Dobra de Chapas', 'Solda Laser')
         Segmento = @('Moveleiro', 'Automotivo', 'Agrícola', 'Metalurgia', 'Refrigeração', 'Construção / Estrutural')
@@ -65,6 +64,7 @@ try {
         Motivo = @('Preço', 'Prazo de entrega', 'Projeto adiado', 'Comprou concorrente nacional', 'Sem verba', 'Ganho por preço')
         Categoria = @('Linha própria – nacionalização acima de 85%', 'Linha própria – nacionalização abaixo de 85%')
     }
+    if ($CasosDaMigracao) { $listas.Etapa = @($listas.Etapa | Where-Object { $_ -ne 'Perdido' }) + @('PEDIDO FECHADO') }
     foreach ($tipo in $listas.Keys) {
         $i = 0
         foreach ($v in $listas[$tipo]) { $i++; [void](Ins 'listas' ([ordered]@{ tipo = $tipo; valor = $v; ordem = $i; ativo = $true })) }
@@ -112,11 +112,14 @@ try {
     Opo 3 $t2 $c2 2 'Proposta em Análise' 'Vendedor B' 'Curvadora de Tubos / Perfis' ([decimal]420000.50) $hoje.AddDays(20) 'Retornar sobre a proposta' @{ maquina = 'CURVADORA CNC 50MM'; dt_proposta = $hoje.AddDays(-15) }
     Opo 4 $t3 $c3 3 'Proposta em Stand By' 'Vendedor A' 'Corte de Tubos à Laser e Serra' ([decimal]1250000) $null $null @{ retomar_em = $hoje.AddDays(90); dt_proposta = $hoje.AddDays(-45) }
     Opo 5 $t4 $c4 4 'Perdido' 'Vendedor C' 'Solda Laser' ([decimal]300000) $null $null @{ motivo_desfecho = 'Preço'; dt_desfecho = $hoje.AddDays(-5); dt_proposta = $hoje.AddDays(-40) }
-    # etapa usada sem linha na lista (órfã); variante usada uma vez e canônica usada duas vezes
-    Opo 6 $t2 $c2 2 'Qualificando Antigo' 'Vendedor B' 'A Definir' $null $null $null
-    Opo 7 $t1 $c1 1 'PEDIDO FECHADO' 'Vendedor A' 'Dobra de Chapas' ([decimal]100000) $null $null @{ dt_desfecho = $hoje.AddDays(-2) }
-    Opo 8 $t3 $c3 3 'Pedido Fechado' 'Vendedor A' 'Solda Laser' ([decimal]200000) $null $null @{ dt_desfecho = $hoje.AddDays(-7) }
-    Opo 9 $t4 $c4 4 'Pedido Fechado' 'Vendedor C' 'Solda Laser' ([decimal]50000) $null $null @{ dt_desfecho = $hoje.AddDays(-9) }
+    if ($CasosDaMigracao) {
+        # casos da migração 003 (fictícios), só no banco que o teste da migração cria: 'PEDIDO FECHADO' é variante
+        # de 'Pedido Fechado' (C17); 'Perdido' NÃO está na lista e está em uso (C18); 'Qualificando Antigo' é órfã
+        Opo 6 $t2 $c2 2 'Qualificando Antigo' 'Vendedor B' 'A Definir' $null $null $null
+        Opo 7 $t1 $c1 1 'PEDIDO FECHADO' 'Vendedor A' 'Dobra de Chapas' ([decimal]100000) $null $null @{ dt_desfecho = $hoje.AddDays(-2) }
+        Opo 8 $t3 $c3 3 'Pedido Fechado' 'Vendedor A' 'Solda Laser' ([decimal]200000) $null $null @{ dt_desfecho = $hoje.AddDays(-7) }
+        Opo 9 $t4 $c4 4 'Pedido Fechado' 'Vendedor C' 'Solda Laser' ([decimal]50000) $null $null @{ dt_desfecho = $hoje.AddDays(-9) }
+    }
 
     # config esperada pelo front
     $cmd = $cn.CreateCommand(); $cmd.CommandText = "INSERT INTO config (chave, valor) VALUES ('versao_front', '1.4')"

@@ -1,15 +1,15 @@
 ﻿<#
   testar-migracao-003.ps1 - aplica a migração 003 numa CÓPIA do banco de teste e confere o resultado.
 
-  O banco de teste (BASE\crm_zapromaq.accdb, de criar-banco-teste.ps1) nunca é alterado: a migração
-  roda numa cópia temporária, que é apagada no fim. Casos C17, C18, papel das etapas, índice único,
+  O banco de teste é criado em arquivo temporário (criar-banco-teste.ps1 -Banco) e a migração roda numa
+  cópia dele; nada da pasta é alterado. Casos C17, C18, papel das etapas, índice único,
   idempotência e relatório (spec 003, Casos de regra e Critérios de aceite da Fase 1).
 #>
 param()
 $ErrorActionPreference = 'Stop'
 $raizIA = Split-Path -Parent $PSScriptRoot
 $raizBase = Split-Path -Parent $raizIA
-$origem = Join-Path $raizBase 'crm_zapromaq.accdb'
+$origem = Join-Path ([System.IO.Path]::GetTempPath()) ('migracao-003-origem-' + [guid]::NewGuid().ToString('N') + '.accdb')
 $pastaMig = Join-Path $raizBase 'SISTEMA\DADOS\banco\migracoes'
 . (Join-Path $raizBase 'SISTEMA\DADOS\lib\Comum.ps1')
 
@@ -41,7 +41,8 @@ function Consulta($cn, [string]$sql, [array]$params = @()) {
     return , $saida
 }
 
-if (-not (Test-Path -LiteralPath $origem)) { throw 'Rode IA\teste\criar-banco-teste.ps1 antes (banco de teste).' }
+# banco de teste próprio (com os casos da 003), criado em arquivo temporário: não mexe no banco da pasta
+& (Join-Path $PSScriptRoot 'criar-banco-teste.ps1') -Banco $origem -Recriar -CasosDaMigracao | Out-Null
 $copia = Join-Path ([IO.Path]::GetTempPath()) ('migracao-003-' + [guid]::NewGuid().ToString('N') + '.accdb')
 Copy-Item -LiteralPath $origem -Destination $copia
 $cn = $null
@@ -119,6 +120,7 @@ try {
 } finally {
     if ($cn) { $cn.Close(); $cn.Dispose() }
     Remove-Item -LiteralPath $copia -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $origem -Force -ErrorAction SilentlyContinue
 }
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }

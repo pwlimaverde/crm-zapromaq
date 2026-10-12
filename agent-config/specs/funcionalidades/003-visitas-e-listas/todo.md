@@ -17,13 +17,13 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
   - Teste: caso que aplica no banco de teste · Arquivos: `banco\migracoes\003-municipios-visitas-papel-listas.ps1`
 - [x] 1.6 Rotina de atualização do banco (trava, backup + H0, cópia, conferências, troca, volta)
   - Teste: `Conferir` em `testar-build-lib.ps1` (C19, C20) · Arquivos: `banco\aplicar-migracoes.ps1`, `lib\Comum.ps1`
-- [ ] 1.7 Montagem nos 12 passos, `Config!B2` provisório/definitivo, mensagens, `-Teste` só TESTE
+- [~] 1.7 Montagem nos 12 passos (feito: fluxo completo com -Teste, 12 passos, troca e teste de uso; PENDENTE: falha forçada em cada passo 9 a 12 como teste automatizado), `Config!B2` provisório/definitivo, mensagens, `-Teste` só TESTE
   - Teste: `Conferir` em `testar-build-lib.ps1` · Arquivos: `build\montar-frontend.ps1`, `MONTAR-FRONTEND.bat`, `testes\testar-uso.ps1`
   - 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação · 🖥N `Replace` e nomes da trava na rede
 - [ ] 1.8 Papel das etapas lido da lista; valor inativo (C06, C07)
   - Teste: `Confere` + `testar-uso.ps1` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modCalc`, `modCRM`, `modMenu`, `modGrade`, `modAcoes`, `modPainel`, `modRelatorio`, `modValidacao`, `modLote`, `frmCRM.txt`, `Regras.ps1`, `Ferramentas.ps1`
   - 🖥B ficha com valor inativo marcado
-- [ ] 1.9 Conector 1.0/1.1; front 1.1; banco de demonstração
+- [x] 1.9 Conector 1.0/1.1; front 1.1; banco de demonstração
   - Teste: `testar-mcp.ps1` + `testar-uso.ps1` · Arquivos: `modConfig.bas`, `Banco.ps1`, `servidor.ps1`, `criar-banco-demo.ps1`
 - [ ] 1.10 Empacotamento em pasta + `MANIFESTO.json`
   - Teste: `Conferir` em `testar-build-lib.ps1` (passo 1) + checagem no `verificar-tudo` · Arquivos: `agent-config\ferramentas\empacotar-base.ps1`

@@ -128,6 +128,34 @@ try {
     Conferir 'reversão recusa se a produção mudou desde a troca' (-not (Reverter-Troca $prod (Join-Path $tmpB 'backup3\crm_zapromaq.accdb') $hNovo).ok)
 } finally { Remove-Item -LiteralPath $tmpB -Recurse -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- montagem: pacote de municípios (passo 1), modo TESTE (passo 2) e passos 3 a 8 com erro forçado'
+Conferir 'passo 1: pacote de municípios confere com o .fonte.json' ((Test-PacoteMunicipios $dados) -eq '') (Test-PacoteMunicipios $dados)
+Conferir '-Teste recusa banco de PRODUCAO' ((Test-ModoTeste 'PRODUCAO') -ne '')
+Conferir '-Teste aceita banco de TESTE' ((Test-ModoTeste 'TESTE') -eq '')
+$tmpP = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-prep-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpP -Force | Out-Null
+try {
+    $prodP = Join-Path $tmpP 'crm_zapromaq.accdb'
+    [IO.File]::WriteAllBytes($prodP, [Text.Encoding]::ASCII.GetBytes('producao-sem-migrar'))
+    $hP = Get-HashArquivo $prodP
+    $logP = [pscustomobject]@{ linhas = New-Object System.Collections.ArrayList }
+    $logP | Add-Member -MemberType ScriptMethod -Name L -Value { param($x) [void]$this.linhas.Add([string]$x) }
+    $pr = Invoke-PreparacaoDoBanco $prodP (Join-Path $tmpP 'publicacao') (Join-Path $tmpP 'backup') 5571 $logP
+    Conferir 'passo 7 (migração na cópia) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 7) ($pr.motivo)
+    Conferir 'erro no passo 7: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
+    Conferir 'erro no passo 7: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
+    $tmpT = Join-Path $tmpP 'trava'
+    New-Item -ItemType Directory -Path $tmpT -Force | Out-Null
+    $prodT = Join-Path $tmpT 'crm_zapromaq.accdb'
+    [IO.File]::WriteAllBytes($prodT, [Text.Encoding]::ASCII.GetBytes('x'))
+    $trT = New-Object byte[] 64
+    [Array]::Copy([Text.Encoding]::ASCII.GetBytes('ESTACAO-B'), 0, $trT, 0, 9)
+    [IO.File]::WriteAllBytes([IO.Path]::ChangeExtension($prodT, 'laccdb'), $trT)
+    $pt = Invoke-PreparacaoDoBanco $prodT (Join-Path $tmpT 'publicacao') (Join-Path $tmpT 'backup') 5571 $logP
+    Conferir 'C19 via montagem: para no passo 3 e cita a estação' ((-not $pt.ok) -and $pt.passo -eq 3 -and $pt.motivo -match 'ESTACAO-B') ($pt.motivo)
+    Conferir 'C19: nada criado em publicação nem backup' (-not (Test-Path -LiteralPath (Join-Path $tmpT 'publicacao')) -and -not (Test-Path -LiteralPath (Join-Path $tmpT 'backup')))
+} finally { Remove-Item -LiteralPath $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1

@@ -3,19 +3,17 @@ setlocal EnableExtensions
 rem ============================================================
 rem  MONTAR-FRONTEND.bat - unico comando da publicacao do CRM.
 rem
-rem  Faz a sequencia inteira, e so publica se tudo der certo:
-rem    1. confere o ambiente (Excel, banco, .xlsm livre)
-rem    2. BACKUP do banco e do .xlsm atuais
-rem    3. MIGRACOES pendentes do banco
-rem    4. monta o .xlsm novo, compila e roda o autoteste
-rem    5. confere o pacote e roda o teste de uso (grades e Painel)
-rem    6. publica na raiz de BASE e sobe a versao (1.4 -> 1.5)
+rem  Faz a sequencia inteira, na ordem, e so publica se tudo der certo:
+rem    1 pacote de municipios   2 ambiente   3 trava (.laccdb)   4 esquema
+rem    5 backup (H0)   6 copia de trabalho   7 migracoes NA COPIA
+rem    8 conferencias da copia   9 monta o front e roda o autoteste
+rem    10 teste de uso   11 troca do banco (so com trava livre e H0 igual)
+rem    12 publica na raiz de BASE e sobe a versao
 rem
-rem  Falhou em qualquer etapa: NADA e publicado; o .xlsm da raiz
-rem  continua o de antes e o backup da etapa 2 fica guardado.
+rem  Falhou antes do passo 11: NADA mudou (banco de producao e raiz).
+rem  Falhou no 12: o banco volta ao backup.
 rem
-rem  Opcoes:  MONTAR-FRONTEND.bat -Teste          so monta e confere
-rem           MONTAR-FRONTEND.bat -SemMigracoes   pula as migracoes
+rem  Opcoes:  MONTAR-FRONTEND.bat -Teste          so sobre banco TESTE; nao publica
 rem           MONTAR-FRONTEND.bat -SemTesteDeUso  pula o teste de uso
 rem ============================================================
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -38,7 +36,16 @@ pause
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0DADOS\build\montar-frontend.ps1" %*
 set "RC=%errorlevel%"
 echo.
-if "%RC%"=="0" (
+if "%RC%"=="0" if not "%~1"=="-Teste" (
+  echo  CONCLUIDO. A versao nova esta publicada na raiz de BASE.
+  echo.
+  echo  Proximo passo: copie o CRM_Zapromaq.xlsm para a sua maquina,
+  echo  abra e confira. Estando tudo certo, avise a equipe para abrir
+  echo  o atalho INICIAR-CRM - ele atualiza sozinho a copia de cada um.
+) else (
+if "%RC%"=="0" if "%~1"=="-Teste" (
+  echo  TESTE CONCLUIDO. Nada foi publicado; o arquivo de teste esta em DADOS\execucao\teste.
+) else if "%RC%"=="0" (
   echo  CONCLUIDO. A versao nova esta publicada na raiz de BASE.
   echo.
   echo  Proximo passo: copie o CRM_Zapromaq.xlsm para a sua maquina,

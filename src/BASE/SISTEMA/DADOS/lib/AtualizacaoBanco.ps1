@@ -35,6 +35,24 @@ function Test-BancoLivre([string]$banco) {
     return [pscustomobject]@{ livre = -not (Test-Path -LiteralPath $laccdb); estacoes = @($estacoes); laccdb = $laccdb }
 }
 
+# Passo 1: o CSV de municípios bate com o SHA-256 registrado no .fonte.json (o da migração 003 é conferido lá).
+# Devolve o motivo; vazio = pacote aprovado.
+function Test-PacoteMunicipios([string]$dados) {
+    $ref = Join-Path $dados 'banco\referencia'
+    $csv = Join-Path $ref 'municipios.csv'
+    $fonte = Join-Path $ref 'municipios.fonte.json'
+    if (-not (Test-Path -LiteralPath $csv) -or -not (Test-Path -LiteralPath $fonte)) { return 'municipios.csv ou municipios.fonte.json ausente' }
+    $registrado = [string]((Get-Content -LiteralPath $fonte -Raw -Encoding UTF8 | ConvertFrom-Json).csv_sha256)
+    if ((Get-HashArquivo $csv) -ne $registrado) { return 'municipios.csv não confere com o SHA-256 do municipios.fonte.json' }
+    return ''
+}
+
+# -Teste só roda sobre banco de TESTE: nunca sobre o de produção. Devolve o motivo; vazio = aceito.
+function Test-ModoTeste([string]$ambiente) {
+    if ($ambiente -eq 'TESTE') { return '' }
+    return ('o -Teste só roda sobre banco com config.ambiente = TESTE (este banco está em ' + $ambiente + '). Nada foi alterado.')
+}
+
 function New-ResultadoBanco([bool]$ok, [int]$passo, [string]$motivo, $extra = @{}) {
     $r = [ordered]@{ ok = $ok; passo = $passo; motivo = $motivo }
     foreach ($k in $extra.Keys) { $r[$k] = $extra[$k] }
@@ -104,7 +122,11 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     $log.L('  cópia de trabalho: ' + $copia)
 
     $migrar = Join-Path $dados 'banco\aplicar-migracoes.ps1'
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia | Out-Null
+    # stderr do processo filho não pode virar exceção aqui: a falha é tratada pelo código de saída
+    $preferencia = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $saidaMig = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia 2>&1 | ForEach-Object { [string]$_ }) }
+    finally { $ErrorActionPreference = $preferencia }
+    foreach ($linha in $saidaMig) { if ($linha -ne '') { $log.L('  ' + $linha) } }
     if ($LASTEXITCODE -ne 0) {
         return New-ResultadoBanco $false 7 ('a migração falhou na cópia (veja o log de migrações). Banco de produção intacto.') @{ copia = $copia; h0 = $h0; backup = $backup }
     }
@@ -116,7 +138,7 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
         return New-ResultadoBanco $false 8 ('conferência da cópia: ' + ($problemas -join '; ') + '. Banco de produção intacto.') @{ copia = $copia; h0 = $h0; backup = $backup }
     }
     $log.L('  conferências da cópia: aprovadas')
-    return New-ResultadoBanco $true 8 'cópia pronta' @{ copia = $copia; h0 = $h0; backup = $backup }
+    return New-ResultadoBanco $true 8 'cópia pronta' @{ copia = $copia; h0 = $h0; backup = $backup; migracao = $saidaMig }
 }
 
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).

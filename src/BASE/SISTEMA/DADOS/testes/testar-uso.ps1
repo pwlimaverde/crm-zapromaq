@@ -279,6 +279,7 @@ End Sub
 } catch {
     $falhas++
     Write-Host ('ERRO: ' + $_.Exception.Message)
+    Write-Host ('  onde: ' + $_.InvocationInfo.ScriptLineNumber + ': ' + $_.InvocationInfo.Line.Trim())
     if (-not (Get-Process -Id $idExcel -ErrorAction SilentlyContinue)) { Write-Host '  (o Excel travou numa caixa de mensagem e foi encerrado pelo vigia)' }
 } finally {
     if ($vigia) { Stop-Vigia $vigia $sinal }
