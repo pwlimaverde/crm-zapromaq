@@ -410,7 +410,7 @@ ESQUEMA_11_TABELAS = {
 }
 ESQUEMA_11_LISTAS_NOVAS = ['chave', 'encerra', 'resultado', 'quadro', 'exige_familia']
 ESQUEMA_11_INDICES = ['ix_mun_uf_busca', 'ix_pln_codigo', 'ix_pln_controle', 'ix_vis_opo_sit', 'ix_vis_pln',
-                      'ix_vis_data']  # ix_lis_tipo_chave entra na fatia 1.5 (depois da carga da chave)
+                      'ix_vis_data', 'ix_lis_tipo_chave']
 
 
 def verificar_migracao_003():

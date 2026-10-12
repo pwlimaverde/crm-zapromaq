@@ -71,14 +71,14 @@ try {
         $log.L('')
         $log.L('--- ' + $m.Arquivo)
         if ($m.EsquemaPara) {
-            & $m.Aplicar $cn $null $log
+            & $m.Aplicar $cn $null $log $pasta
             Set-ConfigBanco $cn ('migracao.' + $m.Id) ((Get-Date -Format 'yyyy-MM-dd HH:mm') + ' ' + $env:USERNAME) $null
             Set-ConfigBanco $cn 'versao_esquema' $m.EsquemaPara $null
             $log.L('  esquema -> ' + $m.EsquemaPara)
         } else {
             $tx = $cn.BeginTransaction()
             try {
-                & $m.Aplicar $cn $tx $log
+                & $m.Aplicar $cn $tx $log $pasta
                 Set-ConfigBanco $cn ('migracao.' + $m.Id) ((Get-Date -Format 'yyyy-MM-dd HH:mm') + ' ' + $env:USERNAME) $tx
                 $tx.Commit()
             } catch { $tx.Rollback(); throw }

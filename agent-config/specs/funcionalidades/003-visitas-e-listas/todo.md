@@ -13,7 +13,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
   - Teste: `verificar.py` · Arquivos: `banco\esquema\criar-banco.ps1`, `modSchema.bas`
 - [x] 1.4 Banco de teste com variantes, duplicata, órfão e etapa especial ausente
   - Teste: (infraestrutura do 1.5) · Arquivos: `IA\teste\criar-banco-teste.ps1`
-- [ ] 1.5 Migração 003 (C17, C18, papel, índice, idempotência, relatório)
+- [x] 1.5 Migração 003 (C17, C18, papel, índice, idempotência, relatório)
   - Teste: caso que aplica no banco de teste · Arquivos: `banco\migracoes\003-municipios-visitas-papel-listas.ps1`
 - [ ] 1.6 Rotina de atualização do banco (trava, backup + H0, cópia, conferências, troca, volta)
   - Teste: `Conferir` em `testar-build-lib.ps1` (C19, C20) · Arquivos: `banco\aplicar-migracoes.ps1`, `lib\Comum.ps1`
