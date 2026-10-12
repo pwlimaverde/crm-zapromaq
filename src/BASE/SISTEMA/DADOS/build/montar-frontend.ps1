@@ -141,6 +141,7 @@ try {
 
     # ------------------------------------------------------------ passo 9: montagem do front (aponta para a CÓPIA, provisório)
     $script:passo = 9
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '9') { throw 'PASSO:9|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     $log.L('[9/12] montagem do front (Config!B2 provisório = cópia de trabalho)...')
     # fonte de montagem: cópia com VERSAO_FRONT atualizada (a fonte original não é tocada)
     $palco = Join-Path $pastaBuild 'fonte'
@@ -345,6 +346,7 @@ try {
 
     # ------------------------------------------------------------ passo 10: teste de uso (contra a cópia)
     $script:passo = 10
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '10') { throw 'PASSO:10|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     if (-not $SemTesteDeUso) {
         $log.L('')
         $log.L('--- teste de uso (grades e Painel com os dados reais)')
@@ -355,6 +357,7 @@ try {
 
     # ------------------------------------------------------------ passo 11: troca do banco (tudo ou nada)
     $script:passo = 11
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '11') { throw 'PASSO:11|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     $log.L('[11/12] troca do banco...')
     $bancoFinal = ConvertTo-CaminhoUNC $bancoArq
     $xl2 = $null; $idExcel2 = 0
@@ -376,6 +379,7 @@ try {
     $script:passo = 12
     $log.L('[12/12] publicação...')
     try {
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '12') { throw 'PASSO:12|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     if ($Teste) {
         $destTeste = Join-Path (Get-PastaExecucao $raiz 'teste') $script:NomeFront
         Copy-Item -LiteralPath $temp -Destination $destTeste -Force

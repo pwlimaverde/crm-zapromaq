@@ -15,7 +15,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 1.8 Papel das etapas lido da lista; valor inativo, C06 e C07 (`e633c12`)
 - [x] 1.9 Esquema 1.1 no front e no conector; banco de demonstração (`998f8d7`)
 - [x] 1.10 MANIFESTO.json e conferência no passo 1 (`fd815e1`)
-- [ ] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
+- [x] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
 - [ ] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
 - [ ] 1.11 Documentação da Fase 1 (`banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `contrato-banco`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+) — `verificar.py`
 - [ ] 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação; trava falsa
