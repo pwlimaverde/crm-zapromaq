@@ -5,7 +5,7 @@ banco de teste da pasta. 🖥B = bloqueia a publicação; 🖥N = não bloqueia.
 
 ## Fase 1 — Base, migração 003 e montagem única (publicação A)
 
-- [ ] 1.1 `gerar-municipios.py` + `municipios.csv` + `municipios.fonte.json`
+- [x] 1.1 `gerar-municipios.py` + `municipios.csv` + `municipios.fonte.json`
   - Teste: `verificar.py` · Arquivos: `agent-config\ferramentas\gerar-municipios.py`, `banco\referencia\*`
 - [ ] 1.2 Função de chave de lista (C01) e checagem de casos compartilhados
   - Teste: `Confere` + `testar-mcp.ps1` + `verificar.py` · Arquivos: `modValidacao.bas`, `Regras.ps1`, `verificar.py`

@@ -18,7 +18,7 @@ mas pega antes o que custaria uma ida à estação:
 Uso:  python verificar.py            (a partir de qualquer pasta)
 Saída: 0 sem problemas; 1 com problemas.
 """
-import os, re, sys, json, shutil, tempfile, subprocess, importlib.util
+import os, re, sys, json, shutil, tempfile, subprocess, importlib.util, hashlib, unicodedata
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 DADOS = os.path.abspath(os.path.join(AQUI, '..', '..'))
@@ -308,6 +308,74 @@ def verificar_formularios():
                     falha('Formulários', '%s: "%s" usado no código e ausente do layout' % (d['codigo'], n))
 
 
+MUNICIPIOS_TOTAL_OFICIAL = 5571          # IBGE localidades, consultado em 12/10/2026 (2024: 5570)
+MUNICIPIOS_UFS = {'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+                  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'}
+MUNICIPIOS_CABECALHO = 'cod_ibge;nome;nome_busca;uf;lat;lon'
+
+
+def nome_busca_de(nome):
+    # mesma regra de modValidacao.ChaveLista / Regras.ps1: sem acento, maiúsculas, espaços colapsados
+    sem = ''.join(c for c in unicodedata.normalize('NFKD', nome) if not unicodedata.combining(c))
+    return ' '.join(sem.upper().split())
+
+
+def verificar_municipios():
+    ref = os.path.join(DADOS, 'banco', 'referencia')
+    csv_p = os.path.join(ref, 'municipios.csv')
+    fonte_p = os.path.join(ref, 'municipios.fonte.json')
+    if not os.path.isfile(csv_p) or not os.path.isfile(fonte_p):
+        falha('Municipios', 'municipios.csv ou municipios.fonte.json ausente em banco\\referencia')
+        return
+    bruto = open(csv_p, 'rb').read()
+    if not bruto.startswith(b'\xef\xbb\xbf'):
+        falha('Municipios', 'municipios.csv sem BOM UTF-8')
+    try:
+        fonte = json.loads(open(fonte_p, 'rb').read().decode('utf-8'))
+    except (ValueError, UnicodeDecodeError) as e:
+        falha('Municipios', 'municipios.fonte.json inválido: ' + str(e))
+        return
+    if hashlib.sha256(bruto).hexdigest() != fonte.get('csv_sha256'):
+        falha('Municipios', 'SHA-256 do municipios.csv diferente do registrado no .fonte.json')
+    linhas = bruto.decode('utf-8-sig').replace('\r\n', '\n').split('\n')
+    if linhas and linhas[-1] == '':
+        linhas.pop()
+    if linhas[0] != MUNICIPIOS_CABECALHO:
+        falha('Municipios', 'cabeçalho do CSV diferente de ' + MUNICIPIOS_CABECALHO)
+    registros = linhas[1:]
+    if len(registros) != MUNICIPIOS_TOTAL_OFICIAL:
+        falha('Municipios', 'total de linhas %d; esperado %d (IBGE)' % (len(registros), MUNICIPIOS_TOTAL_OFICIAL))
+    if fonte.get('total') != len(registros):
+        falha('Municipios', '.fonte.json: total %s não bate com %d linhas' % (fonte.get('total'), len(registros)))
+    codigos = set()
+    ufs = set()
+    for n, linha in enumerate(registros, 2):
+        c = linha.split(';')
+        if len(c) != 6:
+            falha('Municipios', 'linha %d com %d campos (esperado 6)' % (n, len(c)))
+            continue
+        cod, nome, busca, uf, lat, lon = c
+        if not re.fullmatch(r'\d{7}', cod):
+            falha('Municipios', 'linha %d: cod_ibge não tem 7 dígitos' % n)
+        elif cod in codigos:
+            falha('Municipios', 'linha %d: cod_ibge %s repetido' % (n, cod))
+        codigos.add(cod)
+        if busca != nome_busca_de(nome):
+            falha('Municipios', 'linha %d: nome_busca diferente da regra para "%s"' % (n, nome))
+        if uf not in MUNICIPIOS_UFS:
+            falha('Municipios', 'linha %d: UF "%s" fora das 27' % (n, uf))
+        ufs.add(uf)
+        try:
+            la, lo = float(lat), float(lon)
+        except ValueError:
+            falha('Municipios', 'linha %d: coordenada não numérica' % n)
+            continue
+        if not (-34 <= la <= 6 and -74 <= lo <= -28):
+            falha('Municipios', 'linha %d: coordenada fora do Brasil (%s, %s)' % (n, lat, lon))
+    if len(ufs) != 27:
+        falha('Municipios', 'UFs presentes: %d; esperado 27' % len(ufs))
+
+
 def main():
     vba = fontes_vba()
     verificar_formularios()
@@ -318,6 +386,7 @@ def main():
     verificar_powershell()
     verificar_bat()
     verificar_json()
+    verificar_municipios()
     print('=== VERIFICAÇÃO ESTÁTICA - CRM Zapromaq ===')
     print('fontes VBA: %d   raiz: %s' % (len(vba), BASE))
     if not problemas:
