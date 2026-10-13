@@ -248,6 +248,51 @@ End Sub
     # volta: o log criado pelo teste sai (o banco de demonstracao volta como estava)
     [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes)
 
+    # Fase 2.3: outra estacao grava em listas; o cache so muda quando o feed processa o log
+    $tf = "'" + $n + "'!"
+    $mfd = $wb.VBProject.VBComponents.Add(1); $mfd.Name = 'modTesteFeed'
+    $mfd.CodeModule.AddFromString(@'
+Option Explicit
+' grava como outra estacao (origem IA): um valor novo e o log, na mesma transacao
+Public Function OutraEstacao() As Long
+    Dim cn As Object, id As Long
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    id = modDB.InserirEm(cn, "INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)", _
+                         Array(modDB.P(modDB.adVarWChar, "Familia"), modDB.P(modDB.adVarWChar, "TESTE FEED"), _
+                               modDB.P(modDB.adInteger, 999)))
+    modDB.ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+        Array(modDB.P(modDB.adVarWChar, "listas"), modDB.P(modDB.adInteger, id), modDB.P(modDB.adVarWChar, "valor"), _
+              modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "Familia: TESTE FEED"), _
+              modDB.P(modDB.adVarWChar, "INSERIR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), _
+              modDB.P(modDB.adDate, Now), modDB.P(modDB.adVarWChar, "IA"))
+    modDB.Confirmar cn
+    OutraEstacao = id
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    OutraEstacao = -1
+End Function
+'@)
+    $maxLogF = [int]$xl.Run($tf + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    [void]$xl.Run($tf + 'modFeed.ProcessarAgora')
+    [void]$xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $idOutra = [int]$xl.Run($tf + 'modTesteFeed.OutraEstacao')
+    Conferir 'feed: a outra estacao gravou o valor' ($idOutra -gt 0) ([string]$idOutra)
+    $lstAntes = $xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $vAntes = $false
+    for ($i = 1; $i -le $lstAntes.GetLength(0); $i++) { if ([string]$lstAntes.GetValue($i, 1) -eq 'TESTE FEED') { $vAntes = $true } }
+    Conferir 'feed: antes de processar o log, o cache ainda nao mostra o valor' (-not $vAntes)
+    [void]$xl.Run($tf + 'modFeed.ProcessarAgora')
+    $lstDepois = $xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $vDepois = $false
+    for ($i = 1; $i -le $lstDepois.GetLength(0); $i++) { if ([string]$lstDepois.GetValue($i, 1) -eq 'TESTE FEED') { $vDepois = $true } }
+    Conferir 'feed: depois de processar o log, o cache mostra o valor da outra estacao' $vDepois
+    # volta: apaga o valor e o log criados pelo teste
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM listas WHERE valor='TESTE FEED'")
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogF)
+    [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"
