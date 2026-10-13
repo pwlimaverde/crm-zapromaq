@@ -155,3 +155,39 @@ function Format-CodigoCliente($codigo) {
     if ($null -eq $codigo) { return $null }
     return ([int]$codigo).ToString('0000')
 }
+
+# Regras de visita (C08 a C13, spec 003 secao "Regras de visita"). Espelho de modVisita (VBA).
+# Devolvem a mensagem da recusa, ou $null quando a regra passa.
+function Test-VisitaPodeCriar([bool]$atendimentoEncerrado) {
+    if ($atendimentoEncerrado) { return 'Atendimento encerrado não recebe visita (C08).' }
+    return $null
+}
+
+# datas em AAAA-MM-DD (comparação de texto é a de data nesse formato)
+function Test-DataNoPeriodo([string]$data, [string]$inicio, [string]$fim) {
+    if ($data -lt $inicio -or $data -gt $fim) { return ('Data ' + $data + ' fora do período do planejamento (' + $inicio + ' a ' + $fim + ') (C09).') }
+    return $null
+}
+
+function Test-RealizadaValida([string]$relato, [string]$dataRealizada) {
+    if ([string]::IsNullOrWhiteSpace($relato) -or [string]::IsNullOrWhiteSpace($dataRealizada)) { return 'Visita realizada exige data e relato (C10).' }
+    return $null
+}
+
+function Test-CanceladaValida([string]$motivo) {
+    if ([string]::IsNullOrWhiteSpace($motivo)) { return 'Visita cancelada exige motivo (C11).' }
+    return $null
+}
+
+# Linha que vai para o histórico do atendimento quando a visita é realizada (C12).
+function Get-TextoHistoricoVisita([datetime]$quando, [string]$tipo, [string]$resultado, [string]$relato) {
+    $resumo = $relato
+    if ($resumo.Length -gt 200) { $resumo = $resumo.Substring(0, 200) }
+    return ('VISITA ' + $quando.ToString('dd/MM/yyyy HH:mm') + ' - ' + $tipo + ' - ' + $resultado + ': ' + $resumo)
+}
+
+# Só uma visita PENDENTE por atendimento por vez (C13).
+function Test-SegundaPendente([int]$pendentesExistentes) {
+    if ($pendentesExistentes -gt 0) { return 'Já há visita pendente neste atendimento: realize ou cancele antes (C13).' }
+    return $null
+}

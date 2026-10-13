@@ -142,6 +142,18 @@ $pf = @($det.itens | Where-Object { $_.valor -eq 'Pedido Fechado' }) | Select-Ob
 Conferir 'listar_opcoes detalhar traz o papel da etapa (Pedido Fechado = GANHO, encerra)' ($null -ne $pf -and $pf.resultado -eq 'GANHO' -and $pf.encerra -eq $true)
 Conferir 'listar_opcoes detalhar traz o uso de cada valor' ($null -ne $pf -and $pf.uso -ge 0 -and $null -ne $pf.ativo)
 Conferir 'listar_opcoes sem detalhar continua só com a lista de valores' (-not ((Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'Etapa' })).PSObject.Properties.Name -contains 'itens'))
+Write-Host '--- regras de visita (C08 a C13): puras'
+Conferir 'C08 visita em atendimento encerrado e recusada' ((Test-VisitaPodeCriar $true) -match 'C08')
+Conferir 'C08 visita em atendimento aberto passa' ($null -eq (Test-VisitaPodeCriar $false))
+Conferir 'C09 data fora do periodo e recusada' ((Test-DataNoPeriodo '2026-10-20' '2026-10-01' '2026-10-15') -match 'C09')
+Conferir 'C09 data dentro do periodo passa' ($null -eq (Test-DataNoPeriodo '2026-10-05' '2026-10-01' '2026-10-15'))
+Conferir 'C10 realizada sem relato e recusada' ((Test-RealizadaValida '' '2026-10-14') -match 'C10')
+Conferir 'C10 realizada com relato e data passa' ($null -eq (Test-RealizadaValida 'Visitou' '2026-10-14'))
+Conferir 'C11 cancelada sem motivo e recusada' ((Test-CanceladaValida '') -match 'C11')
+Conferir 'C11 cancelada com motivo passa' ($null -eq (Test-CanceladaValida 'Cliente viajou'))
+Conferir 'C12 texto do historico comeca com VISITA dd/MM/aaaa HH:mm' ((Get-TextoHistoricoVisita ([datetime]'2026-10-14 09:30') 'Visita' 'Positivo' 'Visitou') -eq 'VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou')
+Conferir 'C13 segunda pendente e recusada' ((Test-SegundaPendente 1) -match 'C13')
+Conferir 'C13 sem pendente passa' ($null -eq (Test-SegundaPendente 0))
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

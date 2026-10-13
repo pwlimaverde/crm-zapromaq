@@ -78,6 +78,17 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C03 uma de duas PERDA pode sair", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, True)), True
     Confere "C03 etapa sem resultado pode sair", modListas.DesativarEtapaPermitido("Negociacao", Array("NEGOCIACAO"), Array(""), Array(True)), True
     Confere "C03 a outra PERDA ja inativa: a ultima e recusada", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, False)), False
+    ' ---- regras de visita (C08 a C13): mesma regra do conector (modVisita)
+    Confere "C08 visita em encerrado e recusada", modVisita.VisitaPodeCriar(True) <> "", True
+    Confere "C08 visita em aberto passa", modVisita.VisitaPodeCriar(False), ""
+    Confere "C09 data fora do periodo e recusada", modVisita.DataNoPeriodo(DateSerial(2026, 10, 20), DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)) <> "", True
+    Confere "C09 data na borda passa", modVisita.DataNoPeriodo(DateSerial(2026, 10, 15), DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)), ""
+    Confere "C10 realizada sem relato e recusada", modVisita.RealizadaValida("", DateSerial(2026, 10, 14)) <> "", True
+    Confere "C10 realizada completa passa", modVisita.RealizadaValida("Visitou", DateSerial(2026, 10, 14)), ""
+    Confere "C11 cancelada sem motivo e recusada", modVisita.CanceladaValida("") <> "", True
+    Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
+    Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
+    Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
     Confere "Dias parado", modCalc.DiasParado(Date - 10), 10
     Confere "Ciclo", modCalc.Ciclo(DateSerial(2026, 1, 1), DateSerial(2026, 1, 31)), 30
     Confere "Mes referencia", modCalc.MesReferencia(DateSerial(2026, 9, 19)), 202609
