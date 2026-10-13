@@ -193,6 +193,26 @@ C11 V5 sem motivo. C12 V6 texto `VISITA 14/10/2026 09:30`. C13 V8 segunda penden
 C18 órfão entra inativo. C19 trava presente → montagem para no passo 3. C20 hash do banco mudou →
 para no passo 11.
 
+## Regras de visita (V1–V9)
+
+Decisões registradas na Fase 3 para fechar os pontos que a lista de casos deixava em aberto.
+
+- **V1** Cada visita pertence a exatamente um atendimento (`id_oportunidade` obrigatório); um
+  atendimento tem 0 a N visitas.
+- **V2 (C08)** Não se cria visita para atendimento encerrado (etapa com `encerra` = Sim).
+- **V3 (C09)** Com planejamento, `data_agendada` tem de estar entre `data_inicio` e `data_fim`
+  do planejamento. Sem planejamento, qualquer data.
+- **V4 (C10)** Situação REALIZADA exige `data_realizada` e `relato` preenchidos.
+- **V5 (C11)** Situação CANCELADA exige `motivo_cancelamento`.
+- **V6 (C12)** Ao registrar REALIZADA, o histórico do atendimento (`oportunidades.observacoes`)
+  ganha a linha `VISITA dd/MM/aaaa HH:mm - <tipo> - <resultado>: <relato resumido>`, na mesma
+  transação da visita.
+- **V7** Ao registrar REALIZADA, `oportunidades.ultima_interacao` recebe `data_realizada`
+  (mesma transação, mesma versão do atendimento).
+- **V8 (C13)** Um atendimento tem no máximo uma visita PENDENTE por vez: a segunda é recusada.
+- **V9** `Visitas (n)` conta todas as visitas do atendimento, em qualquer situação; a lista
+  mostra as pendentes primeiro.
+
 ## Critérios de aceite
 
 ### Fase 1 — Base, migração 003 e montagem única (publicação A)
