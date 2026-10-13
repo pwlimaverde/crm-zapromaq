@@ -146,3 +146,103 @@ Falha:
     modDB.Desfazer cn
     DefinirAtivo = "Nao gravou: " & Err.Description
 End Function
+
+' Quantos atendimentos estao nesta etapa (o front mostra antes de pedir confirmacao).
+Public Function AtendimentosDaEtapa(ByVal valor As String) As Long
+    AtendimentosDaEtapa = CLng(modDB.ConsultarValor("SELECT COUNT(*) FROM oportunidades WHERE etapa=?", 0, _
+                                                    Array(modDB.P(modDB.adVarWChar, valor))))
+End Function
+
+' Muda o papel de uma etapa (encerra, resultado, quadro, familia). C04: resultado
+' so em etapa que encerra. C03: tirar o resultado de uma etapa ativa exige outra
+' ativa com o mesmo resultado. Mudar 'encerra' muda a situacao dos atendimentos
+' dessa etapa: sem confirmar, recusa com a contagem. Conflito: os valores antigos
+' tem de ainda ser os lidos. Devolve "" quando grava (ou nada muda).
+Public Function DefinirPapel(ByVal valor As String, ByVal encerra As Boolean, ByVal resultado As String, _
+                             ByVal quadro As String, ByVal familia As Boolean, ByVal confirmar As Boolean) As String
+    Dim cn As Object, d As Variant, i As Long, n As Long, id As Long, achou As Boolean
+    Dim chave As String, valorCanon As String, chaves() As String, resultados() As String, ativos() As Boolean
+    Dim encAnt As Boolean, resAnt As String, quadAnt As String, famAnt As Boolean, ativoAnt As Boolean
+    Dim afetados As Long, filtro As String, sql As String
+
+    resultado = UCase$(Trim$(resultado))
+    quadro = UCase$(Trim$(quadro))
+    DefinirPapel = PapelEtapaValido(encerra, resultado)
+    If DefinirPapel <> "" Then Exit Function
+    If quadro <> "FUNIL" And quadro <> "PROSPECCAO" Then DefinirPapel = "quadro deve ser FUNIL ou PROSPECCAO.": Exit Function
+    chave = modValidacao.ChaveLista(valor)
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    d = modDB.ConsultarEm(cn, "SELECT id, valor, encerra, resultado, quadro, exige_familia, ativo FROM listas WHERE tipo='Etapa'")
+    If IsEmpty(d) Then modDB.Desfazer cn: DefinirPapel = "Lista Etapa vazia.": Exit Function
+    ReDim chaves(1 To UBound(d, 1)): ReDim resultados(1 To UBound(d, 1)): ReDim ativos(1 To UBound(d, 1))
+    For i = 1 To UBound(d, 1)
+        chaves(i) = modValidacao.ChaveLista(CStr(d(i, 2)))
+        If IsNull(d(i, 4)) Then resultados(i) = "" Else resultados(i) = CStr(d(i, 4))
+        ativos(i) = CBool(d(i, 7))
+        If chaves(i) = chave Then
+            achou = True: id = CLng(d(i, 1)): valorCanon = CStr(d(i, 2))
+            encAnt = CBool(d(i, 3)): resAnt = resultados(i): quadAnt = CStr(d(i, 5))
+            famAnt = CBool(d(i, 6)): ativoAnt = ativos(i)
+        End If
+    Next i
+    If Not achou Then modDB.Desfazer cn: DefinirPapel = "'" & valor & "' nao existe na lista Etapa.": Exit Function
+    If encAnt = encerra And resAnt = resultado And quadAnt = quadro And famAnt = familia Then
+        modDB.Desfazer cn
+        DefinirPapel = ""
+        Exit Function
+    End If
+    If resAnt <> "" And resultado <> resAnt And ativoAnt Then
+        If Not DesativarEtapaPermitido(valorCanon, chaves, resultados, ativos) Then
+            modDB.Desfazer cn
+            DefinirPapel = "'" & valorCanon & "' e a ultima etapa ativa de " & resAnt & ": mude a outra antes (C03)."
+            Exit Function
+        End If
+    End If
+    If encerra <> encAnt Then
+        afetados = AtendimentosDaEtapa(valorCanon)
+        If afetados > 0 And Not confirmar Then
+            modDB.Desfazer cn
+            DefinirPapel = "Mudar 'encerra' de '" & valorCanon & "' muda a situacao de " & afetados & _
+                           " atendimento(s). Confirme para gravar."
+            Exit Function
+        End If
+    End If
+    ' conflito: a linha tem de ter os valores antigos (a tabela nao tem coluna versao)
+    filtro = " WHERE id=? AND encerra=? AND quadro=? AND exige_familia=?"
+    If resAnt = "" Then
+        filtro = filtro & " AND (resultado IS NULL OR resultado='')"
+    Else
+        filtro = filtro & " AND resultado=?"
+    End If
+    sql = "UPDATE listas SET encerra=?, resultado=?, quadro=?, exige_familia=?" & filtro
+    Dim ps As Variant
+    If resAnt = "" Then
+        ps = Array(modDB.P(modDB.adBoolean, encerra), modDB.P(modDB.adVarWChar, IIf(resultado = "", Null, resultado)), _
+                   modDB.P(modDB.adVarWChar, quadro), modDB.P(modDB.adBoolean, familia), _
+                   modDB.P(modDB.adInteger, id), modDB.P(modDB.adBoolean, encAnt), _
+                   modDB.P(modDB.adVarWChar, quadAnt), modDB.P(modDB.adBoolean, famAnt))
+    Else
+        ps = Array(modDB.P(modDB.adBoolean, encerra), modDB.P(modDB.adVarWChar, IIf(resultado = "", Null, resultado)), _
+                   modDB.P(modDB.adVarWChar, quadro), modDB.P(modDB.adBoolean, familia), _
+                   modDB.P(modDB.adInteger, id), modDB.P(modDB.adBoolean, encAnt), _
+                   modDB.P(modDB.adVarWChar, quadAnt), modDB.P(modDB.adBoolean, famAnt), _
+                   modDB.P(modDB.adVarWChar, resAnt))
+    End If
+    n = modDB.ExecutarEm(cn, sql, ps)
+    If n <> 1 Then
+        modDB.Desfazer cn
+        DefinirPapel = "Conflito: '" & valorCanon & "' foi alterado por outra pessoa agora. Nada foi gravado; leia de novo."
+        Exit Function
+    End If
+    If encerra <> encAnt Then modDB.LogEm cn, "listas", id, "encerra", CStr(encAnt), CStr(encerra), "ALTERAR"
+    If resultado <> resAnt Then modDB.LogEm cn, "listas", id, "resultado", resAnt, resultado, "ALTERAR"
+    If quadro <> quadAnt Then modDB.LogEm cn, "listas", id, "quadro", quadAnt, quadro, "ALTERAR"
+    If familia <> famAnt Then modDB.LogEm cn, "listas", id, "exige_familia", CStr(famAnt), CStr(familia), "ALTERAR"
+    modDB.Confirmar cn
+    modCRM.LimparCacheListas
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    DefinirPapel = "Nao gravou: " & Err.Description
+End Function

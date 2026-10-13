@@ -25,7 +25,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 2.1 Regras C03, C04, C05 nos dois lados (`d4a8c5a`)
 - [x] 2.5a `gerenciar_lista` com `definir_papel` e `listar_opcoes` com `detalhar` no conector (`d4a8c5a`), testes em `testar-mcp`
 - [x] 2.2a Gravação no front (incluir, ativar, desativar, ordenar), log e conflito — `testar-uso` + `Confere` (C02)
-- [ ] 2.2b `definir_papel` no front: C04, contagem de atendimentos, `confirmar` — `testar-uso`
+- [x] 2.2b `definir_papel` no front: C04, contagem de atendimentos, `confirmar` — `testar-uso`
 - [ ] 2.3 Feed e cache de `listas` (`modFeed`) — `Confere`
 - [ ] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`
 - [ ] 2.4b `frmListas` código (combo, grade, botões, confirmação de encerra) — `testar-uso` + `verificar.py`

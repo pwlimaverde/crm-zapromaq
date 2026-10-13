@@ -230,6 +230,24 @@ End Sub
     [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id_registro IN (SELECT id FROM listas WHERE valor='TESTE FASE 2')")
     [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM listas WHERE valor='TESTE FASE 2'")
 
+    # Fase 2.2b: papel da etapa pelo front (C03, C04 e confirmacao de 'encerra'), com volta ao estado original
+    $tp = "'" + $n + "'!modListas."
+    $maxLogAntes = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rp1 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $true, '', 'FUNIL', $true, $false)
+    Conferir 'papel: mudar encerra com atendimentos sem confirmar e recusado' ($rp1 -match 'Confirme') $rp1
+    $rp2 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, 'GANHO', 'FUNIL', $true, $false)
+    Conferir 'papel C04: resultado com encerra Nao e recusado' ($rp2 -match 'C04') $rp2
+    $rp3 = [string]$xl.Run($tp + 'DefinirPapel', 'Pedido Fechado', $true, '', 'FUNIL', $false, $false)
+    Conferir 'papel C03: tirar o resultado da unica etapa GANHO e recusado' ($rp3 -match 'C03') $rp3
+    $rp4 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'PROSPECCAO', $true, $false)
+    Conferir 'papel: mudar quadro grava (vazio = ok)' ($rp4 -eq '') $rp4
+    $rp5 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'FUNIL', $true, $false)
+    Conferir 'papel: volta o quadro para FUNIL' ($rp5 -eq '') $rp5
+    $nLog = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes, 0)
+    Conferir 'papel: a mudanca de quadro foi registrada no log (ida e volta)' ($nLog -ge 2) ([string]$nLog)
+    # volta: o log criado pelo teste sai (o banco de demonstracao volta como estava)
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes)
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"
