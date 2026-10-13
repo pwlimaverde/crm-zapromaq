@@ -192,6 +192,28 @@ try {
     Executa-Visita 'UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?' @((P 'memo' $opAntes.observacoes), (P 'data' $opAntes.ultima_interacao), (P 'inteiro' ([int]$opAntes.versao)), (P 'inteiro' ([int]$opAntes.id)))
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogV))
 }
+Write-Host '--- ferramentas de visita (Fase 3.4): listar, alterar situação, resumo no atendimento'
+$filaT7 = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$codT7 = [string]$filaT7[0].codigo
+$maxLogT7 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$criadasT7 = @()
+try {
+    $v1 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codT7; tipo = 'Visita'; observacoes = 'teste 3.4' })
+    $criadasT7 += $v1.id
+    $lv = Invoke-ListarVisitas ([pscustomobject]@{ codigo = $codT7 })
+    Conferir 'listar_visitas por atendimento traz a visita criada' (@($lv.visitas | Where-Object { [int]$_.id -eq [int]$v1.id }).Count -eq 1) ([string]$lv.quantidade)
+    Conferir 'listar_visitas traz o contato (D-a: nome e telefone)' (@($lv.visitas | Where-Object { [int]$_.id -eq [int]$v1.id })[0].contato -ne $null) ''
+    $lf = Invoke-ListarVisitas ([pscustomobject]@{ situacao = 'REALIZADA'; codigo = $codT7 })
+    Conferir 'listar_visitas filtrado por situacao REALIZADA não traz a pendente' (@($lf.visitas | Where-Object { [int]$_.id -eq [int]$v1.id }).Count -eq 0) ''
+    Conferir 'alterar_situacao_visita sem motivo ao cancelar é recusado (C11)' ((Mensagem { Invoke-AlterarSituacaoVisita ([pscustomobject]@{ id = $v1.id; versao = 1; situacao = 'CANCELADA' }) }) -match 'C11')
+    $ac = Invoke-AlterarSituacaoVisita ([pscustomobject]@{ id = $v1.id; versao = 1; situacao = 'CANCELADA'; motivo_cancelamento = 'Cliente adiou' })
+    Conferir 'alterar_situacao_visita cancela com motivo' ($ac.gravado -eq $true -and $ac.situacao -eq 'CANCELADA') ($ac | ConvertTo-Json -Compress)
+    $at = Invoke-ObterAtendimento ([pscustomobject]@{ codigo = $codT7 })
+    Conferir 'obter_atendimento traz o total de visitas e a lista' ([int]$at.visitas_total -ge 1 -and @($at.visitas).Count -ge 1) ([string]$at.visitas_total)
+} finally {
+    foreach ($i in $criadasT7) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT7))
+}
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

@@ -40,7 +40,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 3.2b Gravação no front (`modVisita.bas`) — `testar-uso`
 - [x] 3.3a Botão `Visitas (n)` na ficha do atendimento — `verificar.py` e prévia (🖥 pendente)
 - [~] 3.3b Tela de visitas (`frmVisitas`: lista e ficha) feita; falta o feed de `visitas` que atualiza a tela aberta — `testar-uso` + prévia; 🖥B
-- [ ] 3.4 Ferramentas `listar_visitas`, `alterar_situacao_visita`, resumo em `obter_atendimento` — `testar-mcp`
+- [x] 3.4 Ferramentas `listar_visitas`, `alterar_situacao_visita`, resumo em `obter_atendimento` — `testar-mcp`
 - [ ] Checkpoint B: 🖥B acima; banco exclusivo na janela (A3)
 
 ## Fase 4: planejamentos (publicação C)

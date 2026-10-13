@@ -287,7 +287,12 @@ function Invoke-ObterAtendimento($a) {
                           ' FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id)' +
                           ' INNER JOIN contatos ct ON o.id_contato = ct.id WHERE o.codigo=?') @((P 'texto' $codigo))
     if ($l.Count -eq 0) { throw ('Atendimento não encontrado: ' + $codigo) }
-    return (Add-Calculados $l[0])
+    $o = Add-Calculados $l[0]
+    # resumo das visitas do atendimento: total e a lista (pendentes primeiro)
+    $vis = Invoke-Consulta 'SELECT id, situacao, data_agendada, hora_agendada, tipo, resultado, versao FROM visitas WHERE id_oportunidade=? ORDER BY IIf(situacao=''PENDENTE'', 0, 1), data_agendada, id' @((P 'inteiro' ([int]$o.id)))
+    $o['visitas_total'] = $vis.Count
+    $o['visitas'] = $vis
+    return $o
 }
 
 function Invoke-UltimasAlteracoes($a) {
@@ -1647,6 +1652,36 @@ function Invoke-AtualizarVisita($a) {
     }
 }
 
+function Invoke-ListarVisitas($a) {
+    $w = New-Object System.Collections.ArrayList; $p = New-Object System.Collections.ArrayList
+    if (Test-TemArg $a 'codigo') {
+        $codigo = [string]$a.codigo
+        if ($codigo -notmatch '^AT-\d{4}-\d{4}$') { throw 'Código inválido. Formato: AT-0000-0000.' }
+        [void]$w.Add('o.codigo=?'); [void]$p.Add((P 'texto' $codigo))
+    }
+    if (Test-TemArg $a 'situacao') {
+        $s = ([string]$a.situacao).Trim().ToUpperInvariant()
+        if ($s -notin $script:SituacoesVisita) { throw 'situacao deve ser PENDENTE, REALIZADA ou CANCELADA.' }
+        [void]$w.Add('v.situacao=?'); [void]$p.Add((P 'texto' $s))
+    }
+    if (Test-TemArg $a 'id_planejamento') { [void]$w.Add('v.id_planejamento=?'); [void]$p.Add((P 'inteiro' ([int]$a.id_planejamento))) }
+    $where = ''; if ($w.Count -gt 0) { $where = ' WHERE ' + ($w -join ' AND ') }
+    $n = Get-Limite $a
+    # pendentes primeiro, depois a data agendada (como na tela de visitas)
+    $sql = 'SELECT TOP ' + $n + ' v.id, v.situacao, v.data_agendada, v.hora_agendada, v.tipo, v.responsavel, v.resultado,' +
+           ' v.data_realizada, v.relato, v.motivo_cancelamento, v.id_planejamento, v.versao, o.codigo AS codigo_atendimento,' +
+           ' c.empresa, ct.nome AS contato, ct.telefone AS contato_telefone' +
+           ' FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id)' +
+           ' INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id' +
+           $where + ' ORDER BY IIf(v.situacao=''PENDENTE'', 0, 1), v.data_agendada, v.id'
+    $l = Invoke-Consulta $sql $p.ToArray()
+    return [ordered]@{ quantidade = $l.Count; visitas = $l }
+}
+
+function Invoke-AlterarSituacaoVisita($a) {
+    return Invoke-AtualizarVisita $a
+}
+
 function Invoke-ListarMetas($a) {
     $w = ''; $p = @()
     if (Test-TemArg $a 'ano') { $w = ' WHERE ano=?'; $p = @((P 'inteiro' ([int]$a.ano))) }
@@ -1854,6 +1889,28 @@ $script:Ferramentas = @(
             responsavel = [ordered]@{ type = 'string' }
             observacoes = [ordered]@{ type = 'string' }
             data_realizada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            resultado = [ordered]@{ type = 'string' }
+            relato = [ordered]@{ type = 'string' }
+            motivo_cancelamento = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'listar_visitas'; title = 'Listar visitas'; handler = 'Invoke-ListarVisitas'; annotations = $script:SoLeitura
+        description = 'Visitas, com o atendimento, a empresa e o contato (pendentes primeiro). Filtre por codigo do atendimento, situacao ou planejamento.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
+            situacao = [ordered]@{ type = 'string'; enum = @('PENDENTE', 'REALIZADA', 'CANCELADA') }
+            id_planejamento = [ordered]@{ type = 'integer' }
+            limite = [ordered]@{ type = 'integer'; maximum = 200 } } }
+    },
+    [ordered]@{
+        name = 'alterar_situacao_visita'; title = 'Alterar situação da visita'; handler = 'Invoke-AlterarSituacaoVisita'; annotations = $script:Gravacao
+        description = 'Realiza ou cancela uma visita: REALIZADA exige data_realizada, resultado e relato (grava o histórico do atendimento); CANCELADA exige motivo_cancelamento. Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'situacao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            situacao = [ordered]@{ type = 'string'; enum = @('PENDENTE', 'REALIZADA', 'CANCELADA') }
+            data_realizada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD ou AAAA-MM-DD HH:mm' }
             resultado = [ordered]@{ type = 'string' }
             relato = [ordered]@{ type = 'string' }
             motivo_cancelamento = [ordered]@{ type = 'string' }
