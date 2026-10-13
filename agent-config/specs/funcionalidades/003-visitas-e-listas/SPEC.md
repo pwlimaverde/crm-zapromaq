@@ -213,6 +213,25 @@ Decisões registradas na Fase 3 para fechar os pontos que a lista de casos deixa
 - **V9** `Visitas (n)` conta todas as visitas do atendimento, em qualquer situação; a lista
   mostra as pendentes primeiro.
 
+## Regras de planejamento (P1–P4) e candidatos
+
+Decisões registradas na Fase 4 para fechar os pontos que a lista de casos deixava em aberto.
+
+- **P1 (C14)** Raio entre 1 e 500 km (inclusive). Cidade-base obrigatória e existente em
+  `municipios`. Descrição obrigatória (até 120 caracteres).
+- **P2 (C15)** `data_inicio` e `data_fim` obrigatórias, com `data_inicio` <= `data_fim`.
+- **P3 (C16)** Encerrar: `situacao` vira ENCERRADO. Se houver visitas PENDENTE, o encerramento é
+  recusado, a menos que `cancelar_pendentes` = true; nesse caso cada pendente vira CANCELADA com o
+  motivo "planejamento encerrado". Reabrir volta para ABERTO.
+- **P4** Código `PL-AAAA-NNN` gerado na criação (NNN = próximo do ano). Edição só enquanto ABERTO.
+- **Candidatos**: atendimentos em aberto (etapa com `encerra` = Não) cuja cidade do cliente
+  (`UF` + `nome_busca`, mesma chave da lista) fica a até `raio_km` da cidade-base, pela distância
+  de Haversine (raio da Terra 6.371 km; mesma cidade = 0 km). Ordem: qualificação (ordem da lista),
+  depois dias parado (mais tempo primeiro), depois km (menor primeiro). Cidade do cliente sem
+  correspondência em `municipios` vai à parte, como "não reconhecida".
+- **Gerar visitas**: uma visita PENDENTE por candidato escolhido, com `id_planejamento`, numa
+  transação; V8 (C13) conferida de novo dentro dela; qualquer conflito desfaz tudo.
+
 ## Critérios de aceite
 
 ### Fase 1 — Base, migração 003 e montagem única (publicação A)
