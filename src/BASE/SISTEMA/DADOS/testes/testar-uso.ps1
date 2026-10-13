@@ -210,6 +210,26 @@ End Sub
         [void]$xl.Run($ex, "DELETE FROM contatos WHERE nome='CONTATO TESTE USO'")
     } else { Conferir 'banco de demonstração com empresa só de contatos inativos' $false 'rode testes\criar-banco-demo.ps1 -Recriar' }
 
+    # Fase 2.2a: gravacao de listas (C02, C03, C05) pelo front, com volta ao estado original
+    $tl = "'" + $n + "'!modListas."
+    $ri = [string]$xl.Run($tl + 'IncluirValor', 'Familia', 'TESTE FASE 2')
+    Conferir 'listas: incluir valor novo grava (vazio = ok)' ($ri -eq '') $ri
+    $rd = [string]$xl.Run($tl + 'IncluirValor', 'Familia', 'teste  fase 2')
+    Conferir 'listas C02: mesma chave e recusada' ($rd -match 'ja existe') $rd
+    $ruf = [string]$xl.Run($tl + 'IncluirValor', 'UF', 'XX')
+    Conferir 'listas C05: UF fora das 27 e recusada' ($ruf -match 'C05') $ruf
+    $rf = [string]$xl.Run($tl + 'DefinirAtivo', 'Familia', 'TESTE FASE 2', $false)
+    Conferir 'listas: desativar valor de teste grava' ($rf -eq '') $rf
+    $rg = [string]$xl.Run($tl + 'DefinirAtivo', 'Familia', 'TESTE FASE 2', $true)
+    Conferir 'listas: reativar valor de teste grava' ($rg -eq '') $rg
+    $rc = [string]$xl.Run($tl + 'DefinirAtivo', 'Etapa', 'Pedido Fechado', $false)
+    Conferir 'listas C03: desativar a unica etapa GANHO e recusado' ($rc -match 'C03') $rc
+    $nAtivo = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM listas WHERE tipo='Etapa' AND valor='Pedido Fechado' AND ativo=True")
+    Conferir 'listas C03: a etapa recusada continua ativa' ($nAtivo -eq 1) ([string]$nAtivo)
+    # volta: apaga o valor de teste e o log dele (o banco de demonstracao volta como estava)
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id_registro IN (SELECT id FROM listas WHERE valor='TESTE FASE 2')")
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM listas WHERE valor='TESTE FASE 2'")
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"

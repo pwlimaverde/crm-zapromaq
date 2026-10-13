@@ -16,7 +16,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 1.9 Esquema 1.1 no front e no conector; banco de demonstração (`998f8d7`)
 - [x] 1.10 MANIFESTO.json e conferência no passo 1 (`fd815e1`)
 - [x] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
-- [ ] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
+- [x] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
 - [ ] 1.11 Documentação da Fase 1 (`banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `contrato-banco`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+) — `verificar.py`
 - [ ] 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação; trava falsa
 
@@ -24,7 +24,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 
 - [x] 2.1 Regras C03, C04, C05 nos dois lados (`d4a8c5a`)
 - [x] 2.5a `gerenciar_lista` com `definir_papel` e `listar_opcoes` com `detalhar` no conector (`d4a8c5a`), testes em `testar-mcp`
-- [ ] 2.2a Gravação no front (incluir, ativar, desativar, ordenar), log e conflito — `testar-uso` + `Confere` (C02)
+- [x] 2.2a Gravação no front (incluir, ativar, desativar, ordenar), log e conflito — `testar-uso` + `Confere` (C02)
 - [ ] 2.2b `definir_papel` no front: C04, contagem de atendimentos, `confirmar` — `testar-uso`
 - [ ] 2.3 Feed e cache de `listas` (`modFeed`) — `Confere`
 - [ ] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`

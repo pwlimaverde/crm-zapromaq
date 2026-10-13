@@ -1,4 +1,4 @@
-# testar-falha-passos.ps1 - prova da fatia 1.7b.
+﻿# testar-falha-passos.ps1 - prova da fatia 1.7b.
 #
 # Para cada passo 9 a 12 da montagem, força a falha (CRM_FALHA_NO_PASSO, so vale com -Teste) e confere:
 #   1. a montagem para no passo certo ("PAROU NO PASSO n/12");
