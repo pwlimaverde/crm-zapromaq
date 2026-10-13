@@ -321,6 +321,35 @@ End Function
     [void]$xl.Run($tv + 'modDB.Executar', "UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?", $pRest)
     [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogV2)
 
+    # Fase 4.3a: gravacao de planejamento pelo front (C14, C16, reabrir), com volta ao estado original
+    $tp4 = "'" + $n + "'!"
+    $cidP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'", 0)
+    $maxLogP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rp0 = [string]$xl.Run($tp4 + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT PLAN', $cidP, 0, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    Conferir 'planejamento: raio 0 é recusado (C14)' ($rp0 -match 'C14') $rp0
+    $rp1 = [string]$xl.Run($tp4 + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT PLAN', $cidP, 60, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    Conferir 'planejamento: criar grava (vazio = ok)' ($rp1 -eq '') $rp1
+    $idP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM planejamentos WHERE descricao='TESTE FRONT PLAN'", 0)
+    $codP = [string]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT codigo FROM planejamentos WHERE id=" + $idP, '')
+    Conferir 'planejamento: código PL-AAAA-NNN' ($codP -match '^PL-\d{4}-\d{3}$') $codP
+    $idAt = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT TOP 1 id FROM oportunidades WHERE etapa='Negociação' ORDER BY id", 0)
+    $rv4 = [string]$xl.Run($tp4 + 'modVisita.CriarVisita', $idAt, [datetime]'2026-10-22', '', 'Visita', '', '')
+    Conferir 'visita de teste (sem planejamento) criada para o encerramento' ($rv4 -eq '') $rv4
+    $idV4 = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM visitas WHERE id_oportunidade=" + $idAt, 0)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "UPDATE visitas SET id_planejamento=" + $idP + " WHERE id=" + $idV4)
+    $re1 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 1, 'ENCERRADO', $false)
+    Conferir 'planejamento C16: encerrar com visita pendente sem cancelar é recusado' ($re1 -match 'C16') $re1
+    $re2 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 1, 'ENCERRADO', $true)
+    Conferir 'planejamento: encerrar cancelando pendentes grava' ($re2 -eq '') $re2
+    $stV4 = [string]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT situacao FROM visitas WHERE id=" + $idV4, '')
+    Conferir 'planejamento: a visita pendente virou CANCELADA' ($stV4 -eq 'CANCELADA') $stV4
+    $re3 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 2, 'ABERTO', $false)
+    Conferir 'planejamento: reabrir grava (vazio = ok)' ($re3 -eq '') $re3
+    # volta: visita e planejamento de teste, e o log criado pelo teste
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idP)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idP)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogP)
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"
