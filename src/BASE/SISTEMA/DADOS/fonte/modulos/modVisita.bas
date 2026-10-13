@@ -47,3 +47,138 @@ End Function
 Public Function SegundaPendente(ByVal pendentesExistentes As Long) As String
     If pendentesExistentes > 0 Then SegundaPendente = "Ja ha visita pendente neste atendimento: realize ou cancele antes (C13)."
 End Function
+
+'----------------------------------------------------------
+' Gravacoes (fatia 3.2b). Mesmas regras do conector (C08 a C13), numa
+' transacao cada. Devolvem "" quando gravam, ou a mensagem da recusa.
+'----------------------------------------------------------
+
+' Cria visita PENDENTE no atendimento (C08 e C13). Sem planejamento aqui.
+Public Function CriarVisita(ByVal idOportunidade As Long, ByVal dataAgendada As Variant, _
+                            ByVal hora As String, ByVal tipo As String, ByVal responsavel As String, _
+                            ByVal observacoes As String) As String
+    Dim cn As Object, etapa As String, encerra As Variant, pend As Variant, msg As String, id As Long, agora As Date
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    etapa = modDB.ConsultarValorEm(cn, "SELECT etapa FROM oportunidades WHERE id=?", "", _
+                                   Array(modDB.P(modDB.adInteger, idOportunidade)))
+    If etapa = "" Then
+        modDB.Desfazer cn
+        CriarVisita = "Atendimento nao encontrado."
+        Exit Function
+    End If
+    encerra = modDB.ConsultarValorEm(cn, "SELECT encerra FROM listas WHERE tipo='Etapa' AND valor=?", False, _
+                                     Array(modDB.P(modDB.adVarWChar, etapa)))
+    msg = VisitaPodeCriar(CBool(encerra))
+    If msg = "" Then
+        pend = modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", 0, _
+                                      Array(modDB.P(modDB.adInteger, idOportunidade)))
+        msg = SegundaPendente(CLng(pend))
+    End If
+    If msg <> "" Then
+        modDB.Desfazer cn
+        CriarVisita = msg
+        Exit Function
+    End If
+    agora = Now
+    id = modDB.InserirEm(cn, "INSERT INTO visitas (id_oportunidade, situacao, data_agendada, hora_agendada, responsavel, " & _
+                             "tipo, observacoes, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,?,?,?,?,1,?,?,?)", _
+                         Array(modDB.P(modDB.adInteger, idOportunidade), modDB.P(modDB.adVarWChar, "PENDENTE"), _
+                               modDB.P(modDB.adDate, dataAgendada), modDB.P(modDB.adVarWChar, hora), _
+                               modDB.P(modDB.adVarWChar, responsavel), modDB.P(modDB.adVarWChar, tipo), _
+                               modDB.P(modDB.adLongVarWChar, observacoes), modDB.P(modDB.adDate, agora), _
+                               modDB.P(modDB.adDate, agora), modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual())))
+    modDB.LogEm cn, "visitas", id, "situacao", "", "PENDENTE", "INSERIR"
+    modDB.Confirmar cn
+    CriarVisita = ""
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    CriarVisita = "Nao gravou: " & Err.Description
+End Function
+
+' Muda a situacao e os dados da visita. V4 e V5 (C10, C11); C13 ao voltar a PENDENTE.
+' Ao virar REALIZADA: historico do atendimento (V6) e ultima interacao (V7), na mesma transacao.
+' versaoLida: a versao que o usuario leu; se mudou, recusa (conflito).
+Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long, ByVal situacao As String, _
+                                ByVal dataAgendada As Variant, ByVal hora As String, ByVal tipo As String, _
+                                ByVal responsavel As String, ByVal observacoes As String, _
+                                ByVal dataRealizada As Variant, ByVal resultado As String, ByVal relato As String, _
+                                ByVal motivo As String) As String
+    Dim cn As Object, d As Variant, idOpo As Long, sitAnt As String, msg As String, n As Long, agora As Date
+    Dim opObs As String, opVersao As Long, texto As String, pend As Variant
+    situacao = UCase$(Trim$(situacao))
+    If InStr(1, "|PENDENTE|REALIZADA|CANCELADA|", "|" & situacao & "|", vbBinaryCompare) = 0 Then
+        AtualizarVisita = "situacao deve ser PENDENTE, REALIZADA ou CANCELADA."
+        Exit Function
+    End If
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    d = modDB.ConsultarEm(cn, "SELECT id_oportunidade, situacao, versao FROM visitas WHERE id=?", _
+                          Array(modDB.P(modDB.adInteger, idVisita)))
+    If IsEmpty(d) Then
+        modDB.Desfazer cn
+        AtualizarVisita = "Visita nao encontrada."
+        Exit Function
+    End If
+    idOpo = CLng(d(1, 1)): sitAnt = CStr(d(1, 2))
+    If CLng(d(1, 3)) <> versaoLida Then
+        modDB.Desfazer cn
+        AtualizarVisita = "Conflito de versao: a visita foi alterada depois da leitura. Nada foi gravado; leia de novo."
+        Exit Function
+    End If
+    If situacao = "REALIZADA" Then msg = RealizadaValida(relato, dataRealizada)
+    If msg = "" And situacao = "CANCELADA" Then msg = CanceladaValida(motivo)
+    If msg = "" And situacao = "PENDENTE" And sitAnt <> "PENDENTE" Then
+        pend = modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE' AND id<>?", 0, _
+                                      Array(modDB.P(modDB.adInteger, idOpo), modDB.P(modDB.adInteger, idVisita)))
+        msg = SegundaPendente(CLng(pend))
+    End If
+    If msg <> "" Then
+        modDB.Desfazer cn
+        AtualizarVisita = msg
+        Exit Function
+    End If
+    agora = Now
+    n = modDB.ExecutarEm(cn, "UPDATE visitas SET situacao=?, data_agendada=?, hora_agendada=?, responsavel=?, tipo=?, " & _
+                             "observacoes=?, data_realizada=?, resultado=?, relato=?, motivo_cancelamento=?, " & _
+                             "versao=versao+1, alterado_em=?, alterado_por=? WHERE id=? AND versao=?", _
+                         Array(modDB.P(modDB.adVarWChar, situacao), modDB.P(modDB.adDate, dataAgendada), _
+                               modDB.P(modDB.adVarWChar, hora), modDB.P(modDB.adVarWChar, responsavel), _
+                               modDB.P(modDB.adVarWChar, tipo), modDB.P(modDB.adLongVarWChar, observacoes), _
+                               modDB.P(modDB.adDate, dataRealizada), modDB.P(modDB.adVarWChar, resultado), _
+                               modDB.P(modDB.adLongVarWChar, relato), modDB.P(modDB.adVarWChar, motivo), _
+                               modDB.P(modDB.adDate, agora), modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual()), _
+                               modDB.P(modDB.adInteger, idVisita), modDB.P(modDB.adInteger, versaoLida)))
+    If n <> 1 Then
+        modDB.Desfazer cn
+        AtualizarVisita = "Conflito de versao: nada foi gravado; leia de novo."
+        Exit Function
+    End If
+    modDB.LogEm cn, "visitas", idVisita, "situacao", sitAnt, situacao, "ALTERAR"
+    If situacao = "REALIZADA" And sitAnt <> "REALIZADA" Then
+        d = modDB.ConsultarEm(cn, "SELECT observacoes, versao FROM oportunidades WHERE id=?", _
+                              Array(modDB.P(modDB.adInteger, idOpo)))
+        opObs = modDB.Nz(d(1, 1)): opVersao = CLng(d(1, 2))
+        texto = TextoHistorico(CDate(dataRealizada), tipo, resultado, relato)
+        If opObs <> "" Then opObs = opObs & vbCrLf
+        opObs = opObs & "[" & Format$(Date, "dd/mm/yyyy") & " " & modConfig.UsuarioAtual() & "] " & texto
+        n = modDB.ExecutarEm(cn, "UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=versao+1, " & _
+                                 "alterado_em=?, alterado_por=? WHERE id=? AND versao=?", _
+                             Array(modDB.P(modDB.adLongVarWChar, opObs), modDB.P(modDB.adDate, CDate(dataRealizada)), _
+                                   modDB.P(modDB.adDate, agora), modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual()), _
+                                   modDB.P(modDB.adInteger, idOpo), modDB.P(modDB.adInteger, opVersao)))
+        If n <> 1 Then
+            modDB.Desfazer cn
+            AtualizarVisita = "Conflito de versao no atendimento: nada foi gravado; leia de novo."
+            Exit Function
+        End If
+        modDB.LogEm cn, "oportunidades", idOpo, "ultima_interacao", "", CStr(dataRealizada), "ALTERAR"
+    End If
+    modDB.Confirmar cn
+    AtualizarVisita = ""
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    AtualizarVisita = "Nao gravou: " & Err.Description
+End Function

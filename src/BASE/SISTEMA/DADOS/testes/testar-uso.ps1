@@ -293,6 +293,34 @@ End Function
     [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogF)
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
 
+    # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original
+    $tv = "'" + $n + "'!"
+    $idOpV = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT TOP 1 id FROM oportunidades WHERE etapa='Negociação' ORDER BY id", 0)
+    $opAntV = $xl.Run($tv + 'modDB.Consultar', "SELECT observacoes, ultima_interacao, versao FROM oportunidades WHERE id=" + $idOpV)
+    $maxLogV2 = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rv1 = [string]$xl.Run($tv + 'modVisita.CriarVisita', $idOpV, [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita')
+    Conferir 'visita: criar pendente grava (vazio = ok)' ($rv1 -eq '') $rv1
+    $rv2 = [string]$xl.Run($tv + 'modVisita.CriarVisita', $idOpV, [datetime]'2026-10-21', '10:00', 'Visita', 'Vendedor A', 'teste uso visita')
+    Conferir 'visita C13: segunda pendente no mesmo atendimento e recusada' ($rv2 -match 'C13') $rv2
+    $idVis = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT MAX(id) FROM visitas WHERE id_oportunidade=" + $idOpV, 0)
+    $ra = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 9, 'CANCELADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', $null, '', '', 'x')
+    Conferir 'visita: versao lida antiga e recusada (conflito)' ($ra -match 'Conflito') $ra
+    $rc = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 1, 'CANCELADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', $null, '', '', '')
+    Conferir 'visita C11: cancelar sem motivo e recusado' ($rc -match 'C11') $rc
+    $rr = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 1, 'REALIZADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', [datetime]'2026-10-20 09:30', 'Positivo', 'Visitou no front', '')
+    Conferir 'visita: realizar grava (vazio = ok)' ($rr -eq '') $rr
+    $histV = [string]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT observacoes FROM oportunidades WHERE id=" + $idOpV, '')
+    Conferir 'visita V6: histórico do atendimento ganhou VISITA 20/10/2026 09:30' ($histV -match 'VISITA 20/10/2026 09:30') $histV
+    $ultV = $xl.Run($tv + 'modDB.ConsultarValor', "SELECT ultima_interacao FROM oportunidades WHERE id=" + $idOpV, $null)
+    Conferir 'visita V7: última interação é a data realizada (20/10/2026 09:30)' (([datetime]$ultV).ToString('yyyy-MM-dd HH:mm') -eq '2026-10-20 09:30') ([string]$ultV)
+    # volta: visita do teste, histórico e última interação do atendimento, e o log criado pelo teste
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM visitas WHERE id_oportunidade=" + $idOpV)
+    $obsAnt = $opAntV.GetValue(1, 1); $ultAnt = $opAntV.GetValue(1, 2); $verAnt = [int]$opAntV.GetValue(1, 3)
+    # parametros no mesmo formato do modDB.P (tipo ADO, valor): nulo continua nulo
+    $pRest = [object[]]@( [object[]]@(203, $obsAnt), [object[]]@(7, $ultAnt), [object[]]@(3, $verAnt), [object[]]@(3, $idOpV) )
+    [void]$xl.Run($tv + 'modDB.Executar', "UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?", $pRest)
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogV2)
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"
