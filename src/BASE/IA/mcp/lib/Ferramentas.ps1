@@ -1788,6 +1788,105 @@ function Invoke-AlterarSituacaoPlanejamento($a) {
     }
 }
 
+# ---------------------------------------------------------------- candidatos e geração de visitas (Fase 4.4 e 4.9b)
+
+# Municípios por UF|nome_busca, para achar a cidade de cada atendimento.
+function Get-MapaMunicipios($ctx) {
+    $mapa = @{}
+    foreach ($m in $ctx.Consultar('SELECT cod_ibge, nome_busca, uf, lat, lon FROM municipios', @())) {
+        $mapa[([string]$m.uf + '|' + [string]$m.nome_busca)] = $m
+    }
+    return $mapa
+}
+
+# Candidatos do planejamento: atendimentos em aberto a até raio_km da cidade-base.
+# Ordem: qualificação (ordem da lista), dias parado (mais tempo primeiro), km (menor primeiro).
+function Get-CandidatosPlanejamento($ctx, $pl) {
+    $base = $ctx.Consultar('SELECT cod_ibge, lat, lon FROM municipios WHERE cod_ibge=?', @((P 'inteiro' ([int]$pl.cod_municipio_base))))
+    if ($base.Count -eq 0) { throw 'Cidade-base do planejamento não está em municipios.' }
+    $mapa = Get-MapaMunicipios $ctx
+    $ordens = @{}
+    foreach ($q in $ctx.Consultar("SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'", @())) { $ordens[[string]$q.valor] = [int]$q.ordem }
+    $candidatos = New-Object System.Collections.ArrayList
+    $naoReconhecidas = New-Object System.Collections.ArrayList
+    $abertos = $ctx.Consultar('SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao, ct.nome AS contato, ct.telefone AS contato_telefone FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id', @())
+    foreach ($o in $abertos) {
+        if ((Get-PapelEtapa ([string]$o.etapa)).encerra) { continue }
+        $chave = ([string]$o.uf + '|' + (ConvertTo-NomeBusca ([string]$o.cidade)))
+        if (-not $mapa.ContainsKey($chave)) {
+            [void]$naoReconhecidas.Add([ordered]@{ codigo = $o.codigo; empresa = $o.empresa; cidade = $o.cidade; uf = $o.uf })
+            continue
+        }
+        $m = $mapa[$chave]
+        $km = Get-DistanciaKm ([double]$base[0].lat) ([double]$base[0].lon) ([double]$m.lat) ([double]$m.lon)
+        if ($km -gt [double]$pl.raio_km) { continue }
+        $qual = [string]$o.qualificacao
+        $ordemQ = 999; if ($ordens.ContainsKey($qual)) { $ordemQ = $ordens[$qual] }
+        $pendentes = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$o.id))))
+        [void]$candidatos.Add([pscustomobject]@{
+            codigo = [string]$o.codigo; empresa = [string]$o.empresa; cidade = [string]$o.cidade; uf = [string]$o.uf
+            qualificacao = $qual; km = [math]::Round($km, 1); dias_parado = (Get-DiasParado $o.ultima_interacao)
+            contato = [string]$o.contato; contato_telefone = [string]$o.contato_telefone
+            visita_pendente = ($pendentes -gt 0); ordem_qualificacao = $ordemQ })
+    }
+    $ordenados = @($candidatos | Sort-Object -Property @{ e = 'ordem_qualificacao'; Ascending = $true }, @{ e = { if ($null -eq $_.dias_parado) { 0 } else { $_.dias_parado } }; Descending = $true }, @{ e = 'km'; Ascending = $true })
+    return [pscustomobject]@{ candidatos = $ordenados; nao_reconhecidas = @($naoReconhecidas) }
+}
+
+function Invoke-ListarCandidatos($a) {
+    $id = [int]$a.id_planejamento
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        $r = Get-CandidatosPlanejamento $ctx $pl
+        return [ordered]@{ id = $id; codigo = $pl.codigo; raio_km = $pl.raio_km; quantidade = $r.candidatos.Count
+            candidatos = @($r.candidatos); nao_reconhecidas = $r.nao_reconhecidas }
+    }
+}
+
+# Gera uma visita PENDENTE por atendimento no planejamento. simular (padrão true) só confere.
+# Gravação tudo ou nada: se um atendimento é recusado (C08, C13), nada é gravado.
+function Invoke-GerarVisitas($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id_planejamento
+    $codigos = @($a.codigos)
+    if ($codigos.Count -lt 1 -or $codigos.Count -gt 100) { throw 'Informe de 1 a 100 atendimentos (codigos).' }
+    $simular = $true; if (Test-TemArg $a 'simular') { $simular = [bool]$a.simular }
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        if ([string]$pl.situacao -ne 'ABERTO') { throw 'Planejamento encerrado: reabra antes de gerar visitas.' }
+        $linhas = @()
+        $gravadas = @()
+        foreach ($codigo in $codigos) {
+            $msg = $null; $op = $null
+            try { $op = Get-AtendimentoNaTransacao $ctx ([string]$codigo) } catch { $msg = $_.Exception.Message }
+            if ($null -eq $msg) {
+                $msg = Test-VisitaPodeCriar ([bool](Get-PapelEtapa ([string]$op.etapa)).encerra)
+            }
+            if ($null -eq $msg) {
+                $pend = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$op.id))))
+                $msg = Test-SegundaPendente $pend
+            }
+            $linhas += [pscustomobject]@{ codigo = [string]$codigo; ok = ($null -eq $msg); mensagem = [string]$msg }
+            if ($null -eq $msg -and -not $simular) {
+                $agora = Get-Date
+                [void]$ctx.Executar('INSERT INTO visitas (id_oportunidade, id_planejamento, situacao, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,1,?,?,?)', @(
+                    (P 'inteiro' ([int]$op.id)), (P 'inteiro' $id), (P 'texto' 'PENDENTE'), (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog)))
+                $nova = [int]$ctx.Valor('SELECT @@IDENTITY', @())
+                $ctx.Log('visitas', $nova, 'situacao', '', 'PENDENTE', 'INSERIR')
+                $gravadas += $nova
+            }
+        }
+        $recusadas = @($linhas | Where-Object { -not $_.ok })
+        if (-not $simular -and $recusadas.Count -gt 0) {
+            throw ('Nada gravado: ' + $recusadas.Count + ' atendimento(s) recusado(s) (ex.: ' + $recusadas[0].codigo + ': ' + $recusadas[0].mensagem + ').')
+        }
+        return [ordered]@{ simulado = $simular; planejamento = $pl.codigo; total = $linhas.Count
+            ok = @($linhas | Where-Object { $_.ok }).Count; recusadas = $recusadas.Count; linhas = $linhas; visitas_criadas = $gravadas }
+    }
+}
+
 function Invoke-ListarMetas($a) {
     $w = ''; $p = @()
     if (Test-TemArg $a 'ano') { $w = ' WHERE ano=?'; $p = @((P 'inteiro' ([int]$a.ano))) }
@@ -2058,6 +2157,21 @@ $script:Ferramentas = @(
             versao = [ordered]@{ type = 'integer' }
             situacao = [ordered]@{ type = 'string'; enum = @('ABERTO', 'ENCERRADO') }
             cancelar_pendentes = [ordered]@{ type = 'boolean' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'listar_candidatos'; title = 'Candidatos do planejamento'; handler = 'Invoke-ListarCandidatos'; annotations = $script:SoLeitura
+        description = 'Atendimentos em aberto a até raio_km da cidade-base do planejamento, na ordem de visita (qualificação, dias parado, km). Cidades não reconhecidas vêm à parte.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id_planejamento'); properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' } } }
+    },
+    [ordered]@{
+        name = 'gerar_visitas'; title = 'Gerar visitas do planejamento'; handler = 'Invoke-GerarVisitas'; annotations = $script:Gravacao
+        description = 'Gera uma visita PENDENTE por atendimento escolhido, no planejamento. simular=true (padrão) só confere e não grava. Com simular=false, se um atendimento for recusado (encerrado ou já com visita pendente), nada é gravado. Até 100 atendimentos.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id_planejamento', 'codigos'); properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' }
+            codigos = [ordered]@{ type = 'array'; minItems = 1; maxItems = 100; items = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' } }
+            simular = [ordered]@{ type = 'boolean' }
             autor = $script:PropAutor } }
     },
     [ordered]@{

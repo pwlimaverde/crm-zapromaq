@@ -261,6 +261,35 @@ try {
     foreach ($i in $planT9) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT9))
 }
+Write-Host '--- candidatos e geração de visitas (Fase 4.4 e 4.9b): no banco de demonstração'
+$cidCwb = [int](Invoke-Valor "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'" @())
+$maxLogT10 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$planT10 = @(); $visT10 = @()
+try {
+    $pc = Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'TESTE CANDIDATOS'; cod_municipio = $cidCwb; raio_km = 500; data_inicio = '2026-10-20'; data_fim = '2026-10-30' })
+    $planT10 += $pc.id
+    $lc = Invoke-ListarCandidatos ([pscustomobject]@{ id_planejamento = $pc.id })
+    Conferir 'candidatos: os de Curitiba estão a 0 km' (@($lc.candidatos | Where-Object { $_.cidade -eq 'CURITIBA' } | Where-Object { $_.km -eq 0 }).Count -ge 1) ([string]$lc.quantidade)
+    Conferir 'candidatos: fora do raio não entram (todos com km <= raio)' (@($lc.candidatos | Where-Object { $_.km -gt 500 }).Count -eq 0) ''
+    $ordQ = @($lc.candidatos | ForEach-Object { [int]$_.ordem_qualificacao })
+    $ordemOk = $true; for ($i = 1; $i -lt $ordQ.Count; $i++) { if ($ordQ[$i] -lt $ordQ[$i - 1]) { $ordemOk = $false } }
+    Conferir 'candidatos: ordem de visita (qualificação não decresce)' ($ordQ.Count -ge 2 -and $ordemOk) ($ordQ -join ',')
+    $alvo = [string]($lc.candidatos | Where-Object { -not $_.visita_pendente } | Select-Object -First 1).codigo
+    $sim = Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $true })
+    Conferir 'gerar_visitas simular confere sem gravar' ($sim.simulado -eq $true -and $sim.ok -eq 1 -and $sim.visitas_criadas.Count -eq 0) ($sim | ConvertTo-Json -Compress -Depth 4)
+    $cntAntes = [int](Invoke-Valor 'SELECT COUNT(*) FROM visitas' @())
+    $ger = Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $false })
+    $visT10 += @($ger.visitas_criadas)
+    Conferir 'gerar_visitas grava uma visita PENDENTE no planejamento' ($ger.visitas_criadas.Count -eq 1) ($ger | ConvertTo-Json -Compress -Depth 4)
+    $encerrado = [string](Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Pedido Fechado' ORDER BY id")[0].codigo
+    Conferir 'gerar_visitas: atendimento encerrado é recusado e nada é gravado (C08)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo, $encerrado); simular = $false }) }) -match 'Nada gravado') ''
+    Conferir 'gerar_visitas: a recusa desfez tudo (mesma quantidade de visitas)' ([int](Invoke-Valor 'SELECT COUNT(*) FROM visitas' @()) -eq ($cntAntes + 1)) ''
+    Conferir 'gerar_visitas: segunda pendente no mesmo atendimento é recusada (C13)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $false }) }) -match 'Nada gravado') ''
+} finally {
+    foreach ($i in $visT10) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' ([int]$i))) }
+    foreach ($i in $planT10) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT10))
+}
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)
