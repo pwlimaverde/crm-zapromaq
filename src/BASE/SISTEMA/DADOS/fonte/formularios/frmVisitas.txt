@@ -1,0 +1,233 @@
+'==========================================================
+' CODIGO DO USERFORM  frmVisitas
+'
+' Visitas de um atendimento (botao Visitas (n) da ficha). A tela
+' so pede e mostra: as regras e as gravacoes estao em modVisita
+' (C08 a C13, V6 e V7).
+'
+' Lista a esquerda (pendentes primeiro); ficha da visita a direita.
+' Para realizar ou cancelar: escolha a situacao, preencha a data e o
+' relato (realizada) ou o motivo (cancelada) no campo de baixo.
+'
+' Visual: botoes sao clsBotao (Labels) e a grade e a clsGrade do
+' grdVisitas, criados pelo build a partir de
+' layout\formularios\frmVisitas.json.
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+Private mGrade As clsGrade
+Private mOpo As Long          ' atendimento (oportunidades.id)
+Private mVisitas As Variant   ' linhas da grade: id, situacao, data, hora, tipo, resultado, versao
+Private mVisAtual As Long     ' id da visita na ficha (0 = nova)
+Private mVersaoAtual As Long
+
+'----------------------------------------------------------
+' Abre as visitas do atendimento. Chamado por frmCRM (cmdVisitas).
+'----------------------------------------------------------
+Public Sub Abrir(ByVal idOportunidade As Long)
+    Dim d As Variant
+    mOpo = idOportunidade
+    d = modDB.Consultar("SELECT o.codigo, c.empresa FROM oportunidades o LEFT JOIN clientes c ON o.id_cliente = c.id " & _
+                        "WHERE o.id=?", Array(modDB.P(modDB.adInteger, mOpo)))
+    If Not IsEmpty(d) Then
+        lblAtend.Caption = "Atendimento " & modDB.Nz(d(1, 1)) & "  -  " & modDB.Nz(d(1, 2))
+    End If
+    Carregar 0
+    Me.Show
+End Sub
+
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Set mGrade = mUI.Grade("grdVisitas")
+    Me.Caption = "CRM Zapromaq  -  visitas do atendimento"
+    lblTitulo.Caption = "Visitas do atendimento"
+    mGrade.ColumnWidths = "92;80;52;110;136"
+    mGrade.Cabecalho Array("Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Data", "Hora", "Tipo", "Resultado")
+    mGrade.Clear
+    cboSituacao.AddItem "PENDENTE"
+    cboSituacao.AddItem "REALIZADA"
+    cboSituacao.AddItem "CANCELADA"
+    PreencherCombo cboTipo, "TipoVisita"
+    PreencherCombo cboResp, "Responsavel"
+    PreencherCombo cboResultado, "ResultadoVisita"
+    Repintar
+    modTela.Encaixar Me
+End Sub
+
+Private Sub PreencherCombo(ByVal cbo As Object, ByVal tipo As String)
+    Dim arr As Variant, i As Long
+    arr = modCRM.ObterLista(tipo)
+    If IsEmpty(arr) Then Exit Sub
+    For i = LBound(arr, 1) To UBound(arr, 1)
+        cbo.AddItem CStr(arr(i, 1))
+    Next i
+End Sub
+
+Private Sub Repintar()
+    If Not mUI Is Nothing Then mUI.Pintar
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsGrade/clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdNovo":   cmdNovo_Click
+        Case "cmdSalvar": cmdSalvar_Click
+        Case "cmdFechar": cmdFechar_Click
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+    If mGrade.ListIndex < 0 Then Exit Sub
+    Mostrar mGrade.ListIndex
+    Repintar
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+' Carrega a grade (pendentes primeiro) e deixa a posicao selecionada.
+'----------------------------------------------------------
+Private Sub Carregar(ByVal posicao As Long)
+    Dim n As Long, m() As Variant, i As Long, pend As Long
+    mVisitas = modDB.Consultar("SELECT id, situacao, data_agendada, hora_agendada, tipo, resultado, versao " & _
+                               "FROM visitas WHERE id_oportunidade=? ORDER BY IIf(situacao='PENDENTE', 0, 1), data_agendada, id", _
+                               Array(modDB.P(modDB.adInteger, mOpo)))
+    If IsEmpty(mVisitas) Then n = 0 Else n = UBound(mVisitas, 1)
+    ReDim m(1 To n, 1 To 5)
+    For i = 1 To n
+        m(i, 1) = CStr(mVisitas(i, 2))
+        m(i, 2) = IIf(IsNull(mVisitas(i, 3)), "", Format$(mVisitas(i, 3), "dd/mm/yyyy"))
+        m(i, 3) = modDB.Nz(mVisitas(i, 4))
+        m(i, 4) = modDB.Nz(mVisitas(i, 5))
+        m(i, 5) = modDB.Nz(mVisitas(i, 6))
+        If CStr(mVisitas(i, 2)) = "PENDENTE" Then pend = pend + 1
+    Next i
+    mGrade.Carregar m
+    lblResumo.Caption = n & " visita(s)  -  " & pend & " pendente(s)"
+    If n = 0 Then
+        Novo
+    Else
+        If posicao < 0 Then posicao = 0
+        If posicao > n - 1 Then posicao = n - 1
+        mGrade.ListIndex = posicao
+        Mostrar posicao
+    End If
+    Repintar
+End Sub
+
+' Preenche a ficha com a visita da posicao (0-based) da grade.
+Private Sub Mostrar(ByVal posicao As Long)
+    Dim d As Variant, i As Long
+    i = posicao + 1
+    d = modDB.Consultar("SELECT resultado, responsavel, observacoes, data_realizada, relato, motivo_cancelamento " & _
+                        "FROM visitas WHERE id=?", Array(modDB.P(modDB.adInteger, CLng(mVisitas(i, 1)))))
+    If IsEmpty(d) Then Exit Sub
+    mVisAtual = CLng(mVisitas(i, 1))
+    mVersaoAtual = CLng(mVisitas(i, 7))
+    cboSituacao.Enabled = True
+    cboSituacao.Text = CStr(mVisitas(i, 2))
+    txtDataAg.Text = Iso(mVisitas(i, 3), False)
+    txtHora.Text = modDB.Nz(mVisitas(i, 4))
+    cboTipo.Text = modDB.Nz(mVisitas(i, 5))
+    cboResultado.Text = modDB.Nz(d(1, 1))
+    cboResp.Text = modDB.Nz(d(1, 2))
+    txtObs.Text = modDB.Nz(d(1, 3))
+    txtDataReal.Text = Iso(d(1, 4), True)
+    If CStr(mVisitas(i, 2)) = "CANCELADA" Then
+        txtRelato.Text = modDB.Nz(d(1, 6))
+    Else
+        txtRelato.Text = modDB.Nz(d(1, 5))
+    End If
+    lblStatus.Caption = "Visita " & mVisAtual & " (versao " & mVersaoAtual & ")."
+End Sub
+
+' Data como texto da ficha: AAAA-MM-DD, ou com hora quando ela importa.
+Private Function Iso(ByVal v As Variant, ByVal comHora As Boolean) As String
+    If IsNull(v) Then Exit Function
+    If comHora Then
+        Iso = Format$(v, "yyyy-mm-dd hh:nn")
+    Else
+        Iso = Format$(v, "yyyy-mm-dd")
+    End If
+End Function
+
+' Texto AAAA-MM-DD ou AAAA-MM-DD HH:mm para data. Vazio = Null. Erro = mensagem em erroTexto.
+Private Function LerData(ByVal txt As String, ByVal comHora As Boolean, ByRef erroTexto As String) As Variant
+    Dim s As String, partes As Variant, hora As Variant
+    s = Trim$(txt)
+    If s = "" Then LerData = Null: Exit Function
+    On Error GoTo Ruim
+    partes = Split(s, " ")
+    Dim dt As Variant
+    dt = Split(partes(0), "-")
+    If UBound(dt) <> 2 Then GoTo Ruim
+    If UBound(partes) >= 1 Then
+        hora = Split(partes(1), ":")
+        LerData = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2))) + TimeSerial(CLng(hora(0)), CLng(hora(1)), 0)
+    Else
+        If comHora Then GoTo Ruim
+        LerData = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2)))
+    End If
+    Exit Function
+Ruim:
+    erroTexto = "Data invalida: '" & txt & "'. Use AAAA-MM-DD" & IIf(comHora, " HH:mm.", ".")
+    LerData = Null
+End Function
+
+'----------------------------------------------------------
+Private Sub Novo()
+    mVisAtual = 0
+    mVersaoAtual = 0
+    cboSituacao.Text = "PENDENTE"
+    cboSituacao.Enabled = False
+    txtDataAg.Text = ""
+    txtHora.Text = ""
+    cboTipo.Text = ""
+    cboResp.Text = ""
+    cboResultado.Text = ""
+    txtObs.Text = ""
+    txtDataReal.Text = ""
+    txtRelato.Text = ""
+    lblStatus.Caption = "Nova visita pendente. Preencha a data e salve."
+End Sub
+
+Private Sub cmdNovo_Click()
+    Novo
+    Repintar
+End Sub
+
+Private Sub cmdSalvar_Click()
+    Dim sit As String, dataAg As Variant, dataReal As Variant, erro As String, msg As String
+    Dim relato As String, motivo As String, ok As Boolean
+    sit = UCase$(Trim$(cboSituacao.Text))
+    If sit = "" Then sit = "PENDENTE"
+    dataAg = LerData(txtDataAg.Text, False, erro)
+    If erro = "" Then dataReal = LerData(txtDataReal.Text, True, erro)
+    If erro <> "" Then
+        MsgBox erro, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    If sit = "CANCELADA" Then motivo = txtRelato.Text Else relato = txtRelato.Text
+    If mVisAtual = 0 Then
+        msg = modVisita.CriarVisita(mOpo, dataAg, txtHora.Text, cboTipo.Text, cboResp.Text, txtObs.Text)
+    Else
+        msg = modVisita.AtualizarVisita(mVisAtual, mVersaoAtual, sit, dataAg, txtHora.Text, cboTipo.Text, _
+                                        cboResp.Text, txtObs.Text, dataReal, cboResultado.Text, relato, motivo)
+    End If
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    lblStatus.Caption = "Visita gravada."
+    Carregar 0
+End Sub
+
+Private Sub cmdFechar_Click()
+    Unload Me
+End Sub

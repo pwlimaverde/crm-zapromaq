@@ -774,6 +774,7 @@ Public Sub UI_Acao(ByVal nome As String)
         Case "cmdProximo":     cmdProximo_Click
         Case "cmdVinculo":     cmdVinculo_Click
         Case "cmdAtendimento": cmdAtendimento_Click
+        Case "cmdVisitas":     cmdVisitas_Click
         Case "cmdRel1":        cmdRel1_Click
         Case "cmdRel2":        cmdRel2_Click
         Case "cmdStatus":      cmdStatus_Click
@@ -970,6 +971,29 @@ End Sub
 ' e por ele que o pre-cliente vira cliente e que se abre o
 ' contato e o atendimento sem digitar codigo nenhum.
 '----------------------------------------------------------
+' Botao Visitas (n): so no atendimento. Mostra quantas visitas ele tem.
+Private Sub AjustarBotaoVisitas()
+    If mTabela = "oportunidades" And mID > 0 Then
+        cmdVisitas.Caption = "Visitas (" & modVisita.ContarVisitas(mID) & ")"
+        cmdVisitas.Enabled = True
+    Else
+        cmdVisitas.Caption = "Visitas (n)"
+        cmdVisitas.Enabled = False
+    End If
+End Sub
+
+' Abre a tela de visitas do atendimento; ao fechar, o contador volta a contar.
+Private Sub cmdVisitas_Click()
+    If mID = 0 Or mTabela <> "oportunidades" Then Exit Sub
+    If mEditando Then
+        MsgBox "Salve ou cancele a edicao antes.", vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    Dim f As New frmVisitas
+    f.Abrir mID
+    AjustarBotaoVisitas
+End Sub
+
 Private Sub AjustarBotaoAcao()
     Select Case mTabela
         Case "clientes"
@@ -990,6 +1014,7 @@ Private Sub AjustarBotaoAcao()
             cmdAtendimento.Caption = "Atend."
             cmdAtendimento.Enabled = False
     End Select
+    AjustarBotaoVisitas
     If cmdAtendimento.Caption = "Promover" Then
         IconeBotao "cmdAtendimento", modTema.ICO_PROMOVER
     ElseIf mTabela = "clientes" Then

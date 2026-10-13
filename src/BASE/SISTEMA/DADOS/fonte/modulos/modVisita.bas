@@ -182,3 +182,9 @@ Falha:
     modDB.Desfazer cn
     AtualizarVisita = "Nao gravou: " & Err.Description
 End Function
+
+' Quantas visitas o atendimento tem, em qualquer situacao (V9): o rotulo Visitas (n).
+Public Function ContarVisitas(ByVal idOportunidade As Long) As Long
+    ContarVisitas = CLng(modDB.ConsultarValor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=?", 0, _
+                                              Array(modDB.P(modDB.adInteger, idOportunidade))))
+End Function

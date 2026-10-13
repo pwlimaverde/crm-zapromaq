@@ -38,8 +38,8 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 3.1 (C08–C13 nos dois lados; V1–V9 na spec) Regras V2–V5, V8 e texto V6 (C08–C12) nos dois lados — `Confere` e `testar-mcp`
 - [x] 3.2a Gravação no conector: `criar_visita`, `atualizar_visita`, V6/V7 na transação — `testar-mcp`
 - [x] 3.2b Gravação no front (`modVisita.bas`) — `testar-uso`
-- [ ] 3.3a Botão `Visitas (n)` na ficha do atendimento — `verificar.py` (layout)
-- [ ] 3.3b Ficha da visita (`frmCRM`, tabela `visitas`) e feed de `visitas` — `testar-uso` + prévia; 🖥B
+- [x] 3.3a Botão `Visitas (n)` na ficha do atendimento — `verificar.py` e prévia (🖥 pendente)
+- [~] 3.3b Tela de visitas (`frmVisitas`: lista e ficha) feita; falta o feed de `visitas` que atualiza a tela aberta — `testar-uso` + prévia; 🖥B
 - [ ] 3.4 Ferramentas `listar_visitas`, `alterar_situacao_visita`, resumo em `obter_atendimento` — `testar-mcp`
 - [ ] Checkpoint B: 🖥B acima; banco exclusivo na janela (A3)
 

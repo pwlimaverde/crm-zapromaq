@@ -426,5 +426,59 @@
         "0"
       ]
     ]
+  },
+  "visitas": {
+    "colunas": [
+      {
+        "titulo": "Situação",
+        "largura": 92
+      },
+      {
+        "titulo": "Data",
+        "largura": 80
+      },
+      {
+        "titulo": "Hora",
+        "largura": 52
+      },
+      {
+        "titulo": "Tipo",
+        "largura": 110
+      },
+      {
+        "titulo": "Resultado",
+        "largura": 136
+      }
+    ],
+    "linhas": [
+      [
+        "A AGENDAR",
+        "",
+        "",
+        "Visita",
+        ""
+      ],
+      [
+        "AGENDADA",
+        "20/10/2026",
+        "09:00",
+        "Visita",
+        ""
+      ],
+      [
+        "REALIZADA",
+        "12/10/2026",
+        "15:30",
+        "Retorno",
+        "Positivo"
+      ],
+      [
+        "CANCELADA",
+        "05/10/2026",
+        "10:00",
+        "Demonstração",
+        "Sem contato"
+      ]
+    ]
   }
 }
