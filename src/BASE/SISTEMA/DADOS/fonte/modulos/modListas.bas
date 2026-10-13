@@ -246,3 +246,103 @@ Falha:
     modDB.Desfazer cn
     DefinirPapel = "Nao gravou: " & Err.Description
 End Function
+
+' Lista de tipos para o combo do gerenciamento.
+Public Function TiposDeLista() As Variant
+    TiposDeLista = modDB.Consultar("SELECT DISTINCT tipo FROM listas ORDER BY tipo")
+End Function
+
+' Valores de uma lista na ordem de exibicao (inativos tambem), com o papel.
+' Colunas: id, valor, ordem, ativo, encerra, resultado, quadro, exige_familia.
+Public Function LinhasDaLista(ByVal tipo As String) As Variant
+    LinhasDaLista = modDB.Consultar("SELECT id, valor, ordem, ativo, encerra, resultado, quadro, exige_familia " & _
+                                    "FROM listas WHERE tipo=? ORDER BY ordem, valor", _
+                                    Array(modDB.P(modDB.adVarWChar, tipo)))
+End Function
+
+' Quantos registros usam o valor (mesmo mapa de Get-ColunasDaLista do build).
+Public Function UsoDoValor(ByVal tipo As String, ByVal valor As String) As Long
+    Dim alvos As String, a As Variant, partes As Variant
+    Select Case tipo
+        Case "UF": alvos = "clientes.uf"
+        Case "Segmento": alvos = "clientes.segmento"
+        Case "Qualificacao": alvos = "clientes.qualificacao"
+        Case "Responsavel": alvos = "clientes.responsavel|oportunidades.responsavel"
+        Case "Etapa": alvos = "oportunidades.etapa"
+        Case "Familia": alvos = "oportunidades.familia"
+        Case "Categoria": alvos = "oportunidades.categoria"
+        Case "Origem": alvos = "oportunidades.origem"
+        Case "Prioridade": alvos = "oportunidades.prioridade"
+        Case "Motivo": alvos = "oportunidades.motivo_desfecho"
+    End Select
+    If alvos = "" Then Exit Function
+    For Each a In Split(alvos, "|")
+        partes = Split(a, ".")
+        UsoDoValor = UsoDoValor + modDB.ConsultarValor("SELECT COUNT(*) FROM " & partes(0) & " WHERE " & partes(1) & "=?", 0, _
+                                                       Array(modDB.P(modDB.adVarWChar, valor)))
+    Next a
+End Function
+
+' Sobe ou desce um valor na ordem de exibicao. Caso comum (ordens diferentes): troca
+' a ordem so entre as duas linhas. Empate: renumera a lista 1..n. Uma transacao; cada
+' ordem alterada vai ao log.
+Public Function TrocarOrdem(ByVal tipo As String, ByVal valor As String, ByVal subir As Boolean) As String
+    Dim cn As Object, d As Variant, i As Long, k As Long, n As Long, pos As Long, viz As Long, n2 As Long
+    Dim ids() As Long, antig() As Long, nomes() As String, troca As Long, trocaS As String
+    Dim oPos As Long, oViz As Long
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    d = modDB.ConsultarEm(cn, "SELECT id, valor, ordem FROM listas WHERE tipo=? ORDER BY ordem, valor", _
+                          Array(modDB.P(modDB.adVarWChar, tipo)))
+    If IsEmpty(d) Then modDB.Desfazer cn: TrocarOrdem = "Lista " & tipo & " vazia.": Exit Function
+    n = UBound(d, 1)
+    ReDim ids(1 To n): ReDim antig(1 To n): ReDim nomes(1 To n)
+    For i = 1 To n
+        ids(i) = CLng(d(i, 1)): nomes(i) = CStr(d(i, 2)): antig(i) = CLng(d(i, 3))
+        If modValidacao.ChaveLista(nomes(i)) = modValidacao.ChaveLista(valor) Then pos = i
+    Next i
+    If pos = 0 Then modDB.Desfazer cn: TrocarOrdem = "'" & valor & "' nao existe na lista " & tipo & ".": Exit Function
+    If subir Then viz = pos - 1 Else viz = pos + 1
+    If viz < 1 Or viz > n Then
+        modDB.Desfazer cn
+        If subir Then TrocarOrdem = "Ja esta no topo da lista." Else TrocarOrdem = "Ja esta no fim da lista."
+        Exit Function
+    End If
+    oPos = antig(pos): oViz = antig(viz)
+    If oPos <> oViz Then
+        n2 = modDB.ExecutarEm(cn, "UPDATE listas SET ordem=? WHERE id=? AND ordem=?", _
+                              Array(modDB.P(modDB.adInteger, oViz), modDB.P(modDB.adInteger, ids(pos)), modDB.P(modDB.adInteger, oPos)))
+        If n2 = 1 Then n2 = modDB.ExecutarEm(cn, "UPDATE listas SET ordem=? WHERE id=? AND ordem=?", _
+                              Array(modDB.P(modDB.adInteger, oPos), modDB.P(modDB.adInteger, ids(viz)), modDB.P(modDB.adInteger, oViz)))
+        If n2 <> 1 Then
+            modDB.Desfazer cn
+            TrocarOrdem = "Conflito: a lista mudou agora. Nada foi gravado; leia de novo."
+            Exit Function
+        End If
+        modDB.LogEm cn, "listas", ids(pos), "ordem", CStr(oPos), CStr(oViz), "ALTERAR"
+        modDB.LogEm cn, "listas", ids(viz), "ordem", CStr(oViz), CStr(oPos), "ALTERAR"
+    Else
+        troca = ids(pos): ids(pos) = ids(viz): ids(viz) = troca
+        troca = antig(pos): antig(pos) = antig(viz): antig(viz) = troca
+        trocaS = nomes(pos): nomes(pos) = nomes(viz): nomes(viz) = trocaS
+        For k = 1 To n
+            If antig(k) <> k Then
+                n2 = modDB.ExecutarEm(cn, "UPDATE listas SET ordem=? WHERE id=? AND ordem=?", _
+                                      Array(modDB.P(modDB.adInteger, k), modDB.P(modDB.adInteger, ids(k)), _
+                                            modDB.P(modDB.adInteger, antig(k))))
+                If n2 <> 1 Then
+                    modDB.Desfazer cn
+                    TrocarOrdem = "Conflito: a lista mudou agora. Nada foi gravado; leia de novo."
+                    Exit Function
+                End If
+                modDB.LogEm cn, "listas", ids(k), "ordem", CStr(antig(k)), CStr(k), "ALTERAR"
+            End If
+        Next k
+    End If
+    modDB.Confirmar cn
+    modCRM.LimparCacheListas
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    TrocarOrdem = "Nao gravou: " & Err.Description
+End Function

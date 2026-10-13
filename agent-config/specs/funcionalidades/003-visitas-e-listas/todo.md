@@ -27,9 +27,9 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 2.2a Gravação no front (incluir, ativar, desativar, ordenar), log e conflito — `testar-uso` + `Confere` (C02)
 - [x] 2.2b `definir_papel` no front: C04, contagem de atendimentos, `confirmar` — `testar-uso`
 - [x] 2.3 Feed e cache de `listas` (`modFeed`) — `Confere`
-- [ ] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`
-- [ ] 2.4b `frmListas` código (combo, grade, botões, confirmação de encerra) — `testar-uso` + `verificar.py`
-- [ ] 2.4c Botão Gerenciamento no Início — 🖥B em 1366×768
+- [x] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`
+- [x] 2.4b (código pronto; interação só 🖥) `frmListas` código (combo, grade, botões, confirmação de encerra) — `testar-uso` + `verificar.py`
+- [x] 2.4c (botão Gerenciamento no Início; 🖥 pendente) Botão Gerenciamento no Início — 🖥B em 1366×768
 - [ ] 2.5b Documentação e `SKILL.md`, `IA\LEIA-ME.md`, `front-vba.md`, `visual-layout.md`, `ia-mcp.md`
 - [ ] Checkpoint A: `verificar-tudo -Completo`, 🖥B acima, autorização do usuário
 

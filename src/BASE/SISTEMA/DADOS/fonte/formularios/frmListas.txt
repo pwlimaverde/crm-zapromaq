@@ -1,0 +1,252 @@
+'==========================================================
+' CODIGO DO USERFORM  frmListas
+'
+' Gerenciamento das listas suspensas (Inicio > Gerenciamento).
+' A tela so pede e mostra: as regras e as gravacoes estao em
+' modListas (C02, C03, C04, C05), que e onde se altera regra.
+'
+' Lista e grade a esquerda; a caixa do papel a direita vale
+' so para a lista Etapa. Duplo clique na grade alterna Ativo.
+'
+' Visual: botoes sao clsBotao (Labels) e a grade e a clsGrade
+' do grdValores, criados pelo build a partir de
+' layout\formularios\frmListas.json.
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+Private mGrade As clsGrade
+Private mLinhas As Variant   ' LinhasDaLista: id, valor, ordem, ativo, encerra, resultado, quadro, exige_familia
+Private mTipo As String
+
+'----------------------------------------------------------
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Set mGrade = mUI.Grade("grdValores")
+    Me.Caption = "CRM Zapromaq  -  gerenciamento de listas"
+    lblTitulo.Caption = "Gerenciamento de listas"
+    PrepararGrade
+    cboResultado.AddItem ""
+    cboResultado.AddItem "GANHO"
+    cboResultado.AddItem "PERDA"
+    cboQuadro.AddItem "FUNIL"
+    cboQuadro.AddItem "PROSPECCAO"
+    CarregarTipos
+    Repintar
+    modTela.Encaixar Me
+End Sub
+
+Private Sub PrepararGrade()
+    ' soma 470 pt: a largura util da grade no layout
+    mGrade.ColumnWidths = "250;60;100;60"
+    mGrade.Cabecalho Array("Valor", "Ordem", "Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Em uso")
+    mGrade.Clear
+End Sub
+
+Private Sub Repintar()
+    If Not mUI Is Nothing Then mUI.Pintar
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsGrade/clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdIncluir":      cmdIncluir_Click
+        Case "cmdAtivar":       cmdAtivar_Click
+        Case "cmdSubir":        cmdSubir_Click
+        Case "cmdDescer":       cmdDescer_Click
+        Case "cmdSalvarPapel":  cmdSalvarPapel_Click
+        Case "cmdFechar":       cmdFechar_Click
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+    AtualizarPapel
+    Repintar
+End Sub
+
+Public Sub UI_GradeDuploClique(ByVal nome As String)
+    cmdAtivar_Click
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+Private Sub CarregarTipos()
+    Dim t As Variant, i As Long, escolhido As Long
+    cboLista.Clear
+    t = modListas.TiposDeLista()
+    If Not IsEmpty(t) Then
+        For i = 1 To UBound(t, 1)
+            cboLista.AddItem CStr(t(i, 1))
+            If CStr(t(i, 1)) = "Etapa" Then escolhido = cboLista.ListCount - 1
+        Next i
+    End If
+    If cboLista.ListCount > 0 Then cboLista.ListIndex = escolhido
+End Sub
+
+Private Sub cboLista_Change()
+    If cboLista.ListIndex < 0 Then Exit Sub
+    mTipo = cboLista.List(cboLista.ListIndex)
+    RecarregarEm 0
+End Sub
+
+' Carrega a lista atual e deixa selecionada a linha de posicao (0 = primeira).
+Private Sub RecarregarEm(ByVal posicao As Long)
+    Dim n As Long, m() As Variant, i As Long, ativos As Long
+    mLinhas = modListas.LinhasDaLista(mTipo)
+    If IsEmpty(mLinhas) Then n = 0 Else n = UBound(mLinhas, 1)
+    ReDim m(1 To n, 1 To 4)
+    For i = 1 To n
+        m(i, 1) = CStr(mLinhas(i, 2))
+        m(i, 2) = CStr(mLinhas(i, 3))
+        If CBool(mLinhas(i, 4)) Then
+            m(i, 3) = "Ativo": ativos = ativos + 1
+        Else
+            m(i, 3) = "Inativo"
+        End If
+        m(i, 4) = CStr(modListas.UsoDoValor(mTipo, CStr(mLinhas(i, 2))))
+    Next i
+    mGrade.Carregar m
+    lblResumo.Caption = n & " valor(es)  -  " & ativos & " ativo(s)"
+    If n > 0 Then
+        If posicao < 0 Then posicao = 0
+        If posicao > n - 1 Then posicao = n - 1
+        mGrade.ListIndex = posicao
+    Else
+        mGrade.ListIndex = -1
+    End If
+    AtualizarPapel
+    Repintar
+End Sub
+
+' Posicao da linha selecionada na lista atual (1 a n), ou 0 sem selecao.
+Private Function Indice() As Long
+    If mGrade.ListIndex < 0 Or IsEmpty(mLinhas) Then
+        Indice = 0
+    Else
+        Indice = mGrade.ListIndex + 1
+    End If
+End Function
+
+Private Function Booleano(ByVal v As Variant) As Boolean
+    If IsNull(v) Then Booleano = False Else Booleano = CBool(v)
+End Function
+
+' Mostra o papel da linha selecionada; a caixa so e editavel na lista Etapa.
+Private Sub AtualizarPapel()
+    Dim i As Long, etapa As Boolean
+    i = Indice()
+    etapa = (mTipo = "Etapa")
+    chkEncerra.Enabled = etapa
+    cboResultado.Enabled = etapa
+    cboQuadro.Enabled = etapa
+    chkFamilia.Enabled = etapa
+    cmdSalvarPapel.Enabled = etapa
+    If i = 0 Then
+        chkEncerra.Value = False
+        cboResultado.Text = ""
+        cboQuadro.Text = ""
+        chkFamilia.Value = False
+    Else
+        chkEncerra.Value = Booleano(mLinhas(i, 5))
+        cboResultado.Text = modDB.Nz(mLinhas(i, 6))
+        cboQuadro.Text = modDB.Nz(mLinhas(i, 7), "FUNIL")
+        chkFamilia.Value = Booleano(mLinhas(i, 8))
+    End If
+    If etapa Then
+        lblAviso.Caption = "Mudar 'encerra' pede confirmacao."
+    Else
+        lblAviso.Caption = "Papel so existe na lista Etapa."
+    End If
+End Sub
+
+'----------------------------------------------------------
+Private Sub cmdIncluir_Click()
+    Dim v As String, msg As String
+    If mTipo = "" Then Exit Sub
+    v = InputBox("Novo valor para a lista " & mTipo & ":", "CRM Zapromaq")
+    If Trim$(v) = "" Then Exit Sub
+    msg = modListas.IncluirValor(mTipo, v)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+    Else
+        lblStatus.Caption = "Incluido: " & Trim$(v)
+    End If
+    ' o valor novo entra no fim: seleciona a ultima linha (RecarregarEm limita ao tamanho)
+    RecarregarEm 99999
+End Sub
+
+Private Sub cmdAtivar_Click()
+    Dim i As Long, msg As String, novo As Boolean
+    i = Indice()
+    If i = 0 Then Exit Sub
+    novo = Not Booleano(mLinhas(i, 4))
+    msg = modListas.DefinirAtivo(mTipo, CStr(mLinhas(i, 2)), novo)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+    ElseIf novo Then
+        lblStatus.Caption = "Reativado: " & CStr(mLinhas(i, 2))
+    Else
+        lblStatus.Caption = "Desativado: " & CStr(mLinhas(i, 2))
+    End If
+    RecarregarEm i - 1
+End Sub
+
+Private Sub cmdSubir_Click()
+    MoverLinha True
+End Sub
+
+Private Sub cmdDescer_Click()
+    MoverLinha False
+End Sub
+
+Private Sub MoverLinha(ByVal subir As Boolean)
+    Dim i As Long, msg As String
+    i = Indice()
+    If i = 0 Then Exit Sub
+    msg = modListas.TrocarOrdem(mTipo, CStr(mLinhas(i, 2)), subir)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+        RecarregarEm i - 1
+    ElseIf subir Then
+        RecarregarEm i - 2
+    Else
+        RecarregarEm i
+    End If
+End Sub
+
+Private Sub cmdSalvarPapel_Click()
+    Dim i As Long, valor As String, msg As String
+    i = Indice()
+    If i = 0 Or mTipo <> "Etapa" Then
+        lblStatus.Caption = "Papel so existe na lista Etapa."
+        Exit Sub
+    End If
+    valor = CStr(mLinhas(i, 2))
+    msg = modListas.DefinirPapel(valor, chkEncerra.Value, cboResultado.Text, cboQuadro.Text, chkFamilia.Value, False)
+    If InStr(1, msg, "Confirme", vbBinaryCompare) > 0 Then
+        ' 'encerra' muda a situacao dos atendimentos dessa etapa: pede confirmacao com a contagem
+        If MsgBox(msg & vbCrLf & vbCrLf & "Confirma a mudanca?", vbYesNo + vbQuestion, "CRM Zapromaq") = vbYes Then
+            msg = modListas.DefinirPapel(valor, chkEncerra.Value, cboResultado.Text, cboQuadro.Text, chkFamilia.Value, True)
+        Else
+            msg = "Papel nao alterado."
+        End If
+    End If
+    If msg = "" Then
+        lblStatus.Caption = "Papel de '" & valor & "' gravado."
+    ElseIf msg = "Papel nao alterado." Then
+        lblStatus.Caption = msg
+    Else
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+    End If
+    RecarregarEm i - 1
+End Sub
+
+Private Sub cmdFechar_Click()
+    Unload Me
+End Sub

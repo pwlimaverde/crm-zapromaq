@@ -88,6 +88,11 @@
           "cor": "@verdeBotao"
         },
         {
+          "texto": "Gerenciamento",
+          "macro": "AbrirGerenciamento",
+          "cor": "@azul"
+        },
+        {
           "texto": "Fila da manha",
           "macro": "FilaDaManha",
           "cor": "@tomBotao3"

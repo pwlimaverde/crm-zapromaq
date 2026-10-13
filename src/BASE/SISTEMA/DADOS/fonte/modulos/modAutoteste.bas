@@ -237,9 +237,10 @@ End Sub
 ' na estacao (itens marcados na spec).
 '----------------------------------------------------------
 Private Sub ContratoFormularios()
-    Dim fv As frmVinculo, ui As clsUI
+    Dim fv As frmVinculo, fl As frmListas, ui As clsUI
     If False Then
         Set fv = New frmVinculo
+        Set fl = New frmListas
         Call fv.EscolherContatoDe(0)
         Call fv.EscolherAtendimentoDe(0, 0)
         ' botao criado em tempo de execucao (campos de vinculo da ficha)

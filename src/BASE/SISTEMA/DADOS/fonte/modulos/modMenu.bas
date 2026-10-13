@@ -138,6 +138,13 @@ End Sub
 ' o banco. Serve para comparar a tela real da estacao com a
 ' previa gerada no desenvolvimento (execucao\previa).
 '----------------------------------------------------------
+' Gerenciamento das listas suspensas (Inicio). Usa as regras de modListas.
+Public Sub AbrirGerenciamento()
+    If Not Pronto() Then Exit Sub
+    Dim f As New frmListas
+    f.Show
+End Sub
+
 Public Sub AbrirCalibracao()
     Dim f As New frmCalibracao
     f.Show
