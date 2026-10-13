@@ -232,6 +232,23 @@
                 $temEtapa[$ch] = $true
                 $log.L('  + Etapa especial ausente "' + $nome + '": entrou INATIVA com o papel dela')
             }
+            # listas da visita (Fase 3): valores iniciais, só se a lista ainda estiver vazia (idempotente)
+            $iniciais = [ordered]@{
+                'TipoVisita'      = @('Visita', 'Retorno', 'Demonstração', 'Instalação')
+                'ResultadoVisita' = @('Positivo', 'Neutro', 'Negativo', 'Sem contato')
+            }
+            foreach ($tipoLista in $iniciais.Keys) {
+                $existentes = [int](Invoke-Escalar $cn 'SELECT COUNT(*) FROM listas WHERE tipo=?' @((New-Parametro 'texto' $tipoLista)) $t)
+                if ($existentes -gt 0) { continue }
+                $ordemVis = 0
+                foreach ($v in $iniciais[$tipoLista]) {
+                    $ordemVis++
+                    [void](Invoke-Comando $cn 'INSERT INTO listas (tipo, valor, chave, ordem, ativo) VALUES (?, ?, ?, ?, ?)' @(
+                        (New-Parametro 'texto' $tipoLista), (New-Parametro 'texto' $v), (New-Parametro 'texto' (Get-ChaveLista $v)),
+                        (New-Parametro 'inteiro' $ordemVis), (New-Parametro 'logico' $true)) $t)
+                }
+                $log.L('  + lista ' + $tipoLista + ': ' + $ordemVis + ' valor(es) inicial(is)')
+            }
             # 'quadro' é o marcador de "sem papel": a coluna YESNO criada por ALTER nasce Falso, não nula
             $papeis = 0
             foreach ($r in (Ler 'SELECT id, valor, chave FROM listas WHERE tipo=? AND quadro IS NULL' @((New-Parametro 'texto' 'Etapa')))) {

@@ -154,6 +154,44 @@ Conferir 'C11 cancelada com motivo passa' ($null -eq (Test-CanceladaValida 'Clie
 Conferir 'C12 texto do historico comeca com VISITA dd/MM/aaaa HH:mm' ((Get-TextoHistoricoVisita ([datetime]'2026-10-14 09:30') 'Visita' 'Positivo' 'Visitou') -eq 'VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou')
 Conferir 'C13 segunda pendente e recusada' ((Test-SegundaPendente 1) -match 'C13')
 Conferir 'C13 sem pendente passa' ($null -eq (Test-SegundaPendente 0))
+Write-Host '--- visitas (Fase 3.2a): criar, realizar e cancelar pelo conector, no banco de demonstração'
+function Linhas-Visita([string]$sql, $params = @()) { $x = Invoke-Consulta $sql $params; while ($x -is [System.Collections.IList] -and $x.Count -eq 1 -and $x[0] -is [System.Collections.IList]) { $x = $x[0] }; return ,@($x) }
+function Executa-Visita([string]$sql, $params = @()) {
+    $cn = Open-Conexao
+    try { $c = New-Comando $cn $sql $params $null; [void]$c.ExecuteNonQuery(); $c.Dispose() } finally { $cn.Close(); $cn.Dispose() }
+}
+$filaNeg = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$codNeg = [string]$filaNeg[0].codigo
+$filaFech = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Pedido Fechado' ORDER BY id"
+$codFech = [string]$filaFech[0].codigo
+$opAntes = (Linhas-Visita "SELECT id, observacoes, ultima_interacao, versao FROM oportunidades WHERE codigo='$codNeg'")[0]
+$maxLogV = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$criadas = @()
+try {
+    $c1 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codNeg; tipo = 'Visita'; responsavel = 'Vendedor A'; observacoes = 'teste visita' })
+    $criadas += $c1.id
+    Conferir 'criar_visita grava PENDENTE na versão 1' ($c1.gravado -and $c1.situacao -eq 'PENDENTE' -and $c1.versao -eq 1) ($c1 | ConvertTo-Json -Compress)
+    Conferir 'C13: segunda visita pendente no mesmo atendimento e recusada' ((Mensagem { Invoke-CriarVisita ([pscustomobject]@{ codigo = $codNeg }) }) -match 'C13')
+    Conferir 'C08: visita em atendimento encerrado (Pedido Fechado) e recusada' ((Mensagem { Invoke-CriarVisita ([pscustomobject]@{ codigo = $codFech }) }) -match 'C08')
+    Conferir 'V4/C10: realizada sem relato e recusada' ((Mensagem { Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 1; situacao = 'REALIZADA'; data_realizada = '2026-10-12' }) }) -match 'C10')
+    Conferir 'conflito: versão lida antiga e recusada' ((Mensagem { Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 9; situacao = 'CANCELADA'; motivo_cancelamento = 'x' }) }) -match 'Conflito')
+    $r1 = Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 1; situacao = 'REALIZADA'; data_realizada = '2026-10-12 09:30'; resultado = 'Positivo'; relato = 'Visitou e apresentou a proposta' })
+    Conferir 'realizar a visita grava e sobe a versão para 2' ($r1.gravado -and $r1.versao -eq 2) ($r1 | ConvertTo-Json -Compress)
+    $opDepois = (Linhas-Visita "SELECT observacoes, ultima_interacao FROM oportunidades WHERE codigo='$codNeg'")[0]
+    Conferir 'V6: o histórico do atendimento ganhou a linha VISITA 12/10/2026 09:30' ([string]$opDepois.observacoes -match 'VISITA 12/10/2026 09:30') ([string]$opDepois.observacoes)
+    Conferir 'V7: a última interação do atendimento é a data realizada' (([datetime]$opDepois.ultima_interacao).ToString('yyyy-MM-dd') -eq '2026-10-12') ([string]$opDepois.ultima_interacao)
+    $c2 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codNeg; tipo = 'Retorno' })
+    $criadas += $c2.id
+    Conferir 'depois de realizada, cabe outra visita pendente (C13 só vale com pendente)' ($c2.gravado -eq $true)
+    Conferir 'C11: cancelar sem motivo e recusado' ((Mensagem { Invoke-AtualizarVisita ([pscustomobject]@{ id = $c2.id; versao = 1; situacao = 'CANCELADA' }) }) -match 'C11')
+    $r2 = Invoke-AtualizarVisita ([pscustomobject]@{ id = $c2.id; versao = 1; situacao = 'CANCELADA'; motivo_cancelamento = 'Cliente viajou' })
+    Conferir 'cancelar com motivo grava' ($r2.gravado -eq $true -and $r2.situacao -eq 'CANCELADA')
+} finally {
+    # volta: apaga as visitas do teste, o histórico e a última interação do atendimento, e o log
+    foreach ($i in $criadas) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?' @((P 'memo' $opAntes.observacoes), (P 'data' $opAntes.ultima_interacao), (P 'inteiro' ([int]$opAntes.versao)), (P 'inteiro' ([int]$opAntes.id)))
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogV))
+}
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

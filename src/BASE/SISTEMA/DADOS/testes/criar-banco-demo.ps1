@@ -91,6 +91,8 @@ try {
         Prioridade = @('Alta', 'Média', 'Baixa')
         Motivo = @('Preço', 'Prazo de entrega', 'Projeto adiado', 'Comprou concorrente nacional', 'Sem verba', 'Ganho por preço')
         Categoria = @('Linha própria – nacionalização acima de 85%', 'Linha própria – nacionalização abaixo de 85%')
+        TipoVisita = @('Visita', 'Retorno', 'Demonstração', 'Instalação')
+        ResultadoVisita = @('Positivo', 'Neutro', 'Negativo', 'Sem contato')
     }
     foreach ($tipo in $listas.Keys) {
         $i = 0
