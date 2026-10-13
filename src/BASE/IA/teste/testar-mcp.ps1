@@ -326,6 +326,38 @@ try {
     foreach ($i in $planT11) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT11))
 }
+Write-Host '--- exportação do roteiro (Fase 5): CSV com BOM, ponto e vírgula, BASE primeiro, uma linha por visita pendente'
+$cidT12 = [int](Invoke-Valor "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'" @())
+$maxLogT12 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$filaT12 = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$codT12 = [string]$filaT12[0].codigo
+$pastaT12 = Join-Path $env:TEMP ('crm-roteiro-' + $PID)
+$env:CRM_PASTA_ROTEIROS = $pastaT12
+$planT12 = @(); $visT12 = @()
+try {
+    $p12 = Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'TESTE ROTEIRO'; cod_municipio = $cidT12; raio_km = 100; data_inicio = '2026-10-20'; data_fim = '2026-10-30' })
+    $planT12 += $p12.id
+    $v12 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codT12; tipo = 'Visita'; data_agendada = '2026-10-22'; hora_agendada = '09:30'; id_planejamento = $p12.id })
+    $visT12 += $v12.id
+    $ex = Invoke-ExportarRoteiro ([pscustomobject]@{ id_planejamento = $p12.id })
+    Conferir 'exportar_roteiro devolve o caminho e uma visita' ($ex.linhas -eq 1 -and (Test-Path -LiteralPath $ex.caminho)) ($ex | ConvertTo-Json -Compress)
+    Conferir 'o nome do arquivo segue PL-AAAA-NNN_aaaa-mm-dd_a_aaaa-mm-dd.csv' ((Split-Path -Leaf $ex.caminho) -eq ($p12.codigo + '_2026-10-20_a_2026-10-30.csv')) (Split-Path -Leaf $ex.caminho)
+    $bytes = [System.IO.File]::ReadAllBytes($ex.caminho)
+    Conferir 'arquivo com BOM UTF-8' ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) ''
+    $linhasT12 = @([System.IO.File]::ReadAllLines($ex.caminho, [System.Text.Encoding]::UTF8))
+    Conferir 'cabeçalho separado por ponto e vírgula' ($linhasT12[0] -eq 'tipo;visita;atendimento;empresa;contato;telefone;cidade;uf;latitude;longitude;km_base;data_agendada;hora_agendada;tipo_visita;responsavel;situacao') $linhasT12[0]
+    Conferir 'a segunda linha é a BASE, e a terceira é a visita' ($linhasT12.Count -eq 3 -and $linhasT12[1].StartsWith('"BASE"') -and $linhasT12[2].StartsWith('"VISITA"')) ($linhasT12 -join ' | ')
+    Conferir 'a visita traz a data em AAAA-MM-DD e a hora' ($linhasT12[2] -match ';"2026-10-22";"09:30";') $linhasT12[2]
+    Conferir 'latitude com ponto decimal (sem vírgula)' ($linhasT12[1] -match '-25\.\d+') $linhasT12[1]
+} finally {
+    Remove-Item Env:CRM_PASTA_ROTEIROS -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $pastaT12) { Remove-Item -LiteralPath $pastaT12 -Recurse -Force }
+    foreach ($i in $visT12) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
+    foreach ($i in $planT12) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT12))
+}
+Write-Host '--- extrato da base (Fase 5.3): tabelas novas aceitas'
+Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e consulta)' (@('planejamentos','visitas','municipios') | Where-Object { ($script:TabelasExtrato -contains $_) -and $script:SqlExtrato.ContainsKey($_) }).Count -eq 3 ''
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

@@ -716,7 +716,7 @@ function Invoke-AtendimentosPorProximaAcao($a) {
 # entrada dos scripts de análise: o dado não passa pela conversa. Não grava no
 # banco. CSV em UTF-8 sem BOM, separador ',', todo campo entre aspas, CRLF - o
 # formato que os scripts do padrão (00 - SCRIPTS\_comum.py) leem sem conversão.
-$script:TabelasExtrato = @('clientes', 'contatos', 'oportunidades', 'log_alteracoes', 'listas', 'metas')
+$script:TabelasExtrato = @('clientes', 'contatos', 'oportunidades', 'log_alteracoes', 'listas', 'metas', 'planejamentos', 'visitas', 'municipios')
 $script:TabelasExtratoPadrao = @('clientes', 'contatos', 'oportunidades')
 $script:NomeRaizSetor = '1 - COMERCIAL ZAPROMAQ'
 $script:PastaLibFerramentas = $PSScriptRoot
@@ -730,6 +730,9 @@ $script:SqlExtrato = @{
     log_alteracoes = 'SELECT * FROM log_alteracoes ORDER BY id'
     listas         = 'SELECT * FROM listas ORDER BY id'
     metas          = 'SELECT * FROM metas ORDER BY id'
+    planejamentos  = 'SELECT * FROM planejamentos ORDER BY id'
+    visitas        = 'SELECT * FROM visitas ORDER BY id'
+    municipios     = 'SELECT * FROM municipios ORDER BY cod_ibge'
 }
 $script:CalculadosExtrato = @('situacao', 'quadro', 'dias_parado', 'ciclo')
 
@@ -1990,6 +1993,89 @@ function Invoke-ResolverCidade($a) {
     return [ordered]@{ resolvida = $false; motivo = $(if ($l.Count -eq 0) { 'Cidade não encontrada na UF (use buscar_municipios).' } else { 'Mais de uma cidade com esse nome.' }); opcoes = $l }
 }
 
+# ---------------------------------------------------------------- exportação do roteiro (Fase 5)
+
+$script:ColunasRoteiro = @('tipo', 'visita', 'atendimento', 'empresa', 'contato', 'telefone', 'cidade', 'uf', 'latitude', 'longitude', 'km_base', 'data_agendada', 'hora_agendada', 'tipo_visita', 'responsavel', 'situacao')
+
+# Pasta do roteiro: Documentos\CRM Zapromaq\Roteiros (CRM_PASTA_ROTEIROS só para teste).
+function Get-PastaRoteiros {
+    if ($env:CRM_PASTA_ROTEIROS) { return $env:CRM_PASTA_ROTEIROS }
+    return (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CRM Zapromaq\Roteiros')
+}
+
+# CSV do roteiro: UTF-8 com BOM, ';', texto entre aspas, número com ponto decimal, data AAAA-MM-DD.
+function Write-RoteiroCsv([string]$arquivo, $linhas) {
+    $tmp = $arquivo + '.tmp'
+    $cult = [System.Globalization.CultureInfo]::InvariantCulture
+    $w = New-Object System.IO.StreamWriter($tmp, $false, (New-Object System.Text.UTF8Encoding($true)))
+    try {
+        $w.NewLine = "`r`n"
+        $w.WriteLine(($script:ColunasRoteiro -join ';'))
+        foreach ($l in $linhas) {
+            $vals = New-Object System.Collections.ArrayList
+            foreach ($c in $script:ColunasRoteiro) {
+                $v = $l[$c]
+                if ($null -eq $v -or $v -is [System.DBNull]) { [void]$vals.Add('""') }
+                elseif ($v -is [double] -or $v -is [single] -or $v -is [decimal]) { [void]$vals.Add(([double]$v).ToString('0.######', $cult)) }
+                elseif ($v -is [int] -or $v -is [long]) { [void]$vals.Add([string]$v) }
+                else { [void]$vals.Add('"' + ([string]$v).Replace('"', '""') + '"') }
+            }
+            $w.WriteLine(($vals -join ';'))
+        }
+    } finally { $w.Close() }
+    if (Test-Path -LiteralPath $arquivo) { Remove-Item -LiteralPath $arquivo -Force }
+    Move-Item -LiteralPath $tmp -Destination $arquivo
+}
+
+function Assert-Esquema11 {
+    $v = Get-VersaoEsquema
+    if ($v -ne '1.1') { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema 1.1. Rode a montagem da base (MONTAR-FRONTEND.bat).") }
+}
+
+# Roteiro do planejamento: a linha BASE primeiro, depois uma linha por visita PENDENTE, em ordem de data.
+# Devolve só o caminho e o número de visitas (a ordem do roteiro é feita fora do sistema).
+function Invoke-ExportarRoteiro($a) {
+    Assert-Esquema11
+    $id = 0
+    if (Test-TemArg $a 'id_planejamento') { $id = [int]$a.id_planejamento }
+    elseif (Test-TemArg $a 'codigo') { $id = [int](Invoke-Valor 'SELECT id FROM planejamentos WHERE codigo=?' @((P 'texto' ([string]$a.codigo)))) }
+    if ($id -eq 0) { throw 'Informe id_planejamento ou codigo do planejamento.' }
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        $base = $ctx.Consultar('SELECT nome, uf, lat, lon FROM municipios WHERE cod_ibge=?', @((P 'inteiro' ([int]$pl.cod_municipio_base))))
+        if ($base.Count -eq 0) { throw 'Cidade-base não está em municipios.' }
+        $mapa = Get-MapaMunicipios $ctx
+        $visitas = @($ctx.Consultar("SELECT v.id, v.data_agendada, v.hora_agendada, v.tipo, v.responsavel, o.codigo, c.empresa, c.cidade, c.uf, ct.nome AS contato, ct.telefone AS contato_telefone FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id) INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id WHERE v.id_planejamento=? AND v.situacao='PENDENTE' ORDER BY v.data_agendada, v.hora_agendada, v.id", @((P 'inteiro' $id))))
+        $linhas = New-Object System.Collections.ArrayList
+        [void]$linhas.Add([ordered]@{ tipo = 'BASE'; visita = $null; atendimento = $null; empresa = $null; contato = $null; telefone = $null
+            cidade = [string]$base[0].nome; uf = [string]$base[0].uf; latitude = [double]$base[0].lat; longitude = [double]$base[0].lon
+            km_base = 0; data_agendada = $null; hora_agendada = $null; tipo_visita = $null; responsavel = $null; situacao = $null })
+        foreach ($v in $visitas) {
+            $m = $null
+            $chave = ([string]$v.uf + '|' + (ConvertTo-NomeBusca ([string]$v.cidade)))
+            if ($mapa.ContainsKey($chave)) { $m = $mapa[$chave] }
+            $km = $null; $lat = $null; $lon = $null
+            if ($null -ne $m) {
+                $lat = [double]$m.lat; $lon = [double]$m.lon
+                $km = [math]::Round((Get-DistanciaKm ([double]$base[0].lat) ([double]$base[0].lon) $lat $lon), 1)
+            }
+            $dt = $null; if ($null -ne $v.data_agendada) { $dt = ([datetime]$v.data_agendada).ToString('yyyy-MM-dd') }
+            [void]$linhas.Add([ordered]@{ tipo = 'VISITA'; visita = [int]$v.id; atendimento = [string]$v.codigo; empresa = [string]$v.empresa
+                contato = [string]$v.contato; telefone = [string]$v.contato_telefone; cidade = [string]$v.cidade; uf = [string]$v.uf
+                latitude = $lat; longitude = $lon; km_base = $km; data_agendada = $dt; hora_agendada = [string]$v.hora_agendada
+                tipo_visita = [string]$v.tipo; responsavel = [string]$v.responsavel; situacao = 'PENDENTE' })
+        }
+        $inicio = ([datetime]$pl.data_inicio).ToString('yyyy-MM-dd')
+        $fim = ([datetime]$pl.data_fim).ToString('yyyy-MM-dd')
+        $pasta = Get-PastaRoteiros
+        if (-not (Test-Path -LiteralPath $pasta)) { New-Item -ItemType Directory -Path $pasta -Force | Out-Null }
+        $arquivo = Join-Path $pasta ($pl.codigo + '_' + $inicio + '_a_' + $fim + '.csv')
+        Write-RoteiroCsv $arquivo @($linhas)
+        return [ordered]@{ caminho = $arquivo; planejamento = [string]$pl.codigo; linhas = $visitas.Count }
+    }
+}
+
 function Invoke-ListarMetas($a) {
     $w = ''; $p = @()
     if (Test-TemArg $a 'ano') { $w = ' WHERE ano=?'; $p = @((P 'inteiro' ([int]$a.ano))) }
@@ -2333,6 +2419,13 @@ $script:Ferramentas = @(
             uf = [ordered]@{ type = 'string'; pattern = '^[A-Za-z]{2}$' } } }
     },
     [ordered]@{
+        name = 'exportar_roteiro'; title = 'Exportar roteiro do planejamento'; handler = 'Invoke-ExportarRoteiro'; annotations = $script:Gravacao
+        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o banco no esquema 1.1.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' }
+            codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
+    },
+    [ordered]@{
         name = 'listar_opcoes'; title = 'Opções das listas suspensas'; handler = 'Invoke-ListarOpcoes'; annotations = $script:SoLeitura
         description = 'Valores aceitos em campos de lista (Etapa, Responsavel, Familia, Origem, Prioridade, Motivo, Segmento, UF, Categoria). Sem "tipo", devolve os tipos existentes. Consulte antes de gravar um campo de lista.'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
@@ -2427,7 +2520,7 @@ $script:Ferramentas = @(
                        'CSV UTF-8, separador vírgula, campos entre aspas; datas AAAA-MM-DD ou AAAA-MM-DDTHH:MM:SS. Regrava os arquivos a cada chamada.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('destino'); properties = [ordered]@{
             destino = [ordered]@{ type = 'string'; maxLength = 255; description = 'Pasta relativa a 1 - COMERCIAL ZAPROMAQ, sem letra de unidade (ex.: 00 - GESTÃO COMERCIAL\01 - PADROES\00 - IA\PROJETOS\PRJ-COM-006-analise-de-dados-crm\20-dados). Precisa existir; 01 - CRM\01 - CONTROLE é recusado.' }
-            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 6; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas. Padrão: clientes, contatos, oportunidades.' } } }
+            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 9; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas, planejamentos, visitas, municipios. Padrão: clientes, contatos, oportunidades.' } } }
     },
     [ordered]@{
         name = 'atualizar_atendimento'; title = 'Atualizar atendimento'; handler = 'Invoke-AtualizarAtendimento'; annotations = $script:Gravacao

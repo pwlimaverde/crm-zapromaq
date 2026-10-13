@@ -63,9 +63,9 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 
 ## Fase 5: exportação (publicação C)
 
-- [ ] 5.1 Linha do CSV (depende de A2) — `Confere`
+- [x] 5.1 Linha do CSV do roteiro (conector: BASE primeiro, uma linha por visita pendente; D-a: contato e telefone) — `testar-mcp`; VBA junto da tela
 - [ ] 5.2 Gravação do arquivo em `modRelatorio.bas` — `testar-uso`; 🖥B abrir no Excel 2019
-- [ ] 5.3 `exportar_roteiro`, `exportar_base`; conector com 41 ferramentas — `testar-mcp`
+- [x] 5.3 `exportar_roteiro` (só o caminho e o total), `exportar_base` com planejamentos, visitas e municipios; conector com 41 ferramentas — `testar-mcp`
 
 ## Documentação final (com a publicação C)
 
