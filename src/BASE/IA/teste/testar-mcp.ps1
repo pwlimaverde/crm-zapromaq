@@ -228,6 +228,39 @@ Conferir 'C16 P3: encerrar com pendentes sem cancelar é recusado' ((Test-Encerr
 Conferir 'C16 P3: encerrar com pendentes cancelando passa' ($null -eq (Test-EncerramentoPermitido 2 $true))
 Conferir 'C16 P3: encerrar sem pendentes passa' ($null -eq (Test-EncerramentoPermitido 0 $false))
 Conferir 'P4: código PL-AAAA-NNN com 3 dígitos' ((Get-CodigoPlanejamento 2026 7) -eq 'PL-2026-007')
+Write-Host '--- planejamento (Fase 4.3): criar, validar, encerrar com pendentes (C16) e reabrir, no banco de demonstração'
+$cidT9 = [int](Invoke-Valor 'SELECT MIN(cod_ibge) FROM municipios' @())
+$maxLogT9 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$filaT9 = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$codT9 = [string]$filaT9[0].codigo
+$planT9 = @()
+$visT9 = @()
+try {
+    $p1 = Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'TESTE PLANEJAMENTO'; cod_municipio = $cidT9; raio_km = 50; data_inicio = '2026-10-20'; data_fim = '2026-10-30' })
+    $planT9 += $p1.id
+    Conferir 'criar_planejamento grava ABERTO na versão 1 com código PL-AAAA-NNN' ($p1.gravado -and $p1.situacao -eq 'ABERTO' -and $p1.codigo -match '^PL-\d{4}-\d{3}$') ($p1 | ConvertTo-Json -Compress)
+    Conferir 'C14: raio 0 é recusado ao criar' ((Mensagem { Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'x'; cod_municipio = $cidT9; raio_km = 0; data_inicio = '2026-10-20'; data_fim = '2026-10-30' }) }) -match 'C14')
+    Conferir 'C15: início depois do fim é recusado' ((Mensagem { Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'x'; cod_municipio = $cidT9; raio_km = 10; data_inicio = '2026-10-30'; data_fim = '2026-10-20' }) }) -match 'C15')
+    Conferir 'cidade-base inexistente é recusada' ((Mensagem { Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'x'; cod_municipio = 1; raio_km = 10; data_inicio = '2026-10-20'; data_fim = '2026-10-30' }) }) -match 'Cidade-base')
+    $v1 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codT9; tipo = 'Visita'; data_agendada = '2026-10-25'; id_planejamento = $p1.id })
+    $visT9 += $v1.id
+    Conferir 'C09: visita com data dentro do período do planejamento passa' ($v1.gravado -eq $true)
+    Conferir 'C16: encerrar com visita pendente sem cancelar é recusado' ((Mensagem { Invoke-AlterarSituacaoPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 1; situacao = 'ENCERRADO' }) }) -match 'C16')
+    $e1 = Invoke-AlterarSituacaoPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 1; situacao = 'ENCERRADO'; cancelar_pendentes = $true })
+    Conferir 'encerrar cancelando pendentes grava e cancela a visita' ($e1.gravado -and $e1.situacao -eq 'ENCERRADO' -and [int]$e1.visitas_canceladas -eq 1) ($e1 | ConvertTo-Json -Compress)
+    $vDepois = Linhas-Visita "SELECT situacao, motivo_cancelamento FROM visitas WHERE id=$($v1.id)"
+    Conferir 'a visita cancelada ficou CANCELADA com o motivo do planejamento' ([string]$vDepois[0].situacao -eq 'CANCELADA' -and [string]$vDepois[0].motivo_cancelamento -eq 'planejamento encerrado') ''
+    Conferir 'planejamento encerrado não se altera (atualizar_planejamento)' ((Mensagem { Invoke-AtualizarPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 2; raio_km = 60 }) }) -match 'Planejamento encerrado')
+    $r1 = Invoke-AlterarSituacaoPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 2; situacao = 'ABERTO' })
+    Conferir 'reabrir grava ABERTO e sobe a versão' ($r1.gravado -and $r1.situacao -eq 'ABERTO' -and $r1.versao -eq 3) ($r1 | ConvertTo-Json -Compress)
+    $u1 = Invoke-AtualizarPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 3; raio_km = 60 })
+    Conferir 'atualizar_planejamento grava o raio novo' ($u1.gravado -and $u1.versao -eq 4) ($u1 | ConvertTo-Json -Compress)
+    Conferir 'C14: atualizar com raio 501 é recusado' ((Mensagem { Invoke-AtualizarPlanejamento ([pscustomobject]@{ id = $p1.id; versao = 4; raio_km = 501 }) }) -match 'C14')
+} finally {
+    foreach ($i in $visT9) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
+    foreach ($i in $planT9) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT9))
+}
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

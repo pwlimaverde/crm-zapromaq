@@ -47,8 +47,8 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 
 - [x] 4.1 `nome_busca` e haversine — `Confere` e `testar-mcp`
 - [x] 4.2 P1–P4 e ordem dos candidatos (C14–C16) — `Confere` e `testar-mcp`
-- [ ] 4.3a Gravar planejamento (`PL-`, período, raio 1–500), VBA e conector — `testar-uso`
-- [ ] 4.3b Encerrar e reabrir (P3) — `testar-uso`
+- [~] 4.3a Gravar planejamento (`PL-`, período, raio 1–500): conector feito (criar, atualizar, encerrar e reabrir com C16); falta a gravação VBA — `testar-uso`
+- [x] 4.3b Encerrar e reabrir (P3, C16) no conector — `testar-mcp`; VBA junto da tela (4.7)
 - [ ] 4.4 Gerar visitas em transação, V8 dentro dela, corrida recusada — `testar-uso`
 - [ ] 4.5 Lançamento de datas e resultados (rotina) — `testar-uso` e `testar-mcp`
 - [ ] 4.6 `clsGrade` com marcação — `verificar.py` e `testar-uso`

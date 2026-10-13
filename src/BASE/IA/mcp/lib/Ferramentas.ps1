@@ -1682,6 +1682,112 @@ function Invoke-AlterarSituacaoVisita($a) {
     return Invoke-AtualizarVisita $a
 }
 
+# ---------------------------------------------------------------- planejamento (Fase 4, regras P1-P4 da spec 003)
+
+$script:SituacoesPlanejamento = @('ABERTO', 'ENCERRADO')
+
+function Get-PlanejamentoNaTransacao($ctx, [int]$id) {
+    $l = $ctx.Consultar('SELECT * FROM planejamentos WHERE id=?', @((P 'inteiro' $id)))
+    if ($l.Count -eq 0) { throw ('Planejamento não encontrado: ' + $id + '.') }
+    return $l[0]
+}
+
+# Cidade-base: tem de existir em municipios (P1).
+function Assert-CidadeBase($ctx, [int]$codIbge) {
+    $n = [int]$ctx.Valor('SELECT COUNT(*) FROM municipios WHERE cod_ibge=?', @((P 'inteiro' $codIbge)))
+    if ($n -eq 0) { throw ('Cidade-base não encontrada (código IBGE ' + $codIbge + '). Use buscar_municipios ou resolver_cidade.') }
+}
+
+function Invoke-CriarPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $descricao = ([string]$a.descricao).Trim()
+    if ($descricao -eq '') { throw 'Informe a descrição do planejamento.' }
+    if ($descricao.Length -gt 120) { throw 'Descrição aceita no máximo 120 caracteres.' }
+    $cod = [int]$a.cod_municipio
+    $raio = [int]$a.raio_km
+    $msg = Test-RaioValido $raio; if ($msg) { throw $msg }
+    $ini = [string]$a.data_inicio; $fim = [string]$a.data_fim
+    $dIni = Get-DataIsoOuErro $ini 'data_inicio'; $dFim = Get-DataIsoOuErro $fim 'data_fim'
+    $msg = Test-PeriodoValido $ini $fim; if ($msg) { throw $msg }
+    $obs = $null; if (Test-TemArg $a 'observacoes') { $obs = [string]$a.observacoes }
+    return Invoke-Transacao {
+        param($ctx)
+        Assert-CidadeBase $ctx $cod
+        $resp = $null; if (Test-TemArg $a 'responsavel') { $resp = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $a.responsavel }
+        $controle = [int]$ctx.Valor('SELECT MAX(controle) FROM planejamentos', @()) + 1
+        $codigo = Get-CodigoPlanejamento (Get-Date).Year $controle
+        $agora = Get-Date
+        [void]$ctx.Executar('INSERT INTO planejamentos (codigo, controle, descricao, cod_municipio_base, raio_km, data_inicio, data_fim, responsavel, situacao, observacoes, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)', @(
+            (P 'texto' $codigo), (P 'inteiro' $controle), (P 'texto' $descricao), (P 'inteiro' $cod), (P 'inteiro' $raio),
+            (P 'data' $dIni), (P 'data' $dFim), (P 'texto' $resp), (P 'texto' 'ABERTO'), (P 'memo' $obs),
+            (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog)))
+        $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
+        $ctx.Log('planejamentos', $id, 'codigo', '', $codigo, 'INSERIR')
+        return [ordered]@{ gravado = $true; id = $id; codigo = $codigo; situacao = 'ABERTO'; versao = 1 }
+    }
+}
+
+function Invoke-AtualizarPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id
+    return Invoke-Transacao {
+        param($ctx)
+        $p = Get-PlanejamentoNaTransacao $ctx $id
+        Assert-Versao $p $a
+        if ([string]$p.situacao -ne 'ABERTO') { throw 'Planejamento encerrado: reabra antes de alterar (alterar_situacao_planejamento).' }
+        $novo = [ordered]@{}; foreach ($k in $p.Keys) { $novo[$k] = $p[$k] }
+        if (Test-TemArg $a 'descricao') { $novo['descricao'] = ([string]$a.descricao).Trim() }
+        if (Test-TemArg $a 'cod_municipio') { $novo['cod_municipio_base'] = [int]$a.cod_municipio }
+        if (Test-TemArg $a 'raio_km') { $novo['raio_km'] = [int]$a.raio_km }
+        if (Test-TemArg $a 'data_inicio') { $novo['data_inicio'] = Get-DataIsoOuErro ([string]$a.data_inicio) 'data_inicio' }
+        if (Test-TemArg $a 'data_fim') { $novo['data_fim'] = Get-DataIsoOuErro ([string]$a.data_fim) 'data_fim' }
+        if (Test-TemArg $a 'responsavel') { $novo['responsavel'] = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $a.responsavel }
+        if (Test-TemArg $a 'observacoes') { $novo['observacoes'] = [string]$a.observacoes }
+        if ([string]$novo['descricao'] -eq '') { throw 'Informe a descrição do planejamento.' }
+        $msg = Test-RaioValido ([int]$novo['raio_km']); if ($msg) { throw $msg }
+        $msg = Test-PeriodoValido (([datetime]$novo['data_inicio']).ToString('yyyy-MM-dd')) (([datetime]$novo['data_fim']).ToString('yyyy-MM-dd')); if ($msg) { throw $msg }
+        Assert-CidadeBase $ctx ([int]$novo['cod_municipio_base'])
+        $tipos = [ordered]@{ descricao = 'texto'; cod_municipio_base = 'inteiro'; raio_km = 'inteiro'; data_inicio = 'data'; data_fim = 'data'; responsavel = 'texto'; observacoes = 'memo' }
+        $mud = [ordered]@{}
+        foreach ($c in $tipos.Keys) {
+            if (-not (Test-Igual $p[$c] $novo[$c])) { $mud[$c] = @{ Tipo = $tipos[$c]; Novo = $novo[$c]; Antigo = $p[$c] } }
+        }
+        if ($mud.Count -eq 0) { return [ordered]@{ id = $id; gravado = $false; mensagem = 'Nada a alterar.'; versao = $p.versao } }
+        Update-ComVersao $ctx 'planejamentos' $id ([int]$p.versao) $mud 'ALTERAR'
+        return [ordered]@{ id = $id; gravado = $true; versao = ([int]$p.versao + 1); alterados = @($mud.Keys) }
+    }
+}
+
+# P3 (C16): encerrar recusa com visitas pendentes, a menos que cancelar_pendentes; reabrir volta para ABERTO.
+function Invoke-AlterarSituacaoPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id
+    $sit = ([string]$a.situacao).Trim().ToUpperInvariant()
+    if ($sit -notin $script:SituacoesPlanejamento) { throw 'situacao deve ser ABERTO ou ENCERRADO.' }
+    $cancelar = (Test-TemArg $a 'cancelar_pendentes') -and [bool]$a.cancelar_pendentes
+    return Invoke-Transacao {
+        param($ctx)
+        $p = Get-PlanejamentoNaTransacao $ctx $id
+        Assert-Versao $p $a
+        if ([string]$p.situacao -eq $sit) { return [ordered]@{ id = $id; gravado = $false; mensagem = 'Já está nessa situação.'; versao = $p.versao } }
+        $canceladas = 0
+        if ($sit -eq 'ENCERRADO') {
+            $pend = @($ctx.Consultar("SELECT id, versao FROM visitas WHERE id_planejamento=? AND situacao='PENDENTE'", @((P 'inteiro' $id))))
+            $msg = Test-EncerramentoPermitido $pend.Count $cancelar; if ($msg) { throw $msg }
+            foreach ($v in $pend) {
+                Update-ComVersao $ctx 'visitas' ([int]$v.id) ([int]$v.versao) @{
+                    situacao = @{ Tipo = 'texto'; Novo = 'CANCELADA'; Antigo = 'PENDENTE' }
+                    motivo_cancelamento = @{ Tipo = 'texto'; Novo = 'planejamento encerrado'; Antigo = $null }
+                } 'ALTERAR'
+                $canceladas++
+            }
+        }
+        Update-ComVersao $ctx 'planejamentos' $id ([int]$p.versao) ([ordered]@{
+            situacao = @{ Tipo = 'texto'; Novo = $sit; Antigo = [string]$p.situacao } }) 'ALTERAR'
+        return [ordered]@{ id = $id; gravado = $true; situacao = $sit; versao = ([int]$p.versao + 1); visitas_canceladas = $canceladas }
+    }
+}
+
 function Invoke-ListarMetas($a) {
     $w = ''; $p = @()
     if (Test-TemArg $a 'ano') { $w = ' WHERE ano=?'; $p = @((P 'inteiro' ([int]$a.ano))) }
@@ -1914,6 +2020,44 @@ $script:Ferramentas = @(
             resultado = [ordered]@{ type = 'string' }
             relato = [ordered]@{ type = 'string' }
             motivo_cancelamento = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'criar_planejamento'; title = 'Criar planejamento'; handler = 'Invoke-CriarPlanejamento'; annotations = $script:Gravacao
+        description = 'Cria um planejamento por região: cidade-base (código IBGE), raio de 1 a 500 km e período (início não depois do fim). Código PL-AAAA-NNN gerado.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('descricao', 'cod_municipio', 'raio_km', 'data_inicio', 'data_fim'); properties = [ordered]@{
+            descricao = [ordered]@{ type = 'string'; maxLength = 120 }
+            cod_municipio = [ordered]@{ type = 'integer'; description = 'Código IBGE da cidade-base' }
+            raio_km = [ordered]@{ type = 'integer'; minimum = 1; maximum = 500 }
+            data_inicio = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            data_fim = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'atualizar_planejamento'; title = 'Atualizar planejamento'; handler = 'Invoke-AtualizarPlanejamento'; annotations = $script:Gravacao
+        description = 'Altera um planejamento ABERTO (descrição, cidade-base, raio, período, responsável, observações). Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            descricao = [ordered]@{ type = 'string'; maxLength = 120 }
+            cod_municipio = [ordered]@{ type = 'integer' }
+            raio_km = [ordered]@{ type = 'integer'; minimum = 1; maximum = 500 }
+            data_inicio = [ordered]@{ type = 'string' }
+            data_fim = [ordered]@{ type = 'string' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'alterar_situacao_planejamento'; title = 'Encerrar ou reabrir planejamento'; handler = 'Invoke-AlterarSituacaoPlanejamento'; annotations = $script:Gravacao
+        description = 'Encerra ou reabre um planejamento. Encerrar com visitas pendentes é recusado, salvo cancelar_pendentes=true (cancela as pendentes com o motivo "planejamento encerrado"). Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'situacao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            situacao = [ordered]@{ type = 'string'; enum = @('ABERTO', 'ENCERRADO') }
+            cancelar_pendentes = [ordered]@{ type = 'boolean' }
             autor = $script:PropAutor } }
     },
     [ordered]@{
