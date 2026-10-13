@@ -214,6 +214,20 @@ try {
     foreach ($i in $criadasT7) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT7))
 }
+Write-Host '--- planejamento (Fase 4.1 e 4.2): nome_busca, distância e regras P1 a P3, puras'
+Conferir 'nome_busca: sem acento e em maiúsculas (São Luís = SAO LUIS)' ((ConvertTo-NomeBusca 'São Luís') -eq 'SAO LUIS')
+Conferir 'distância: mesma cidade é 0 km' ((Get-DistanciaKm -23.5505 -46.6333 -23.5505 -46.6333) -eq 0)
+$dSpRj = Get-DistanciaKm -23.5505 -46.6333 -22.9068 -43.1729
+Conferir 'distância: São Paulo a Rio fica entre 340 e 370 km (Haversine, raio 6.371 km)' ($dSpRj -gt 340 -and $dSpRj -lt 370) ([string]$dSpRj)
+Conferir 'C14 P1: raio 0 é recusado' ((Test-RaioValido 0) -match 'C14')
+Conferir 'C14 P1: raio 501 é recusado' ((Test-RaioValido 501) -match 'C14')
+Conferir 'C14 P1: raio 1 e 500 passam' ($null -eq (Test-RaioValido 1) -and $null -eq (Test-RaioValido 500))
+Conferir 'C15 P2: início depois do fim é recusado' ((Test-PeriodoValido '2026-10-20' '2026-10-10') -match 'C15')
+Conferir 'C15 P2: período de um dia passa' ($null -eq (Test-PeriodoValido '2026-10-10' '2026-10-10'))
+Conferir 'C16 P3: encerrar com pendentes sem cancelar é recusado' ((Test-EncerramentoPermitido 2 $false) -match 'C16')
+Conferir 'C16 P3: encerrar com pendentes cancelando passa' ($null -eq (Test-EncerramentoPermitido 2 $true))
+Conferir 'C16 P3: encerrar sem pendentes passa' ($null -eq (Test-EncerramentoPermitido 0 $false))
+Conferir 'P4: código PL-AAAA-NNN com 3 dígitos' ((Get-CodigoPlanejamento 2026 7) -eq 'PL-2026-007')
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)

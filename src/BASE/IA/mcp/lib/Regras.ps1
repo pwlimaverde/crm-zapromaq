@@ -191,3 +191,43 @@ function Test-SegundaPendente([int]$pendentesExistentes) {
     if ($pendentesExistentes -gt 0) { return 'Já há visita pendente neste atendimento: realize ou cancele antes (C13).' }
     return $null
 }
+
+# Planejamento (Fase 4, spec 003 secao "Regras de planejamento"). Espelho de modPlanejamento (VBA).
+
+# Nome de município para comparar: a mesma chave das listas (sem acento, maiúscula, espaço).
+function ConvertTo-NomeBusca([string]$nome) { return ConvertTo-ChaveLista $nome }
+
+# Distância em km entre dois pontos (Haversine, raio da Terra 6.371 km).
+function Get-DistanciaKm([double]$lat1, [double]$lon1, [double]$lat2, [double]$lon2) {
+    $raio = 6371.0
+    $graus = [math]::PI / 180
+    $dLat = ($lat2 - $lat1) * $graus
+    $dLon = ($lon2 - $lon1) * $graus
+    $a = [math]::Sin($dLat / 2) * [math]::Sin($dLat / 2) +
+         [math]::Cos($lat1 * $graus) * [math]::Cos($lat2 * $graus) * [math]::Sin($dLon / 2) * [math]::Sin($dLon / 2)
+    return 2 * $raio * [math]::Asin([math]::Sqrt($a))
+}
+
+# P1 (C14): raio de 1 a 500 km.
+function Test-RaioValido([int]$raio) {
+    if ($raio -lt 1 -or $raio -gt 500) { return 'Raio deve ser de 1 a 500 km (C14).' }
+    return $null
+}
+
+# P2 (C15): período preenchido e início não depois do fim (datas AAAA-MM-DD).
+function Test-PeriodoValido([string]$inicio, [string]$fim) {
+    if ([string]::IsNullOrWhiteSpace($inicio) -or [string]::IsNullOrWhiteSpace($fim)) { return 'Informe início e fim do período (C15).' }
+    if ($inicio -gt $fim) { return 'O início é depois do fim do período (C15).' }
+    return $null
+}
+
+# P3 (C16): não encerra com visita pendente sem cancelar_pendentes.
+function Test-EncerramentoPermitido([int]$pendentes, [bool]$cancelarPendentes) {
+    if ($pendentes -gt 0 -and -not $cancelarPendentes) { return ('Há ' + $pendentes + ' visita(s) pendente(s): cancele-as ou use cancelar_pendentes (C16).') }
+    return $null
+}
+
+# P4: código PL-AAAA-NNN (NNN com 3 dígitos).
+function Get-CodigoPlanejamento([int]$ano, [int]$numero) {
+    return ('PL-' + $ano + '-' + $numero.ToString('000'))
+}

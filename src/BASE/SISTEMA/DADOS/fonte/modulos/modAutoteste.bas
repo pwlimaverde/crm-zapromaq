@@ -89,6 +89,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
     Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
     Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
+    ' ---- planejamento (Fase 4): mesma regra do conector (modPlanejamento)
+    Confere "nome_busca sem acento e maiusculas", modPlanejamento.NomeBusca("S" & ChrW(227) & "o Lu" & ChrW(237) & "s"), "SAO LUIS"
+    Confere "distancia mesma cidade e zero", modPlanejamento.DistanciaKm(-23.5505, -46.6333, -23.5505, -46.6333), 0
+    Confere "distancia SP a RJ entre 340 e 370 km", (modPlanejamento.DistanciaKm(-23.5505, -46.6333, -22.9068, -43.1729) > 340) And (modPlanejamento.DistanciaKm(-23.5505, -46.6333, -22.9068, -43.1729) < 370), True
+    Confere "C14 raio zero e recusado", modPlanejamento.RaioValido(0) <> "", True
+    Confere "C14 raio 501 e recusado", modPlanejamento.RaioValido(501) <> "", True
+    Confere "C14 raio 500 passa", modPlanejamento.RaioValido(500), ""
+    Confere "C15 inicio depois do fim e recusado", modPlanejamento.PeriodoValido("2026-10-20", "2026-10-10") <> "", True
+    Confere "C15 periodo de um dia passa", modPlanejamento.PeriodoValido("2026-10-10", "2026-10-10"), ""
+    Confere "C16 encerrar com pendentes sem cancelar e recusado", modPlanejamento.EncerramentoPermitido(2, False) <> "", True
+    Confere "C16 encerrar cancelando pendentes passa", modPlanejamento.EncerramentoPermitido(2, True), ""
+    Confere "P4 codigo PL-2026-007", modPlanejamento.CodigoPlanejamento(2026, 7), "PL-2026-007"
     Confere "Dias parado", modCalc.DiasParado(Date - 10), 10
     Confere "Ciclo", modCalc.Ciclo(DateSerial(2026, 1, 1), DateSerial(2026, 1, 31)), 30
     Confere "Mes referencia", modCalc.MesReferencia(DateSerial(2026, 9, 19)), 202609

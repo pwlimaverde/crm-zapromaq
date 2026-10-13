@@ -45,8 +45,8 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 
 ## Fase 4: planejamentos (publicação C)
 
-- [ ] 4.1 `nome_busca` e haversine — `Confere` e `testar-mcp`
-- [ ] 4.2 P1–P4 e ordem dos candidatos (C14–C16) — `Confere` e `testar-mcp`
+- [x] 4.1 `nome_busca` e haversine — `Confere` e `testar-mcp`
+- [x] 4.2 P1–P4 e ordem dos candidatos (C14–C16) — `Confere` e `testar-mcp`
 - [ ] 4.3a Gravar planejamento (`PL-`, período, raio 1–500), VBA e conector — `testar-uso`
 - [ ] 4.3b Encerrar e reabrir (P3) — `testar-uso`
 - [ ] 4.4 Gerar visitas em transação, V8 dentro dela, corrida recusada — `testar-uso`
