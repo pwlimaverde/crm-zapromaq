@@ -197,8 +197,13 @@ Regras que o conector confere e recusa com mensagem:
 
 ## Listas e metas
 
-- `gerenciar_lista`: `incluir`, `ativar`, `desativar` ou `ordenar` um valor. Nada é apagado nem
-  renomeado. Mexer em Etapa ou Responsavel muda o funil de todos: confirme antes.
+- `gerenciar_lista`: `incluir`, `ativar`, `desativar`, `ordenar` ou `definir_papel` (só na lista
+  Etapa: `encerra`, `resultado` GANHO/PERDA, `quadro` FUNIL/PROSPECCAO, `exige_familia`). Nada é
+  apagado nem renomeado. Mexer em Etapa ou Responsavel muda o funil de todos: confirme antes.
+  Regras: UF só das 27 (C05); resultado só em etapa que encerra (C04); não desativa a última etapa
+  ativa de ganho ou de perda (C03). Mudar `encerra` de etapa com atendimentos devolve a contagem e
+  pede `confirmar=true` depois de confirmar com o usuário.
+- `listar_opcoes` com `detalhar=true`: inclui os inativos, o uso de cada valor e, na Etapa, o papel.
 - `gravar_meta`: cria ou altera a meta de um mês (faturamento, pedidos, propostas, contatos).
 
 ## O que confirmar sempre com o usuário antes de gravar
