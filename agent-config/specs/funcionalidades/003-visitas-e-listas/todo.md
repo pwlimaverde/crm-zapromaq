@@ -50,15 +50,15 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [~] 4.3a Gravar planejamento (`PL-`, período, raio 1–500): conector feito (criar, atualizar, encerrar e reabrir com C16); falta a gravação VBA — `testar-uso`
 - [x] 4.3b Encerrar e reabrir (P3, C16) no conector — `testar-mcp`; VBA junto da tela (4.7)
 - [x] 4.4 Gerar visitas em transação, C13 dentro dela, tudo ou nada (conector); VBA junto da tela — `testar-mcp`
-- [ ] 4.5 Lançamento de datas e resultados (rotina) — `testar-uso` e `testar-mcp`
+- [x] 4.5 Lançamento de datas e resultados em lote (conector, tudo ou nada, simular) — `testar-mcp`; VBA junto da tela
 - [ ] 4.6 `clsGrade` com marcação — `verificar.py` e `testar-uso`
 - [ ] 4.7a `frmPlanejamento` layout (cabeçalho e três páginas) — prévia e `verificar.py`
 - [ ] 4.7b Páginas Visitas e Candidatos — `testar-uso`
 - [ ] 4.7c Página Lançamento — `testar-uso`
 - [ ] 4.7d `frmVinculo` modo `municipio` — `verificar.py` e `testar-uso`
 - [ ] 4.8 Aba Planejamentos (seletor, duplo clique, feed) — `testar-uso`; 🖥B
-- [ ] 4.9a Ferramentas de planejamento (5) — `testar-mcp`
-- [ ] 4.9b Candidatos, `gerar_visitas`, lotes, `buscar_municipios`, `resolver_cidade` — `testar-mcp`
+- [x] 4.9a Ferramentas de planejamento no conector (listar, obter, criar, atualizar, encerrar) — `testar-mcp`
+- [x] 4.9b Candidatos, `gerar_visitas`, lotes, `buscar_municipios`, `resolver_cidade` no conector — `testar-mcp` (falta `exportar_roteiro`, Fase 5)
 - [ ] Checkpoint C: 🖥B das três páginas em 1366×768; autorização
 
 ## Fase 5: exportação (publicação C)

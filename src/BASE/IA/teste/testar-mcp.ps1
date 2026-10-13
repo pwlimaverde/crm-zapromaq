@@ -290,6 +290,42 @@ try {
     foreach ($i in $planT10) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT10))
 }
+Write-Host '--- lançamento em lote e leitura de planejamento (Fase 4.5, 4.9a, 4.9b): no banco de demonstração'
+$cidT11 = [int](Invoke-Valor "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'" @())
+$maxLogT11 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+$filaT11 = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$codT11 = [string]$filaT11[0].codigo
+$planT11 = @(); $visT11 = @()
+try {
+    $pl11 = Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'TESTE LOTE'; cod_municipio = $cidT11; raio_km = 100; data_inicio = '2026-10-20'; data_fim = '2026-10-30' })
+    $planT11 += $pl11.id
+    $v11 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codT11; tipo = 'Visita'; id_planejamento = $pl11.id })
+    $visT11 += $v11.id
+    $sim = Invoke-LancarDatas ([pscustomobject]@{ simular = $true; itens = @([pscustomobject]@{ id = $v11.id; versao = 1; data_agendada = '2026-10-25'; hora_agendada = '09:00' }) })
+    Conferir 'lancar_datas simular confere sem gravar' ($sim.simulado -eq $true -and $sim.ok -eq 1) ($sim | ConvertTo-Json -Compress -Depth 4)
+    $dataSim = Linhas-Visita "SELECT data_agendada FROM visitas WHERE id=$($v11.id)"
+    Conferir 'lancar_datas simular não mudou a data' ($null -eq $dataSim[0].data_agendada) ''
+    Conferir 'lancar_datas com data fora do período (C09) não grava nada' ((Mensagem { Invoke-LancarDatas ([pscustomobject]@{ simular = $false; itens = @([pscustomobject]@{ id = $v11.id; versao = 1; data_agendada = '2026-11-05' }) }) }) -match 'Nada gravado') ''
+    $ger = Invoke-LancarDatas ([pscustomobject]@{ simular = $false; itens = @([pscustomobject]@{ id = $v11.id; versao = 1; data_agendada = '2026-10-25'; hora_agendada = '09:00' }) })
+    Conferir 'lancar_datas grava a data e a hora' ($ger.recusadas -eq 0 -and $ger.ok -eq 1) ($ger | ConvertTo-Json -Compress -Depth 4)
+    $dataDep = Linhas-Visita "SELECT data_agendada, hora_agendada, versao FROM visitas WHERE id=$($v11.id)"
+    Conferir 'a visita ficou com a data 25/10/2026 09:00 e versão 2' (([datetime]$dataDep[0].data_agendada).ToString('yyyy-MM-dd') -eq '2026-10-25' -and [string]$dataDep[0].hora_agendada -eq '09:00' -and [int]$dataDep[0].versao -eq 2) ''
+    Conferir 'lancar_resultados: cancelar sem motivo recusa o lote inteiro' ((Mensagem { Invoke-LancarResultados ([pscustomobject]@{ simular = $false; itens = @([pscustomobject]@{ id = $v11.id; versao = 2; situacao = 'CANCELADA' }) }) }) -match 'Nada gravado') ''
+    $lp = Invoke-ListarPlanejamentos ([pscustomobject]@{ situacao = 'ABERTO' })
+    Conferir 'listar_planejamentos traz o planejamento criado' (@($lp.planejamentos | Where-Object { [int]$_.id -eq [int]$pl11.id }).Count -eq 1) ''
+    $op = Invoke-ObterPlanejamento ([pscustomobject]@{ codigo = $pl11.codigo })
+    Conferir 'obter_planejamento traz o resumo de visitas (1 pendente)' ([int]$op.visitas.PENDENTE -eq 1 -and $op.cidade_base -eq 'Curitiba') ($op | ConvertTo-Json -Compress -Depth 3)
+    $bm = Invoke-BuscarMunicipios ([pscustomobject]@{ texto = 'curitib'; uf = 'pr' })
+    Conferir 'buscar_municipios acha Curitiba pelo nome sem diferença de caixa' (@($bm.municipios | Where-Object { [int]$_.cod_ibge -eq $cidT11 }).Count -eq 1) ''
+    $rc = Invoke-ResolverCidade ([pscustomobject]@{ cidade = 'Curitiba'; uf = 'PR' })
+    Conferir 'resolver_cidade resolve Curitiba/PR para um código' ($rc.resolvida -eq $true -and [int]$rc.municipio.cod_ibge -eq $cidT11) ''
+    $rn = Invoke-ResolverCidade ([pscustomobject]@{ cidade = 'Nao existe'; uf = 'PR' })
+    Conferir 'resolver_cidade sem resultado não resolve' ($rn.resolvida -eq $false) ''
+} finally {
+    foreach ($i in $visT11) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
+    foreach ($i in $planT11) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT11))
+}
     Write-Host '--- protocolo moderno (2026-07-28, sem estado)'
     $r = Enviar 'server/discover' (Moderno $null)
     Conferir 'server/discover responde DiscoverResult' ($r.result.resultType -eq 'complete' -and @($r.result.supportedVersions) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)
