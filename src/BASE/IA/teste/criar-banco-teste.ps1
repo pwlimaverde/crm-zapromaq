@@ -5,13 +5,14 @@
   A estrutura vem do dono dela (SISTEMA\DADOS\banco\esquema\criar-banco.ps1);
   este script só acrescenta listas e registros de exemplo. Nenhum dado real.
 #>
-param([switch]$Recriar)
+param([switch]$Recriar, [string]$Banco = '', [switch]$CasosDaMigracao)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Data
 
 $raizIA   = Split-Path -Parent $PSScriptRoot
 $raizBase = Split-Path -Parent $raizIA
-$banco    = Join-Path $raizBase 'crm_zapromaq.accdb'
+if (-not $Banco) { $Banco = Join-Path $raizBase 'crm_zapromaq.accdb' }
+$banco    = $Banco
 $esquema  = Join-Path $raizBase 'SISTEMA\DADOS\banco\esquema\criar-banco.ps1'
 
 if ((Test-Path $banco) -and -not $Recriar) {
@@ -63,6 +64,7 @@ try {
         Motivo = @('Preço', 'Prazo de entrega', 'Projeto adiado', 'Comprou concorrente nacional', 'Sem verba', 'Ganho por preço')
         Categoria = @('Linha própria – nacionalização acima de 85%', 'Linha própria – nacionalização abaixo de 85%')
     }
+    if ($CasosDaMigracao) { $listas.Etapa = @($listas.Etapa | Where-Object { $_ -ne 'Perdido' }) + @('PEDIDO FECHADO') }
     foreach ($tipo in $listas.Keys) {
         $i = 0
         foreach ($v in $listas[$tipo]) { $i++; [void](Ins 'listas' ([ordered]@{ tipo = $tipo; valor = $v; ordem = $i; ativo = $true })) }
@@ -110,12 +112,25 @@ try {
     Opo 3 $t2 $c2 2 'Proposta em Análise' 'Vendedor B' 'Curvadora de Tubos / Perfis' ([decimal]420000.50) $hoje.AddDays(20) 'Retornar sobre a proposta' @{ maquina = 'CURVADORA CNC 50MM'; dt_proposta = $hoje.AddDays(-15) }
     Opo 4 $t3 $c3 3 'Proposta em Stand By' 'Vendedor A' 'Corte de Tubos à Laser e Serra' ([decimal]1250000) $null $null @{ retomar_em = $hoje.AddDays(90); dt_proposta = $hoje.AddDays(-45) }
     Opo 5 $t4 $c4 4 'Perdido' 'Vendedor C' 'Solda Laser' ([decimal]300000) $null $null @{ motivo_desfecho = 'Preço'; dt_desfecho = $hoje.AddDays(-5); dt_proposta = $hoje.AddDays(-40) }
+    if ($CasosDaMigracao) {
+        # casos da migração 003 (fictícios), só no banco que o teste da migração cria: 'PEDIDO FECHADO' é variante
+        # de 'Pedido Fechado' (C17); 'Perdido' NÃO está na lista e está em uso (C18); 'Qualificando Antigo' é órfã
+        Opo 6 $t2 $c2 2 'Qualificando Antigo' 'Vendedor B' 'A Definir' $null $null $null
+        Opo 7 $t1 $c1 1 'PEDIDO FECHADO' 'Vendedor A' 'Dobra de Chapas' ([decimal]100000) $null $null @{ dt_desfecho = $hoje.AddDays(-2) }
+        Opo 8 $t3 $c3 3 'Pedido Fechado' 'Vendedor A' 'Solda Laser' ([decimal]200000) $null $null @{ dt_desfecho = $hoje.AddDays(-7) }
+        Opo 9 $t4 $c4 4 'Pedido Fechado' 'Vendedor C' 'Solda Laser' ([decimal]50000) $null $null @{ dt_desfecho = $hoje.AddDays(-9) }
+    }
 
     # config esperada pelo front
     $cmd = $cn.CreateCommand(); $cmd.CommandText = "INSERT INTO config (chave, valor) VALUES ('versao_front', '1.4')"
     [void]$cmd.ExecuteNonQuery(); $cmd.Dispose()
 } finally { $cn.Close(); $cn.Dispose() }
 
+# banco padrão sai no esquema atual (1.1), como o de demonstração; o caso da migração fica em 1.0 de propósito
+if (-not $CasosDaMigracao) {
+    & (Join-Path $raizBase 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1') -Banco $banco | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'as migrações do banco de teste falharam' }
+}
 Write-Host ''
 Write-Host 'Banco de teste pronto:' $banco
-Write-Host '  4 clientes, 2 pré-clientes, 4 contatos, 5 atendimentos, listas preenchidas. Tudo fictício.'
+Write-Host '  4 clientes, 2 pré-clientes, 4 contatos, 9 atendimentos, listas preenchidas. Tudo fictício.'

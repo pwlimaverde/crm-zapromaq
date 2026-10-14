@@ -1,14 +1,18 @@
 {
-    "gerado_em":  "2026-10-04 11:59",
+    "gerado_em":  "2026-10-12 22:08",
     "entradas":  {
-                     "fonte\\layout\\abas.json":  "2BF162539BDE9F4177952B5E537B96A2FCA7626CADA6D172E08876F6AEB69F8C",
-                     "fonte\\layout\\amostras.json":  "981E51E17D335D8D8CEDF7B1DD3597A7B688D5EAE40E389779E97091C29696D7",
+                     "fonte\\layout\\abas.json":  "AA596FE2B9839AC6A9771B356F514B75C258B02971ADA024E3E83228CE1E9EE2",
+                     "fonte\\layout\\amostras.json":  "60D648EE257B9AD66DA0AB05DA540F7C6C2FDC8E8171DED8555B3F357BB08C0D",
                      "fonte\\layout\\icones.json":  "FB75985D82E9375B07E839FCA9BC5D429764C5D276A9E0A018C5E370DE4D5C6E",
                      "fonte\\layout\\tema.json":  "79B131D7C3E18CFD446646DD70B2418C7153AC42CB233E90D5DD49DB899C3E07",
                      "fonte\\layout\\formularios\\frmCalibracao.json":  "F95ECEC1AE9BB2F3F1D34B40B583850C44D4BCAD159E76551C22B5088B7848D8",
-                     "fonte\\layout\\formularios\\frmCRM.json":  "FD2C2A16FB621940B5102EAC30DC5C95C856071A55AF0FE7E8864A1B0645166F",
+                     "fonte\\layout\\formularios\\frmCRM.json":  "5D7907E6D87721C956F7B534BD63B5EE977832CBB5F007C88233F8504398CEC9",
+                     "fonte\\layout\\formularios\\frmLancamento.json":  "D8CCD6A738AE4F397F2BE6416A7195B61CE78F12AD126192BE69E2668772B42E",
+                     "fonte\\layout\\formularios\\frmListas.json":  "CA8CB6CC710F23A6B6C20CECF1F1375996393A7483372B0D8F26C2B40B1D456B",
                      "fonte\\layout\\formularios\\frmLote.json":  "4F03C91F2426734BFAB0C335B68C42D17768A3FB7B88AC41A1FA430266DD2993",
+                     "fonte\\layout\\formularios\\frmPlanejamento.json":  "7D41B8245669236F89584DEC6F24354F07A58AF7C972A5C33E57C713B649432A",
                      "fonte\\layout\\formularios\\frmVinculo.json":  "74CFE00D56A6AA91F29C5C1A67F253F44C9A46BB66F1A494E3820934750652F0",
+                     "fonte\\layout\\formularios\\frmVisitas.json":  "EA4104EAA0826EF44E32DE419392D489663CDF262596FA7F773CEDC971969D66",
                      "build\\visual\\previa.css":  "6A8CAEC7A5BDA84154CF105AADD16A26F2A8F5F34A06D6EF71AB043E478D1E0C",
                      "build\\visual\\previa.html":  "CCA0FDE3A8ABE02E472D680590C0EBD81FD702D77E3F25FBDD0E5BB40CBFCCE9",
                      "build\\visual\\previa.js":  "57F3F26B425A4A1CB8AC1D1DA1C7D0E62810C978F4F6373D074B6B2FD284114A"

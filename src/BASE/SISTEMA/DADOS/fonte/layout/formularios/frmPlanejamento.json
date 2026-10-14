@@ -1,0 +1,548 @@
+{
+  "_sobre": "Planejamento por regiao (Fase 4). Cabecalho com o planejamento escolhido; paginas Visitas e Candidatos mostradas por abas (botoes) na mesma area. O lancamento da visita tem janela propria (frmLancamento), aberta pelo botao Lancar visita. Nomes dos controles sao contrato com frmPlanejamento.txt. Grade com 722 pt uteis (soma das colunas em frmPlanejamento.txt) + 14.",
+  "nome": "frmPlanejamento",
+  "codigo": "formularios/frmPlanejamento.txt",
+  "canvas": {
+    "largura": 780,
+    "altura": 492
+  },
+  "propriedades": {
+    "Caption": "CRM Zapromaq - planejamento por regiao",
+    "BackColor": "@fundo"
+  },
+  "fundo": [
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        0,
+        780,
+        48
+      ],
+      "gradiente": [
+        "@azul",
+        "@azulMedio"
+      ]
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        46,
+        780,
+        2
+      ],
+      "cor": "@verde"
+    },
+    {
+      "tipo": "imagem",
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        12,
+        10,
+        76,
+        28
+      ],
+      "filtro": "branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        98,
+        10,
+        1,
+        28
+      ],
+      "cor": "#FFFFFF",
+      "opacidade": 0.35
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        10,
+        56,
+        760,
+        380
+      ],
+      "cor": "@fundoCard",
+      "raio": 8,
+      "borda": "@bordaSuave",
+      "sombra": true
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        444,
+        780,
+        48
+      ],
+      "cor": "@branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        0,
+        444,
+        780,
+        1
+      ],
+      "cor": "@bordaSuave"
+    }
+  ],
+  "estilos": {
+    "campo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "SpecialEffect": 0,
+      "BorderStyle": 1,
+      "BorderColor": "@borda",
+      "BackColor": "@branco",
+      "ForeColor": "@texto"
+    },
+    "rotulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "BackStyle": 0,
+      "ForeColor": "@texto2"
+    },
+    "rotuloPeq": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "titulo": {
+      "Font.Name": "@semibold",
+      "Font.Size": 13,
+      "BackStyle": 0,
+      "ForeColor": "@branco",
+      "WordWrap": false
+    },
+    "subtitulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "secao": {
+      "Font.Name": "@semibold",
+      "Font.Size": 10,
+      "BackStyle": 0,
+      "ForeColor": "@texto",
+      "WordWrap": false
+    }
+  },
+  "controles": [
+    {
+      "nome": "lblTitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        6,
+        340,
+        20
+      ],
+      "texto": "Planejamento por regiao",
+      "estilo": "titulo"
+    },
+    {
+      "nome": "lblSubtitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        28,
+        340,
+        13
+      ],
+      "texto": "Cidade-base e raio; gere as visitas; exporte o roteiro.",
+      "estilo": "subtitulo"
+    },
+    {
+      "nome": "lblPl",
+      "tipo": "Label",
+      "pos": [
+        22,
+        66,
+        200,
+        14
+      ],
+      "texto": "Planejamento",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboPlanejamento",
+      "tipo": "ComboBox",
+      "pos": [
+        22,
+        82,
+        250,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblSituacao",
+      "tipo": "Label",
+      "pos": [
+        600,
+        86,
+        160,
+        14
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "ABERTO"
+    },
+    {
+      "nome": "lblDesc",
+      "tipo": "Label",
+      "pos": [
+        22,
+        112,
+        120,
+        14
+      ],
+      "texto": "Descricao",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtDescricao",
+      "tipo": "TextBox",
+      "pos": [
+        22,
+        128,
+        300,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblCidade",
+      "tipo": "Label",
+      "pos": [
+        340,
+        112,
+        130,
+        14
+      ],
+      "texto": "Cidade-base",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtCidade",
+      "tipo": "TextBox",
+      "pos": [
+        340,
+        128,
+        200,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblRaio",
+      "tipo": "Label",
+      "pos": [
+        620,
+        112,
+        60,
+        14
+      ],
+      "texto": "Raio km",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtRaio",
+      "tipo": "TextBox",
+      "pos": [
+        620,
+        128,
+        60,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblInicio",
+      "tipo": "Label",
+      "pos": [
+        22,
+        156,
+        120,
+        14
+      ],
+      "texto": "Inicio (AAAA-MM-DD)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtInicio",
+      "tipo": "TextBox",
+      "pos": [
+        22,
+        172,
+        120,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblFim",
+      "tipo": "Label",
+      "pos": [
+        160,
+        156,
+        120,
+        14
+      ],
+      "texto": "Fim (AAAA-MM-DD)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtFim",
+      "tipo": "TextBox",
+      "pos": [
+        160,
+        172,
+        120,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblResp",
+      "tipo": "Label",
+      "pos": [
+        298,
+        156,
+        140,
+        14
+      ],
+      "texto": "Responsavel",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboResp",
+      "tipo": "ComboBox",
+      "pos": [
+        298,
+        172,
+        140,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblObs",
+      "tipo": "Label",
+      "pos": [
+        450,
+        156,
+        200,
+        14
+      ],
+      "texto": "Observacoes",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtObs",
+      "tipo": "TextBox",
+      "pos": [
+        450,
+        172,
+        308,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblPagina",
+      "tipo": "Label",
+      "pos": [
+        22,
+        438,
+        736,
+        12
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "Marque os candidatos e gere as visitas. Use Marcar/desmarcar na linha atual."
+    }
+  ],
+  "componentes": [
+    {
+      "tipo": "botao",
+      "nome": "cmdNovo",
+      "pos": [
+        280,
+        82,
+        80,
+        22
+      ],
+      "texto": "Novo",
+      "icone": "novo",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdSalvar",
+      "pos": [
+        366,
+        82,
+        80,
+        22
+      ],
+      "texto": "Salvar",
+      "icone": "salvar",
+      "variante": "sucesso"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdLancar",
+      "pos": [
+        348,
+        208,
+        160,
+        24
+      ],
+      "texto": "Lancar visita",
+      "icone": "ok",
+      "variante": "primario"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdEncerrar",
+      "pos": [
+        452,
+        82,
+        130,
+        22
+      ],
+      "texto": "Encerrar",
+      "icone": "fechar",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdCidade",
+      "pos": [
+        546,
+        128,
+        66,
+        22
+      ],
+      "texto": "Buscar",
+      "icone": "buscar",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdPagVisitas",
+      "pos": [
+        22,
+        208,
+        150,
+        24
+      ],
+      "texto": "Visitas",
+      "icone": "calendario",
+      "variante": "primario"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdPagCandidatos",
+      "pos": [
+        180,
+        208,
+        160,
+        24
+      ],
+      "texto": "Candidatos",
+      "icone": "pessoas",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "grade",
+      "nome": "grdPagina",
+      "pos": [
+        22,
+        238,
+        736,
+        190
+      ],
+      "amostra": "visitas",
+      "linhas": 9
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdMarcarTodos",
+      "pos": [
+        22,
+        458,
+        120,
+        24
+      ],
+      "texto": "Marcar todos",
+      "icone": "ok",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdMarcar",
+      "pos": [
+        148,
+        458,
+        150,
+        24
+      ],
+      "texto": "Marcar/desmarcar",
+      "icone": "ok",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdGerar",
+      "pos": [
+        304,
+        458,
+        130,
+        24
+      ],
+      "texto": "Gerar visitas",
+      "icone": "novo",
+      "variante": "primario"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdRoteiro",
+      "pos": [
+        440,
+        458,
+        150,
+        24
+      ],
+      "texto": "Exportar roteiro",
+      "icone": "importar",
+      "variante": "neutro"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdFechar",
+      "pos": [
+        688,
+        458,
+        80,
+        24
+      ],
+      "texto": "Fechar",
+      "icone": "fechar",
+      "variante": "neutro"
+    }
+  ]
+}

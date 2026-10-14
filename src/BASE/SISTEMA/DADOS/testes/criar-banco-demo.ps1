@@ -91,6 +91,8 @@ try {
         Prioridade = @('Alta', 'Média', 'Baixa')
         Motivo = @('Preço', 'Prazo de entrega', 'Projeto adiado', 'Comprou concorrente nacional', 'Sem verba', 'Ganho por preço')
         Categoria = @('Linha própria – nacionalização acima de 85%', 'Linha própria – nacionalização abaixo de 85%')
+        TipoVisita = @('Visita', 'Retorno', 'Demonstração', 'Instalação')
+        ResultadoVisita = @('Positivo', 'Neutro', 'Negativo', 'Sem contato')
     }
     foreach ($tipo in $listas.Keys) {
         $i = 0
@@ -208,7 +210,7 @@ try {
             categoria = $listas.Categoria[$i % 2]; tipo_venda = $(if ($i % 3 -eq 0) { 'Revenda' } else { 'Venda direta' })
             valor = $(if ($null -ne $a[3]) { [decimal]$a[3] } else { $null })
             origem = $origens[$i % $origens.Count]; prioridade = $prioridades[$i % 3]
-            dt_entrada = $hoje.AddDays(-(15 + 7 * $i)); ultima_interacao = $hoje.AddDays(-($i % 9)); tentativas = 1 + ($i % 3)
+            dt_entrada = $hoje.AddDays(-(60 + 7 * $i))   # antes de qualquer proposta (até 50 dias atrás); ultima_interacao = $hoje.AddDays(-($i % 9)); tentativas = 1 + ($i % 3)
             dt_prox_acao = $(if ($null -ne $a[4]) { $hoje.AddDays($a[4]) } else { $null }); prox_acao = $a[5]
         }
         foreach ($k in $a[6].Keys) {

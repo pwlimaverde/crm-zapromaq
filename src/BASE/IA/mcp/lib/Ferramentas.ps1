@@ -38,10 +38,13 @@ function Get-ValoresLista($ctx, [string]$tipo) {
 }
 
 # Devolve o valor exatamente como está na lista (acerta maiúsculas); lança se não existir.
-function Resolve-ValorLista($ctx, [string]$tipo, [string]$campo, $valor) {
+# Valor INATIVO só passa se for o próprio valor já gravado no registro ($atual): D-j, C06.
+function Resolve-ValorLista($ctx, [string]$tipo, [string]$campo, $valor, $atual = $null) {
     if ($null -eq $valor -or [string]$valor -eq '') { return $null }
     $validos = Get-ValoresLista $ctx $tipo
-    foreach ($v in $validos) { if ($v -ieq ([string]$valor).Trim()) { return $v } }
+    $texto = ([string]$valor).Trim()
+    foreach ($v in $validos) { if ($v -ieq $texto) { return $v } }
+    if ($null -ne $atual -and [string]$atual -ieq $texto) { return [string]$atual }
     throw ("Campo '" + $campo + "': '" + $valor + "' não está na lista " + $tipo + ". Valores aceitos: " + ($validos -join ' | '))
 }
 
@@ -153,13 +156,41 @@ function Invoke-CrmStatus($a) {
     }
 }
 
+# Espelho de Get-ColunasDaLista (SISTEMA\DADOS\lib\Comum.ps1): onde cada lista é usada. Mudou lá, muda aqui.
+$script:ColunasDaLista = @{
+    UF = @('clientes:uf'); Segmento = @('clientes:segmento'); Qualificacao = @('clientes:qualificacao')
+    Responsavel = @('clientes:responsavel', 'oportunidades:responsavel')
+    Etapa = @('oportunidades:etapa'); Familia = @('oportunidades:familia'); Categoria = @('oportunidades:categoria')
+    Origem = @('oportunidades:origem'); Prioridade = @('oportunidades:prioridade'); Motivo = @('oportunidades:motivo_desfecho')
+}
+
 function Invoke-ListarOpcoes($a) {
     $tipo = [string](Get-Arg $a 'tipo' '')
     if ($tipo -eq '') {
         $tipos = Invoke-Consulta 'SELECT DISTINCT tipo FROM listas ORDER BY tipo' @()
         return [ordered]@{ tipos = @($tipos | ForEach-Object { $_.tipo }) }
     }
-    return [ordered]@{ tipo = $tipo; valores = @(Get-ValoresLista $null $tipo) }
+    if (-not ((Test-TemArg $a 'detalhar') -and $a.detalhar -eq $true)) {
+        return [ordered]@{ tipo = $tipo; valores = @(Get-ValoresLista $null $tipo) }
+    }
+    # detalhar: inativos também, com o uso (atendimentos e clientes) e, na etapa, o papel
+    $linhas = Invoke-Consulta 'SELECT valor, ordem, ativo, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo=? ORDER BY ordem, valor' @((P 'texto' $tipo))
+    $colunas = @($script:ColunasDaLista[$tipo])
+    $itens = @($linhas | ForEach-Object {
+        $linha = $_
+        $uso = 0
+        foreach ($tc in $colunas) {
+            $parte = $tc.Split(':')
+            $uso += [int](Invoke-Valor ('SELECT COUNT(*) FROM ' + $parte[0] + ' WHERE ' + $parte[1] + '=?') @((P 'texto' ([string]$linha.valor))))
+        }
+        $item = [ordered]@{ valor = [string]$linha.valor; ordem = $linha.ordem; ativo = [bool]$linha.ativo; uso = $uso }
+        if ($tipo -eq 'Etapa') {
+            $item['encerra'] = [bool]$linha.encerra; $item['resultado'] = [string]$linha.resultado
+            $item['quadro'] = [string]$linha.quadro; $item['exige_familia'] = [bool]$linha.exige_familia
+        }
+        $item
+    })
+    return [ordered]@{ tipo = $tipo; itens = $itens }
 }
 
 function Invoke-BuscarClientes($a) {
@@ -224,7 +255,7 @@ function Invoke-BuscarAtendimentos($a) {
     if (Test-TemArg $a 'responsavel') { [void]$w.Add('o.responsavel=?'); [void]$p.Add((P 'texto' $a.responsavel)) }
     if (Test-TemArg $a 'codigo_cliente') { [void]$w.Add('c.codigo_cliente=?'); [void]$p.Add((P 'inteiro' ([int]$a.codigo_cliente))) }
     if ([bool](Get-Arg $a 'somente_abertos' $true)) {
-        [void]$w.Add("o.etapa NOT IN ('Pedido Fechado', 'Perdido', 'Descartado')")
+        [void]$w.Add('o.etapa NOT IN (' + $script:SqlEtapasEncerradas + ')')
     }
     $filtroSituacao = [string](Get-Arg $a 'situacao' '')
     # Com filtro de situação (calculada fora do banco) lê o conjunto e corta depois.
@@ -256,7 +287,12 @@ function Invoke-ObterAtendimento($a) {
                           ' FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id)' +
                           ' INNER JOIN contatos ct ON o.id_contato = ct.id WHERE o.codigo=?') @((P 'texto' $codigo))
     if ($l.Count -eq 0) { throw ('Atendimento não encontrado: ' + $codigo) }
-    return (Add-Calculados $l[0])
+    $o = Add-Calculados $l[0]
+    # resumo das visitas do atendimento: total e a lista (pendentes primeiro)
+    $vis = Invoke-Consulta 'SELECT id, situacao, data_agendada, hora_agendada, tipo, resultado, versao FROM visitas WHERE id_oportunidade=? ORDER BY IIf(situacao=''PENDENTE'', 0, 1), data_agendada, id' @((P 'inteiro' ([int]$o.id)))
+    $o['visitas_total'] = $vis.Count
+    $o['visitas'] = $vis
+    return $o
 }
 
 function Invoke-UltimasAlteracoes($a) {
@@ -449,7 +485,9 @@ $script:MsgPlanejamentoPassado = ('O planejamento só vale de hoje em diante: o 
                                  'Para período passado use atendimentos_por_interacao. Nada foi consultado.')
 $script:CamposPlanejamentoPadrao = @($script:CamposInteracaoPadrao + @('quadro', 'categoria', 'codigo_contato', 'vencida'))
 # em aberto = etapa não encerrada; etapa vazia também é atendimento em aberto
-$script:SqlAtendimentoAberto = "(o.etapa IS NULL OR o.etapa NOT IN ('Pedido Fechado', 'Perdido', 'Descartado'))"
+# etapas que encerram (tabela listas, Encerra = Sim): subconsulta, sem nome de etapa no codigo
+$script:SqlEtapasEncerradas = "SELECT l.valor FROM listas AS l WHERE l.tipo='Etapa' AND l.encerra=True"
+$script:SqlAtendimentoAberto = "(o.etapa IS NULL OR o.etapa NOT IN (" + $script:SqlEtapasEncerradas + "))"
 $script:QuadroFunil = '2. Funil comercial'
 
 function Get-PeriodoPlanejamento($a) {
@@ -678,7 +716,7 @@ function Invoke-AtendimentosPorProximaAcao($a) {
 # entrada dos scripts de análise: o dado não passa pela conversa. Não grava no
 # banco. CSV em UTF-8 sem BOM, separador ',', todo campo entre aspas, CRLF - o
 # formato que os scripts do padrão (00 - SCRIPTS\_comum.py) leem sem conversão.
-$script:TabelasExtrato = @('clientes', 'contatos', 'oportunidades', 'log_alteracoes', 'listas', 'metas')
+$script:TabelasExtrato = @('clientes', 'contatos', 'oportunidades', 'log_alteracoes', 'listas', 'metas', 'planejamentos', 'visitas', 'municipios')
 $script:TabelasExtratoPadrao = @('clientes', 'contatos', 'oportunidades')
 $script:NomeRaizSetor = '1 - COMERCIAL ZAPROMAQ'
 $script:PastaLibFerramentas = $PSScriptRoot
@@ -692,6 +730,9 @@ $script:SqlExtrato = @{
     log_alteracoes = 'SELECT * FROM log_alteracoes ORDER BY id'
     listas         = 'SELECT * FROM listas ORDER BY id'
     metas          = 'SELECT * FROM metas ORDER BY id'
+    planejamentos  = 'SELECT * FROM planejamentos ORDER BY id'
+    visitas        = 'SELECT * FROM visitas ORDER BY id'
+    municipios     = 'SELECT * FROM municipios ORDER BY cod_ibge'
 }
 $script:CalculadosExtrato = @('situacao', 'quadro', 'dias_parado', 'ciclo')
 
@@ -825,7 +866,7 @@ function Invoke-AtualizarAtendimento($a) {
         $mud = [ordered]@{}
         foreach ($campo in $script:DefsAtendimento.Keys) {
             if (-not (Test-TemArg $a $campo)) { continue }
-            $v = ConvertTo-CampoAtendimento $ctx $campo $a.$campo
+            $v = ConvertTo-CampoAtendimento $ctx $campo $a.$campo $atual[$campo]
             $novo[$campo] = $v
             if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Tipo = $script:DefsAtendimento[$campo][0]; Novo = $v; Antigo = $atual[$campo] } }
         }
@@ -874,7 +915,7 @@ function Invoke-AtualizarCadastroCliente($a) {
             if ($tipo -eq 'inteiro') {
                 if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
             } elseif ($lista) {
-                $v = Resolve-ValorLista $ctx $lista $campo $v
+                $v = Resolve-ValorLista $ctx $lista $campo $v $atual[$campo]
             } else {
                 $v = ConvertTo-Normalizado $campo $v
                 Assert-Tamanho $campo $v
@@ -1121,8 +1162,8 @@ function Invoke-AtualizarContato($a) {
                 if ($mud.Count -eq 1) { $acao = if ($v) { 'REATIVACAO' } else { 'DESATIVACAO' } }
                 if (-not $v) {
                     $abertos = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_contato=? AND etapa NOT IN (' +
-                                               (($script:EtapasEncerradas | ForEach-Object { '?' }) -join ',') + ')'),
-                                               (@((P 'inteiro' ([int]$atual.id))) + @($script:EtapasEncerradas | ForEach-Object { P 'texto' $_ })))
+                                               $script:SqlEtapasEncerradas + ')'),
+                                               (@((P 'inteiro' ([int]$atual.id)))))
                     if ($abertos -gt 0) { [void]$avisos.Add('Contato desativado com ' + $abertos + ' atendimento(s) em aberto; eles continuam como estão.') }
                 }
             }
@@ -1150,16 +1191,16 @@ function Get-CriticaAtendimento($novo) {
     $dDes = ConvertTo-DataOuNulo $novo.dt_desfecho
     if ($dEnt -and $dPro -and $dPro -lt $dEnt) { throw 'A data da proposta é anterior à data de entrada.' }
     if ($dEnt -and $dDes -and $dDes -lt $dEnt) { throw 'A data do desfecho é anterior à data de entrada.' }
-    if ($script:EtapasEncerradas -contains $etapa) {
+    if ((Get-PapelEtapa $etapa).encerra) {
         if ([string]$novo.motivo_desfecho -eq '') { throw ('Etapa "' + $etapa + '" exige motivo_desfecho.') }
         if (-not $dDes) { throw ('Etapa "' + $etapa + '" exige dt_desfecho.') }
     }
-    if ($script:EtapasComFamilia -contains $etapa -and [string]$novo.familia -eq '') {
+    if ((Get-PapelEtapa $etapa).exige_familia -and [string]$novo.familia -eq '') {
         throw ('Etapa "' + $etapa + '" exige a família de máquina.')
     }
     $avisos = New-Object System.Collections.ArrayList
-    if ($etapa -eq 'Pedido Fechado' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
-    if (($script:EtapasEncerradas -notcontains $etapa) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
+    if ((Get-PapelEtapa $etapa).resultado -eq 'GANHO' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
+    if ((-not (Get-PapelEtapa $etapa).encerra) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
         [void]$avisos.Add('Sem próxima ação e sem data de retomada: o atendimento some da fila da manhã.')
     }
     return ,$avisos
@@ -1174,14 +1215,14 @@ $script:DefsAtendimento = [ordered]@{
     prox_acao = @('memo', $null); dt_entrada = @('data', $null); dt_proposta = @('data', $null); ultima_interacao = @('data', $null)
     dt_prox_acao = @('data', $null); retomar_em = @('data', $null); dt_desfecho = @('data', $null)
 }
-function ConvertTo-CampoAtendimento($ctx, [string]$campo, $v) {
+function ConvertTo-CampoAtendimento($ctx, [string]$campo, $v, $atual = $null) {
     $tipo = $script:DefsAtendimento[$campo][0]; $lista = $script:DefsAtendimento[$campo][1]
     switch ($tipo) {
         'data'    { return (ConvertTo-Data $campo $v) }
         'moeda'   { if ($null -ne $v) { $v = [decimal]$v; if ($v -lt 0) { throw 'O valor não pode ser negativo.' } }; return $v }
         'inteiro' { if ($null -ne $v) { $v = [int]$v; if ($v -lt 0) { throw "Campo '$campo' não pode ser negativo." } }; return $v }
         default   {
-            if ($lista) { return (Resolve-ValorLista $ctx $lista $campo $v) }
+            if ($lista) { return (Resolve-ValorLista $ctx $lista $campo $v $atual) }
             $v = ConvertTo-Normalizado $campo $v; Assert-Tamanho $campo $v; return $v
         }
     }
@@ -1207,14 +1248,14 @@ function Invoke-PromoverNaTransacao($ctx, $cli) {
 }
 
 # Normaliza e critica um campo de cliente (mesmas regras de atualizar_cadastro_cliente).
-function ConvertTo-CampoCliente($ctx, [string]$campo, $v, [int]$idProprio) {
+function ConvertTo-CampoCliente($ctx, [string]$campo, $v, [int]$idProprio, $atual = $null) {
     $defs = @{ uf = 'UF'; segmento = 'Segmento'; responsavel = 'Responsavel' }
     if ($campo -in @('aderencia', 'porte')) {
         if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
         return $v
     }
-    if ($defs.ContainsKey($campo)) { return (Resolve-ValorLista $ctx $defs[$campo] $campo $v) }
-    if ($campo -eq 'qualificacao' -and @(Get-ValoresLista $ctx 'Qualificacao').Count -gt 0) { return (Resolve-ValorLista $ctx 'Qualificacao' $campo $v) }
+    if ($defs.ContainsKey($campo)) { return (Resolve-ValorLista $ctx $defs[$campo] $campo $v $atual) }
+    if ($campo -eq 'qualificacao' -and @(Get-ValoresLista $ctx 'Qualificacao').Count -gt 0) { return (Resolve-ValorLista $ctx 'Qualificacao' $campo $v $atual) }
     $v = ConvertTo-Normalizado $campo $v
     Assert-Tamanho $campo $v
     switch ($campo) {
@@ -1299,12 +1340,10 @@ function Invoke-SituacaoCliente($a) {
         $cli = Get-ClienteNaTransacao $ctx $a
         Assert-Versao $cli $a
         $id = [int]$cli.id
-        $encerr = (($script:EtapasEncerradas | ForEach-Object { '?' }) -join ',')
-        $pEnc = @($script:EtapasEncerradas | ForEach-Object { P 'texto' $_ })
         switch ($acao) {
             'desativar' {
                 if (-not [bool]$cli.ativo) { throw 'A empresa já está inativa.' }
-                $nOp = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_cliente=? AND etapa NOT IN (' + $encerr + ')'), (@((P 'inteiro' $id)) + $pEnc))
+                $nOp = [int]$ctx.Valor(('SELECT COUNT(*) FROM oportunidades WHERE id_cliente=? AND etapa NOT IN (' + $script:SqlEtapasEncerradas + ')'), (@((P 'inteiro' $id))))
                 [void](Set-AtivoEm $ctx 'clientes' 'id=?' $id $false 'DESATIVACAO' ([string]$nOp + ' oportunidade(s) em aberto mantida(s)'))
                 $nCt = Set-AtivoEm $ctx 'contatos' 'id_cliente=?' $id $false 'DESATIVACAO' 'cascata da desativação do cliente'
                 $aviso = $null
@@ -1386,13 +1425,17 @@ function Invoke-GerenciarLista($a) {
     $tipo = ([string]$a.tipo).Trim(); $valor = ([string]$a.valor).Trim(); $acao = [string]$a.acao
     if ($tipo -eq '' -or $valor -eq '') { throw 'Informe tipo e valor.' }
     if ($valor.Length -gt 120) { throw 'Valor aceita no máximo 120 caracteres.' }
+    if ($acao -notin @('incluir', 'ativar', 'desativar', 'ordenar', 'definir_papel')) { throw 'acao deve ser incluir, ativar, desativar, ordenar ou definir_papel.' }
     return Invoke-Transacao {
         param($ctx)
         $tipos = @($ctx.Consultar('SELECT DISTINCT tipo FROM listas', @()) | ForEach-Object { [string]$_.tipo })
         $tipoOk = $tipos | Where-Object { $_ -ieq $tipo } | Select-Object -First 1
         if (-not $tipoOk) { throw ("Lista '" + $tipo + "' não existe. Listas: " + ($tipos -join ' | ')) }
+        $ehEtapa = ($tipoOk -eq 'Etapa')
         $ex = $ctx.Consultar('SELECT * FROM listas WHERE tipo=? AND valor=?', @((P 'texto' $tipoOk), (P 'texto' $valor)))
         $ordem = $null; if (Test-TemArg $a 'ordem') { $ordem = [int]$a.ordem }
+        # C05: UF só entra se for uma das 27
+        if ($tipoOk -eq 'UF' -and $acao -eq 'incluir' -and -not (Test-UFValida $valor)) { throw ("'" + $valor + "' não é uma UF do Brasil (C05).") }
         switch ($acao) {
             'incluir' {
                 if ($ex.Count -gt 0) {
@@ -1400,7 +1443,19 @@ function Invoke-GerenciarLista($a) {
                     throw ("'" + $valor + "' já existe na lista " + $tipoOk + $sufixo + '.')
                 }
                 if ($null -eq $ordem) { $ordem = [int]$ctx.Valor('SELECT MAX(ordem) FROM listas WHERE tipo=?', @((P 'texto' $tipoOk))) + 1 }
-                [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                if ($ehEtapa) {
+                    # etapa nova nasce aberta, no funil, sem família, a menos que o pedido diga o contrário (C04 vale)
+                    $enc = (Test-TemArg $a 'encerra') -and [bool]$a.encerra
+                    $res = ''; if (Test-TemArg $a 'resultado') { $res = ([string]$a.resultado).Trim().ToUpperInvariant() }
+                    $erro = Test-PapelEtapaValido $enc $res; if ($erro) { throw $erro }
+                    $quad = 'FUNIL'; if (Test-TemArg $a 'quadro') { $quad = ([string]$a.quadro).Trim().ToUpperInvariant() }
+                    if ($quad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
+                    $fam = (Test-TemArg $a 'exige_familia') -and [bool]$a.exige_familia
+                    $resP = $null; if ($res -ne '') { $resP = $res }
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
+                } else {
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                }
                 $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
                 $ctx.Log('listas', $id, 'valor', '', ($tipoOk + ': ' + $valor), 'INSERIR')
             }
@@ -1414,14 +1469,610 @@ function Invoke-GerenciarLista($a) {
                 } else {
                     $novo = ($acao -eq 'ativar')
                     if ([bool]$r.ativo -eq $novo) { throw ("'" + $valor + "' já está no estado pedido.") }
+                    # C03: não desativa a última etapa ativa de ganho ou de perda
+                    if (-not $novo -and $ehEtapa -and -not (Test-DesativarEtapaPermitido (Get-PapeisEtapa $ctx) $valor)) {
+                        throw ("'" + $valor + "' é a última etapa ativa de " + [string]$r.resultado + ': sem ela o funil não fecha. Ative outra antes (C03).')
+                    }
                     [void]$ctx.Executar('UPDATE listas SET ativo=? WHERE id=?', @((P 'logico' $novo), (P 'inteiro' $id)))
                     $ac = 'DESATIVACAO'; if ($novo) { $ac = 'REATIVACAO' }
                     $ctx.Log('listas', $id, 'ativo', [string](-not $novo), [string]$novo, $ac)
                 }
             }
-            default { throw 'acao deve ser incluir, ativar, desativar ou ordenar.' }
+            'definir_papel' {
+                if (-not $ehEtapa) { throw 'definir_papel só existe para a lista Etapa: as outras listas não têm papel.' }
+                if ($ex.Count -eq 0) { throw ("'" + $valor + "' não existe na lista Etapa.") }
+                $r = $ex[0]; $id = [int]$r.id
+                $novoEnc = [bool]$r.encerra; if (Test-TemArg $a 'encerra') { $novoEnc = [bool]$a.encerra }
+                $novoRes = [string]$r.resultado; if (Test-TemArg $a 'resultado') { $novoRes = ([string]$a.resultado).Trim().ToUpperInvariant() }
+                $novoQuad = [string]$r.quadro; if (Test-TemArg $a 'quadro') { $novoQuad = ([string]$a.quadro).Trim().ToUpperInvariant() }
+                $novoFam = [bool]$r.exige_familia; if (Test-TemArg $a 'exige_familia') { $novoFam = [bool]$a.exige_familia }
+                $erro = Test-PapelEtapaValido $novoEnc $novoRes; if ($erro) { throw $erro }
+                if ($novoQuad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
+                $antRes = [string]$r.resultado
+                $mud = [ordered]@{}
+                if ($novoEnc -ne [bool]$r.encerra) { $mud['encerra'] = @{ Tipo = 'logico'; Antigo = [bool]$r.encerra; Novo = $novoEnc } }
+                if ($novoRes -ne $antRes) { $mud['resultado'] = @{ Tipo = 'texto'; Antigo = $antRes; Novo = $novoRes } }
+                if ($novoQuad -ne [string]$r.quadro) { $mud['quadro'] = @{ Tipo = 'texto'; Antigo = [string]$r.quadro; Novo = $novoQuad } }
+                if ($novoFam -ne [bool]$r.exige_familia) { $mud['exige_familia'] = @{ Tipo = 'logico'; Antigo = [bool]$r.exige_familia; Novo = $novoFam } }
+                if ($mud.Count -eq 0) { return [ordered]@{ gravado = $false; mensagem = 'Nada a alterar.' } }
+                # C03 também vale ao tirar o resultado de uma etapa ativa
+                if ($antRes -ne '' -and $novoRes -ne $antRes -and [bool]$r.ativo -and -not (Test-DesativarEtapaPermitido (Get-PapeisEtapa $ctx) $valor)) {
+                    throw ("'" + $valor + "' é a última etapa ativa de " + $antRes + ': mude a outra antes (C03).')
+                }
+                # mudar 'encerra' muda a situação de todo atendimento nessa etapa: pede confirmação com a contagem
+                $afetados = 0
+                if ($mud.Contains('encerra')) {
+                    $afetados = [int]$ctx.Valor('SELECT COUNT(*) FROM oportunidades WHERE etapa=?', @((P 'texto' $valor)))
+                    if ($afetados -gt 0 -and -not ((Test-TemArg $a 'confirmar') -and $a.confirmar -eq $true)) {
+                        throw ("Mudar 'encerra' de '" + $valor + "' muda a situação de " + $afetados + ' atendimento(s). Repita com confirmar=true para gravar.')
+                    }
+                }
+                # controle de versão: a linha tem de ter os valores antigos (a tabela não tem coluna versao)
+                $filtro = 'id=? AND encerra=? AND quadro=? AND exige_familia=?'
+                $pars = @((P 'inteiro' $id), (P 'logico' ([bool]$r.encerra)), (P 'texto' ([string]$r.quadro)), (P 'logico' ([bool]$r.exige_familia)))
+                if ($antRes -eq '') { $filtro += ' AND (resultado IS NULL OR resultado=?)'; $pars += (P 'texto' '') } else { $filtro += ' AND resultado=?'; $pars += (P 'texto' $antRes) }
+                $resGravar = $null; if ($novoRes -ne '') { $resGravar = $novoRes }
+                $valoresNovos = @((P 'logico' $novoEnc), (P 'texto' $resGravar), (P 'texto' $novoQuad), (P 'logico' $novoFam))
+                $n = $ctx.Executar(('UPDATE listas SET encerra=?, resultado=?, quadro=?, exige_familia=? WHERE ' + $filtro), ($valoresNovos + $pars))
+                if ($n -ne 1) { throw "Conflito: a etapa '$valor' foi alterada por outra pessoa agora. Nada foi gravado; leia de novo com listar_opcoes." }
+                foreach ($c in $mud.Keys) { $ctx.Log('listas', $id, $c, [string]$mud[$c].Antigo, [string]$mud[$c].Novo, 'ALTERAR') }
+                return [ordered]@{ gravado = $true; tipo = $tipoOk; valor = $valor; acao = $acao; alterados = @($mud.Keys)
+                    papel = [ordered]@{ encerra = $novoEnc; resultado = $novoRes; quadro = $novoQuad; exige_familia = $novoFam }
+                    atendimentos_afetados = $afetados; valores_ativos = @(Get-ValoresLista $ctx $tipoOk) }
+            }
         }
         return [ordered]@{ gravado = $true; tipo = $tipoOk; valor = $valor; acao = $acao; valores_ativos = @(Get-ValoresLista $ctx $tipoOk) }
+    }
+}
+
+# Papel de todas as etapas (valor, resultado, ativo) para a regra C03.
+function Get-PapeisEtapa($ctx) {
+    $linhas = $ctx.Consultar("SELECT valor, ativo, resultado FROM listas WHERE tipo='Etapa'", @())
+    return @($linhas | ForEach-Object { [pscustomobject]@{ valor = [string]$_.valor; ativo = [bool]$_.ativo; resultado = [string]$_.resultado } })
+}
+
+# ---------------------------------------------------------------- visitas (Fase 3, regras V1-V9 da spec 003)
+
+# AAAA-MM-DD, ou AAAA-MM-DD HH:mm quando a hora importa (visita realizada, histórico C12)
+function Get-DataIsoOuErro([string]$texto, [string]$campo) {
+    $cultura = [Globalization.CultureInfo]::InvariantCulture
+    foreach ($formato in @('yyyy-MM-dd', 'yyyy-MM-dd HH:mm')) {
+        try { return [datetime]::ParseExact($texto.Trim(), $formato, $cultura) } catch { }
+    }
+    throw ($campo + " em AAAA-MM-DD (ou AAAA-MM-DD HH:mm): '" + $texto + "'.")
+}
+
+function Get-VisitaNaTransacao($ctx, [int]$id) {
+    $l = $ctx.Consultar('SELECT * FROM visitas WHERE id=?', @((P 'inteiro' $id)))
+    if ($l.Count -eq 0) { throw ('Visita não encontrada: ' + $id + '.') }
+    return $l[0]
+}
+
+# C09: a data da visita cai no período do planejamento, quando ela tem um.
+function Assert-DataDoPlanejamento($ctx, $idPlanejamento, $data) {
+    if ($null -eq $idPlanejamento -or $null -eq $data) { return }
+    $l = $ctx.Consultar('SELECT * FROM planejamentos WHERE id=?', @((P 'inteiro' ([int]$idPlanejamento))))
+    if ($l.Count -eq 0) { throw ('Planejamento não encontrado: ' + $idPlanejamento + '.') }
+    $ini = ([datetime]$l[0].data_inicio).ToString('yyyy-MM-dd')
+    $fim = ([datetime]$l[0].data_fim).ToString('yyyy-MM-dd')
+    $msg = Test-DataNoPeriodo ([datetime]$data).ToString('yyyy-MM-dd') $ini $fim
+    if ($msg) { throw $msg }
+}
+
+function Invoke-CriarVisita($a) {
+    Assert-EsquemaGravavel
+    $codigo = [string]$a.codigo
+    $dataAg = $null; if ((Test-TemArg $a 'data_agendada') -and [string]$a.data_agendada -ne '') { $dataAg = Get-DataIsoOuErro ([string]$a.data_agendada) 'data_agendada' }
+    $idPl = $null; if (Test-TemArg $a 'id_planejamento') { $idPl = [int]$a.id_planejamento }
+    return Invoke-Transacao {
+        param($ctx)
+        $op = Get-AtendimentoNaTransacao $ctx $codigo
+        $papel = Get-PapelEtapa ([string]$op.etapa)
+        $msg = Test-VisitaPodeCriar ([bool]$papel.encerra); if ($msg) { throw $msg }
+        Assert-DataDoPlanejamento $ctx $idPl $dataAg
+        $pend = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$op.id))))
+        $msg = Test-SegundaPendente $pend; if ($msg) { throw $msg }
+        $tipo = $null; if (Test-TemArg $a 'tipo') { $tipo = Resolve-ValorLista $ctx 'TipoVisita' 'tipo' $a.tipo }
+        $resp = $null; if (Test-TemArg $a 'responsavel') { $resp = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $a.responsavel }
+        $hora = $null; if (Test-TemArg $a 'hora_agendada') { $hora = [string]$a.hora_agendada }
+        $obs = $null; if (Test-TemArg $a 'observacoes') { $obs = [string]$a.observacoes }
+        $agora = Get-Date
+        [void]$ctx.Executar('INSERT INTO visitas (id_oportunidade, id_planejamento, situacao, data_agendada, hora_agendada, responsavel, tipo, observacoes, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,?,?,?,?,?,1,?,?,?)', @(
+            (P 'inteiro' ([int]$op.id)), (P 'inteiro' $idPl), (P 'texto' 'PENDENTE'), (P 'data' $dataAg), (P 'texto' $hora),
+            (P 'texto' $resp), (P 'texto' $tipo), (P 'memo' $obs), (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog)))
+        $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
+        $ctx.Log('visitas', $id, 'situacao', '', 'PENDENTE', 'INSERIR')
+        return [ordered]@{ gravado = $true; id = $id; codigo = $codigo; situacao = 'PENDENTE'; versao = 1 }
+    }
+}
+
+$script:SituacoesVisita = @('PENDENTE', 'REALIZADA', 'CANCELADA')
+$script:TiposCampoVisita = [ordered]@{
+    situacao = 'texto'; data_agendada = 'data'; hora_agendada = 'texto'; responsavel = 'texto'; tipo = 'texto'
+    observacoes = 'memo'; data_realizada = 'data'; resultado = 'texto'; relato = 'memo'; motivo_cancelamento = 'texto'
+}
+
+# Corpo de atualizar_visita dentro de uma transação já aberta (lotes de lançamento usam o mesmo caminho).
+function Set-VisitaNoCtx($ctx, $a) {
+    $id = [int]$a.id
+    $v = Get-VisitaNaTransacao $ctx $id
+    Assert-Versao $v $a
+    $novo = [ordered]@{}; foreach ($k in $v.Keys) { $novo[$k] = $v[$k] }
+    foreach ($campo in $script:TiposCampoVisita.Keys) {
+        if (-not (Test-TemArg $a $campo)) { continue }
+        $bruto = $a.$campo
+        switch ($campo) {
+            'situacao' {
+                $s = ([string]$bruto).Trim().ToUpperInvariant()
+                if ($s -notin $script:SituacoesVisita) { throw ("situacao deve ser PENDENTE, REALIZADA ou CANCELADA (recebi '" + $bruto + "').") }
+                $novo[$campo] = $s
+            }
+            { $_ -in @('data_agendada', 'data_realizada') } {
+                if ([string]$bruto -eq '') { $novo[$campo] = $null } else { $novo[$campo] = Get-DataIsoOuErro ([string]$bruto) $campo }
+            }
+            'tipo' { $novo[$campo] = Resolve-ValorLista $ctx 'TipoVisita' 'tipo' $bruto }
+            'resultado' { $novo[$campo] = Resolve-ValorLista $ctx 'ResultadoVisita' 'resultado' $bruto }
+            'responsavel' { $novo[$campo] = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $bruto }
+            default { $novo[$campo] = [string]$bruto }
+        }
+    }
+    $mud = [ordered]@{}
+    foreach ($campo in $script:TiposCampoVisita.Keys) {
+        if (-not (Test-Igual $v[$campo] $novo[$campo])) {
+            $mud[$campo] = @{ Tipo = $script:TiposCampoVisita[$campo]; Novo = $novo[$campo]; Antigo = $v[$campo] }
+        }
+    }
+    if ($mud.Count -eq 0) {
+        return [ordered]@{ id = $id; gravado = $false; mensagem = 'Nada a alterar: os valores já estão iguais.'; versao = $v.versao }
+    }
+    $sit = [string]$novo.situacao
+    if ($sit -eq 'REALIZADA') {
+        $msg = Test-RealizadaValida ([string]$novo.relato) ([string]$novo.data_realizada); if ($msg) { throw $msg }
+    }
+    if ($sit -eq 'CANCELADA') {
+        $msg = Test-CanceladaValida ([string]$novo.motivo_cancelamento); if ($msg) { throw $msg }
+    }
+    if ($sit -eq 'PENDENTE' -and [string]$v.situacao -ne 'PENDENTE') {
+        $pend = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE' AND id<>?", @((P 'inteiro' ([int]$v.id_oportunidade)), (P 'inteiro' $id)))
+        $msg = Test-SegundaPendente $pend; if ($msg) { throw $msg }
+    }
+    if ($mud.Contains('data_agendada')) { Assert-DataDoPlanejamento $ctx $v.id_planejamento $novo.data_agendada }
+    # V6 e V7: ao virar REALIZADA, o histórico e a última interação do atendimento mudam na mesma transação
+    if ($sit -eq 'REALIZADA' -and [string]$v.situacao -ne 'REALIZADA') {
+        $opL = $ctx.Consultar('SELECT * FROM oportunidades WHERE id=?', @((P 'inteiro' ([int]$v.id_oportunidade))))
+        $op = $opL[0]
+        $texto = Get-TextoHistoricoVisita ([datetime]$novo.data_realizada) ([string]$novo.tipo) ([string]$novo.resultado) ([string]$novo.relato)
+        $mo = [ordered]@{
+            observacoes = @{ Tipo = 'memo'; Novo = (Add-Observacao $op.observacoes $texto); Antigo = $op.observacoes }
+            ultima_interacao = @{ Tipo = 'data'; Novo = [datetime]$novo.data_realizada; Antigo = $op.ultima_interacao }
+        }
+        Update-ComVersao $ctx 'oportunidades' ([int]$op.id) ([int]$op.versao) $mo 'ALTERAR'
+    }
+    Update-ComVersao $ctx 'visitas' $id ([int]$v.versao) $mud 'ALTERAR'
+    return [ordered]@{ id = $id; gravado = $true; situacao = $sit; versao = ([int]$v.versao + 1); alterados = @($mud.Keys) }
+}
+
+function Invoke-AtualizarVisita($a) {
+    Assert-EsquemaGravavel
+    return Invoke-Transacao {
+        param($ctx)
+        return Set-VisitaNoCtx $ctx $a
+    }
+}
+
+function Invoke-ListarVisitas($a) {
+    $w = New-Object System.Collections.ArrayList; $p = New-Object System.Collections.ArrayList
+    if (Test-TemArg $a 'codigo') {
+        $codigo = [string]$a.codigo
+        if ($codigo -notmatch '^AT-\d{4}-\d{4}$') { throw 'Código inválido. Formato: AT-0000-0000.' }
+        [void]$w.Add('o.codigo=?'); [void]$p.Add((P 'texto' $codigo))
+    }
+    if (Test-TemArg $a 'situacao') {
+        $s = ([string]$a.situacao).Trim().ToUpperInvariant()
+        if ($s -notin $script:SituacoesVisita) { throw 'situacao deve ser PENDENTE, REALIZADA ou CANCELADA.' }
+        [void]$w.Add('v.situacao=?'); [void]$p.Add((P 'texto' $s))
+    }
+    if (Test-TemArg $a 'id_planejamento') { [void]$w.Add('v.id_planejamento=?'); [void]$p.Add((P 'inteiro' ([int]$a.id_planejamento))) }
+    $where = ''; if ($w.Count -gt 0) { $where = ' WHERE ' + ($w -join ' AND ') }
+    $n = Get-Limite $a
+    # pendentes primeiro, depois a data agendada (como na tela de visitas)
+    $sql = 'SELECT TOP ' + $n + ' v.id, v.situacao, v.data_agendada, v.hora_agendada, v.tipo, v.responsavel, v.resultado,' +
+           ' v.data_realizada, v.relato, v.motivo_cancelamento, v.id_planejamento, v.versao, o.codigo AS codigo_atendimento,' +
+           ' c.empresa, ct.nome AS contato, ct.telefone AS contato_telefone' +
+           ' FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id)' +
+           ' INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id' +
+           $where + ' ORDER BY IIf(v.situacao=''PENDENTE'', 0, 1), v.data_agendada, v.id'
+    $l = Invoke-Consulta $sql $p.ToArray()
+    return [ordered]@{ quantidade = $l.Count; visitas = $l }
+}
+
+function Invoke-AlterarSituacaoVisita($a) {
+    return Invoke-AtualizarVisita $a
+}
+
+# ---------------------------------------------------------------- planejamento (Fase 4, regras P1-P4 da spec 003)
+
+$script:SituacoesPlanejamento = @('ABERTO', 'ENCERRADO')
+
+function Get-PlanejamentoNaTransacao($ctx, [int]$id) {
+    $l = $ctx.Consultar('SELECT * FROM planejamentos WHERE id=?', @((P 'inteiro' $id)))
+    if ($l.Count -eq 0) { throw ('Planejamento não encontrado: ' + $id + '.') }
+    return $l[0]
+}
+
+# Cidade-base: tem de existir em municipios (P1).
+function Assert-CidadeBase($ctx, [int]$codIbge) {
+    $n = [int]$ctx.Valor('SELECT COUNT(*) FROM municipios WHERE cod_ibge=?', @((P 'inteiro' $codIbge)))
+    if ($n -eq 0) { throw ('Cidade-base não encontrada (código IBGE ' + $codIbge + '). Use buscar_municipios ou resolver_cidade.') }
+}
+
+function Invoke-CriarPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $descricao = ([string]$a.descricao).Trim()
+    if ($descricao -eq '') { throw 'Informe a descrição do planejamento.' }
+    if ($descricao.Length -gt 120) { throw 'Descrição aceita no máximo 120 caracteres.' }
+    $cod = [int]$a.cod_municipio
+    $raio = [int]$a.raio_km
+    $msg = Test-RaioValido $raio; if ($msg) { throw $msg }
+    $ini = [string]$a.data_inicio; $fim = [string]$a.data_fim
+    $dIni = Get-DataIsoOuErro $ini 'data_inicio'; $dFim = Get-DataIsoOuErro $fim 'data_fim'
+    $msg = Test-PeriodoValido $ini $fim; if ($msg) { throw $msg }
+    $obs = $null; if (Test-TemArg $a 'observacoes') { $obs = [string]$a.observacoes }
+    return Invoke-Transacao {
+        param($ctx)
+        Assert-CidadeBase $ctx $cod
+        $resp = $null; if (Test-TemArg $a 'responsavel') { $resp = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $a.responsavel }
+        $controle = [int]$ctx.Valor('SELECT MAX(controle) FROM planejamentos', @()) + 1
+        $codigo = Get-CodigoPlanejamento (Get-Date).Year $controle
+        $agora = Get-Date
+        [void]$ctx.Executar('INSERT INTO planejamentos (codigo, controle, descricao, cod_municipio_base, raio_km, data_inicio, data_fim, responsavel, situacao, observacoes, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)', @(
+            (P 'texto' $codigo), (P 'inteiro' $controle), (P 'texto' $descricao), (P 'inteiro' $cod), (P 'inteiro' $raio),
+            (P 'data' $dIni), (P 'data' $dFim), (P 'texto' $resp), (P 'texto' 'ABERTO'), (P 'memo' $obs),
+            (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog)))
+        $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
+        $ctx.Log('planejamentos', $id, 'codigo', '', $codigo, 'INSERIR')
+        return [ordered]@{ gravado = $true; id = $id; codigo = $codigo; situacao = 'ABERTO'; versao = 1 }
+    }
+}
+
+function Invoke-AtualizarPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id
+    return Invoke-Transacao {
+        param($ctx)
+        $p = Get-PlanejamentoNaTransacao $ctx $id
+        Assert-Versao $p $a
+        if ([string]$p.situacao -ne 'ABERTO') { throw 'Planejamento encerrado: reabra antes de alterar (alterar_situacao_planejamento).' }
+        $novo = [ordered]@{}; foreach ($k in $p.Keys) { $novo[$k] = $p[$k] }
+        if (Test-TemArg $a 'descricao') { $novo['descricao'] = ([string]$a.descricao).Trim() }
+        if (Test-TemArg $a 'cod_municipio') { $novo['cod_municipio_base'] = [int]$a.cod_municipio }
+        if (Test-TemArg $a 'raio_km') { $novo['raio_km'] = [int]$a.raio_km }
+        if (Test-TemArg $a 'data_inicio') { $novo['data_inicio'] = Get-DataIsoOuErro ([string]$a.data_inicio) 'data_inicio' }
+        if (Test-TemArg $a 'data_fim') { $novo['data_fim'] = Get-DataIsoOuErro ([string]$a.data_fim) 'data_fim' }
+        if (Test-TemArg $a 'responsavel') { $novo['responsavel'] = Resolve-ValorLista $ctx 'Responsavel' 'responsavel' $a.responsavel }
+        if (Test-TemArg $a 'observacoes') { $novo['observacoes'] = [string]$a.observacoes }
+        if ([string]$novo['descricao'] -eq '') { throw 'Informe a descrição do planejamento.' }
+        $msg = Test-RaioValido ([int]$novo['raio_km']); if ($msg) { throw $msg }
+        $msg = Test-PeriodoValido (([datetime]$novo['data_inicio']).ToString('yyyy-MM-dd')) (([datetime]$novo['data_fim']).ToString('yyyy-MM-dd')); if ($msg) { throw $msg }
+        Assert-CidadeBase $ctx ([int]$novo['cod_municipio_base'])
+        $tipos = [ordered]@{ descricao = 'texto'; cod_municipio_base = 'inteiro'; raio_km = 'inteiro'; data_inicio = 'data'; data_fim = 'data'; responsavel = 'texto'; observacoes = 'memo' }
+        $mud = [ordered]@{}
+        foreach ($c in $tipos.Keys) {
+            if (-not (Test-Igual $p[$c] $novo[$c])) { $mud[$c] = @{ Tipo = $tipos[$c]; Novo = $novo[$c]; Antigo = $p[$c] } }
+        }
+        if ($mud.Count -eq 0) { return [ordered]@{ id = $id; gravado = $false; mensagem = 'Nada a alterar.'; versao = $p.versao } }
+        Update-ComVersao $ctx 'planejamentos' $id ([int]$p.versao) $mud 'ALTERAR'
+        return [ordered]@{ id = $id; gravado = $true; versao = ([int]$p.versao + 1); alterados = @($mud.Keys) }
+    }
+}
+
+# P3 (C16): encerrar recusa com visitas pendentes, a menos que cancelar_pendentes; reabrir volta para ABERTO.
+function Invoke-AlterarSituacaoPlanejamento($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id
+    $sit = ([string]$a.situacao).Trim().ToUpperInvariant()
+    if ($sit -notin $script:SituacoesPlanejamento) { throw 'situacao deve ser ABERTO ou ENCERRADO.' }
+    $cancelar = (Test-TemArg $a 'cancelar_pendentes') -and [bool]$a.cancelar_pendentes
+    return Invoke-Transacao {
+        param($ctx)
+        $p = Get-PlanejamentoNaTransacao $ctx $id
+        Assert-Versao $p $a
+        if ([string]$p.situacao -eq $sit) { return [ordered]@{ id = $id; gravado = $false; mensagem = 'Já está nessa situação.'; versao = $p.versao } }
+        $canceladas = 0
+        if ($sit -eq 'ENCERRADO') {
+            $pend = @($ctx.Consultar("SELECT id, versao FROM visitas WHERE id_planejamento=? AND situacao='PENDENTE'", @((P 'inteiro' $id))))
+            $msg = Test-EncerramentoPermitido $pend.Count $cancelar; if ($msg) { throw $msg }
+            foreach ($v in $pend) {
+                Update-ComVersao $ctx 'visitas' ([int]$v.id) ([int]$v.versao) @{
+                    situacao = @{ Tipo = 'texto'; Novo = 'CANCELADA'; Antigo = 'PENDENTE' }
+                    motivo_cancelamento = @{ Tipo = 'texto'; Novo = 'planejamento encerrado'; Antigo = $null }
+                } 'ALTERAR'
+                $canceladas++
+            }
+        }
+        Update-ComVersao $ctx 'planejamentos' $id ([int]$p.versao) ([ordered]@{
+            situacao = @{ Tipo = 'texto'; Novo = $sit; Antigo = [string]$p.situacao } }) 'ALTERAR'
+        return [ordered]@{ id = $id; gravado = $true; situacao = $sit; versao = ([int]$p.versao + 1); visitas_canceladas = $canceladas }
+    }
+}
+
+# ---------------------------------------------------------------- candidatos e geração de visitas (Fase 4.4 e 4.9b)
+
+# Municípios por UF|nome_busca, para achar a cidade de cada atendimento.
+function Get-MapaMunicipios($ctx) {
+    $mapa = @{}
+    foreach ($m in $ctx.Consultar('SELECT cod_ibge, nome_busca, uf, lat, lon FROM municipios', @())) {
+        $mapa[([string]$m.uf + '|' + [string]$m.nome_busca)] = $m
+    }
+    return $mapa
+}
+
+# Candidatos do planejamento: atendimentos em aberto a até raio_km da cidade-base.
+# Ordem: qualificação (ordem da lista), dias parado (mais tempo primeiro), km (menor primeiro).
+function Get-CandidatosPlanejamento($ctx, $pl) {
+    $base = $ctx.Consultar('SELECT cod_ibge, lat, lon FROM municipios WHERE cod_ibge=?', @((P 'inteiro' ([int]$pl.cod_municipio_base))))
+    if ($base.Count -eq 0) { throw 'Cidade-base do planejamento não está em municipios.' }
+    $mapa = Get-MapaMunicipios $ctx
+    $ordens = @{}
+    foreach ($q in $ctx.Consultar("SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'", @())) { $ordens[[string]$q.valor] = [int]$q.ordem }
+    $candidatos = New-Object System.Collections.ArrayList
+    $naoReconhecidas = New-Object System.Collections.ArrayList
+    $abertos = $ctx.Consultar('SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao, ct.nome AS contato, ct.telefone AS contato_telefone FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id', @())
+    foreach ($o in $abertos) {
+        if ((Get-PapelEtapa ([string]$o.etapa)).encerra) { continue }
+        $chave = ([string]$o.uf + '|' + (ConvertTo-NomeBusca ([string]$o.cidade)))
+        if (-not $mapa.ContainsKey($chave)) {
+            [void]$naoReconhecidas.Add([ordered]@{ codigo = $o.codigo; empresa = $o.empresa; cidade = $o.cidade; uf = $o.uf })
+            continue
+        }
+        $m = $mapa[$chave]
+        $km = Get-DistanciaKm ([double]$base[0].lat) ([double]$base[0].lon) ([double]$m.lat) ([double]$m.lon)
+        if ($km -gt [double]$pl.raio_km) { continue }
+        $qual = [string]$o.qualificacao
+        $ordemQ = 999; if ($ordens.ContainsKey($qual)) { $ordemQ = $ordens[$qual] }
+        $pendentes = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$o.id))))
+        [void]$candidatos.Add([pscustomobject]@{
+            codigo = [string]$o.codigo; empresa = [string]$o.empresa; cidade = [string]$o.cidade; uf = [string]$o.uf
+            qualificacao = $qual; km = [math]::Round($km, 1); dias_parado = (Get-DiasParado $o.ultima_interacao)
+            contato = [string]$o.contato; contato_telefone = [string]$o.contato_telefone
+            visita_pendente = ($pendentes -gt 0); ordem_qualificacao = $ordemQ })
+    }
+    $ordenados = @($candidatos | Sort-Object -Property @{ e = 'ordem_qualificacao'; Ascending = $true }, @{ e = { if ($null -eq $_.dias_parado) { 0 } else { $_.dias_parado } }; Descending = $true }, @{ e = 'km'; Ascending = $true })
+    return [pscustomobject]@{ candidatos = $ordenados; nao_reconhecidas = @($naoReconhecidas) }
+}
+
+function Invoke-ListarCandidatos($a) {
+    $id = [int]$a.id_planejamento
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        $r = Get-CandidatosPlanejamento $ctx $pl
+        return [ordered]@{ id = $id; codigo = $pl.codigo; raio_km = $pl.raio_km; quantidade = $r.candidatos.Count
+            candidatos = @($r.candidatos); nao_reconhecidas = $r.nao_reconhecidas }
+    }
+}
+
+# Gera uma visita PENDENTE por atendimento no planejamento. simular (padrão true) só confere.
+# Gravação tudo ou nada: se um atendimento é recusado (C08, C13), nada é gravado.
+function Invoke-GerarVisitas($a) {
+    Assert-EsquemaGravavel
+    $id = [int]$a.id_planejamento
+    $codigos = @($a.codigos)
+    if ($codigos.Count -lt 1 -or $codigos.Count -gt 100) { throw 'Informe de 1 a 100 atendimentos (codigos).' }
+    $simular = $true; if (Test-TemArg $a 'simular') { $simular = [bool]$a.simular }
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        if ([string]$pl.situacao -ne 'ABERTO') { throw 'Planejamento encerrado: reabra antes de gerar visitas.' }
+        $linhas = @()
+        $gravadas = @()
+        foreach ($codigo in $codigos) {
+            $msg = $null; $op = $null
+            try { $op = Get-AtendimentoNaTransacao $ctx ([string]$codigo) } catch { $msg = $_.Exception.Message }
+            if ($null -eq $msg) {
+                $msg = Test-VisitaPodeCriar ([bool](Get-PapelEtapa ([string]$op.etapa)).encerra)
+            }
+            if ($null -eq $msg) {
+                $pend = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$op.id))))
+                $msg = Test-SegundaPendente $pend
+            }
+            $linhas += [pscustomobject]@{ codigo = [string]$codigo; ok = ($null -eq $msg); mensagem = [string]$msg }
+            if ($null -eq $msg -and -not $simular) {
+                $agora = Get-Date
+                [void]$ctx.Executar('INSERT INTO visitas (id_oportunidade, id_planejamento, situacao, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,?,1,?,?,?)', @(
+                    (P 'inteiro' ([int]$op.id)), (P 'inteiro' $id), (P 'texto' 'PENDENTE'), (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog)))
+                $nova = [int]$ctx.Valor('SELECT @@IDENTITY', @())
+                $ctx.Log('visitas', $nova, 'situacao', '', 'PENDENTE', 'INSERIR')
+                $gravadas += $nova
+            }
+        }
+        $recusadas = @($linhas | Where-Object { -not $_.ok })
+        if (-not $simular -and $recusadas.Count -gt 0) {
+            throw ('Nada gravado: ' + $recusadas.Count + ' atendimento(s) recusado(s) (ex.: ' + $recusadas[0].codigo + ': ' + $recusadas[0].mensagem + ').')
+        }
+        return [ordered]@{ simulado = $simular; planejamento = $pl.codigo; total = $linhas.Count
+            ok = @($linhas | Where-Object { $_.ok }).Count; recusadas = $recusadas.Count; linhas = $linhas; visitas_criadas = $gravadas }
+    }
+}
+
+# ---------------------------------------------------------------- lançamento em lote (Fase 4.5)
+
+# Roda os itens na mesma transação, com as regras de atualizar_visita. simular (padrão true) desfaz no fim.
+# Gravação tudo ou nada: um item recusado desfaz todos.
+function Invoke-LoteVisitas($a) {
+    $itens = @($a.itens)
+    if ($itens.Count -lt 1 -or $itens.Count -gt 100) { throw 'Informe de 1 a 100 itens.' }
+    $simular = $true; if (Test-TemArg $a 'simular') { $simular = [bool]$a.simular }
+    if (-not $simular) { Assert-EsquemaGravavel }
+    $resultados = New-Object System.Collections.ArrayList
+    $marca = 'SIMULACAO-CONCLUIDA'
+    try {
+        [void](Invoke-Transacao {
+            param($ctx)
+            foreach ($it in $itens) {
+                $linha = [ordered]@{ id = $it.id; ok = $true; mensagem = ''; versao = $null }
+                try {
+                    $r = Set-VisitaNoCtx $ctx $it
+                    $linha['versao'] = $r.versao
+                    if ($r.gravado -eq $false) { $linha['mensagem'] = [string]$r.mensagem }
+                } catch {
+                    $linha['ok'] = $false
+                    $linha['mensagem'] = $_.Exception.Message
+                }
+                [void]$resultados.Add($linha)
+            }
+            $recusadas = @($resultados | Where-Object { -not $_.ok }).Count
+            if ($recusadas -gt 0 -and -not $simular) {
+                throw ('Nada gravado: ' + $recusadas + ' item(ns) recusado(s). Ex.: visita ' + $resultados[0].id + ': ' + (@($resultados | Where-Object { -not $_.ok })[0].mensagem))
+            }
+            if ($simular) { throw $marca }
+            return $null
+        })
+    } catch {
+        if ($_.Exception.Message -ne $marca) { throw }
+    }
+    $recusadas = @($resultados | Where-Object { -not $_.ok }).Count
+    return [ordered]@{ simulado = $simular; total = $resultados.Count; ok = ($resultados.Count - $recusadas); recusadas = $recusadas; linhas = @($resultados) }
+}
+
+# lancar_datas: data e hora agendadas das visitas pendentes (V3, C09 no planejamento).
+function Invoke-LancarDatas($a) { return Invoke-LoteVisitas $a }
+
+# lancar_resultados: realizada (V4, V6, V7) ou cancelada (V5) em lote.
+function Invoke-LancarResultados($a) { return Invoke-LoteVisitas $a }
+
+# ---------------------------------------------------------------- leitura de planejamentos e municípios (Fase 4.9a e 4.9b)
+
+function Invoke-ListarPlanejamentos($a) {
+    $w = New-Object System.Collections.ArrayList; $p = New-Object System.Collections.ArrayList
+    if (Test-TemArg $a 'situacao') {
+        $s = ([string]$a.situacao).Trim().ToUpperInvariant()
+        if ($s -notin $script:SituacoesPlanejamento) { throw 'situacao deve ser ABERTO ou ENCERRADO.' }
+        [void]$w.Add('p.situacao=?'); [void]$p.Add((P 'texto' $s))
+    }
+    $where = ''; if ($w.Count -gt 0) { $where = ' WHERE ' + ($w -join ' AND ') }
+    $n = Get-Limite $a
+    $l = Invoke-Consulta ('SELECT TOP ' + $n + ' p.id, p.codigo, p.descricao, p.raio_km, p.data_inicio, p.data_fim, p.situacao, p.responsavel, p.versao, m.nome AS cidade_base, m.uf AS uf_base' +
+                          ' FROM planejamentos p LEFT JOIN municipios m ON p.cod_municipio_base = m.cod_ibge' + $where + ' ORDER BY p.codigo DESC') $p.ToArray()
+    return [ordered]@{ quantidade = $l.Count; planejamentos = $l }
+}
+
+function Invoke-ObterPlanejamento($a) {
+    $sql = 'SELECT p.*, m.nome AS cidade_base, m.uf AS uf_base FROM planejamentos p LEFT JOIN municipios m ON p.cod_municipio_base = m.cod_ibge WHERE '
+    if (Test-TemArg $a 'id') { $l = Invoke-Consulta ($sql + 'p.id=?') @((P 'inteiro' ([int]$a.id))) }
+    elseif (Test-TemArg $a 'codigo') { $l = Invoke-Consulta ($sql + 'p.codigo=?') @((P 'texto' ([string]$a.codigo))) }
+    else { throw 'Informe id ou codigo do planejamento.' }
+    if ($l.Count -eq 0) { throw 'Planejamento não encontrado.' }
+    $pl = $l[0]
+    $cont = Invoke-Consulta "SELECT situacao, COUNT(*) AS n FROM visitas WHERE id_planejamento=? GROUP BY situacao" @((P 'inteiro' ([int]$pl.id)))
+    $resumo = [ordered]@{ PENDENTE = 0; REALIZADA = 0; CANCELADA = 0 }
+    foreach ($c in $cont) { $resumo[[string]$c.situacao] = [int]$c.n }
+    $pl['visitas'] = $resumo
+    return $pl
+}
+
+# Municípios por nome (sem acento, sem caixa), com UF opcional. Até 50 linhas.
+function Invoke-BuscarMunicipios($a) {
+    $texto = ConvertTo-NomeBusca ([string]$a.texto)
+    if ($texto.Length -lt 2) { throw 'Informe pelo menos 2 letras do nome.' }
+    $p = New-Object System.Collections.ArrayList
+    $w = @('nome_busca LIKE ?'); [void]$p.Add((P 'texto' ('%' + $texto + '%')))
+    if (Test-TemArg $a 'uf') { $w += 'uf=?'; [void]$p.Add((P 'texto' ([string]$a.uf).ToUpperInvariant())) }
+    $l = Invoke-Consulta ('SELECT TOP 50 cod_ibge, nome, uf FROM municipios WHERE ' + ($w -join ' AND ') + ' ORDER BY nome') $p.ToArray()
+    return [ordered]@{ quantidade = $l.Count; municipios = $l }
+}
+
+# Cidade informada pelo nome e UF: resolvida se houver exatamente uma; senão, a lista para escolher.
+function Invoke-ResolverCidade($a) {
+    $nome = ConvertTo-NomeBusca ([string]$a.cidade)
+    $uf = ([string]$a.uf).Trim().ToUpperInvariant()
+    if ($nome -eq '') { throw 'Informe a cidade.' }
+    if ($uf -eq '') { throw 'Informe a UF.' }
+    $l = Invoke-Consulta 'SELECT cod_ibge, nome, uf FROM municipios WHERE uf=? AND nome_busca=?' @((P 'texto' $uf), (P 'texto' $nome))
+    if ($l.Count -eq 1) { return [ordered]@{ resolvida = $true; municipio = $l[0] } }
+    return [ordered]@{ resolvida = $false; motivo = $(if ($l.Count -eq 0) { 'Cidade não encontrada na UF (use buscar_municipios).' } else { 'Mais de uma cidade com esse nome.' }); opcoes = $l }
+}
+
+# ---------------------------------------------------------------- exportação do roteiro (Fase 5)
+
+$script:ColunasRoteiro = @('tipo', 'visita', 'atendimento', 'empresa', 'contato', 'telefone', 'cidade', 'uf', 'latitude', 'longitude', 'km_base', 'data_agendada', 'hora_agendada', 'tipo_visita', 'responsavel', 'situacao')
+
+# Pasta do roteiro: Documentos\CRM Zapromaq\Roteiros (CRM_PASTA_ROTEIROS só para teste).
+function Get-PastaRoteiros {
+    if ($env:CRM_PASTA_ROTEIROS) { return $env:CRM_PASTA_ROTEIROS }
+    return (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CRM Zapromaq\Roteiros')
+}
+
+# CSV do roteiro: UTF-8 com BOM, ';', texto entre aspas, número com ponto decimal, data AAAA-MM-DD.
+function Write-RoteiroCsv([string]$arquivo, $linhas) {
+    $tmp = $arquivo + '.tmp'
+    $cult = [System.Globalization.CultureInfo]::InvariantCulture
+    $w = New-Object System.IO.StreamWriter($tmp, $false, (New-Object System.Text.UTF8Encoding($true)))
+    try {
+        $w.NewLine = "`r`n"
+        $w.WriteLine(($script:ColunasRoteiro -join ';'))
+        foreach ($l in $linhas) {
+            $vals = New-Object System.Collections.ArrayList
+            foreach ($c in $script:ColunasRoteiro) {
+                $v = $l[$c]
+                if ($null -eq $v -or $v -is [System.DBNull]) { [void]$vals.Add('""') }
+                elseif ($v -is [double] -or $v -is [single] -or $v -is [decimal]) { [void]$vals.Add(([double]$v).ToString('0.######', $cult)) }
+                elseif ($v -is [int] -or $v -is [long]) { [void]$vals.Add([string]$v) }
+                else { [void]$vals.Add('"' + ([string]$v).Replace('"', '""') + '"') }
+            }
+            $w.WriteLine(($vals -join ';'))
+        }
+    } finally { $w.Close() }
+    if (Test-Path -LiteralPath $arquivo) { Remove-Item -LiteralPath $arquivo -Force }
+    Move-Item -LiteralPath $tmp -Destination $arquivo
+}
+
+function Assert-Esquema11 {
+    $v = Get-VersaoEsquema
+    if ($v -ne '1.1') { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema 1.1. Rode a montagem da base (MONTAR-FRONTEND.bat).") }
+}
+
+# Roteiro do planejamento: a linha BASE primeiro, depois uma linha por visita PENDENTE, em ordem de data.
+# Devolve só o caminho e o número de visitas (a ordem do roteiro é feita fora do sistema).
+function Invoke-ExportarRoteiro($a) {
+    Assert-Esquema11
+    $id = 0
+    if (Test-TemArg $a 'id_planejamento') { $id = [int]$a.id_planejamento }
+    elseif (Test-TemArg $a 'codigo') { $id = [int](Invoke-Valor 'SELECT id FROM planejamentos WHERE codigo=?' @((P 'texto' ([string]$a.codigo)))) }
+    if ($id -eq 0) { throw 'Informe id_planejamento ou codigo do planejamento.' }
+    return Invoke-Transacao {
+        param($ctx)
+        $pl = Get-PlanejamentoNaTransacao $ctx $id
+        $base = $ctx.Consultar('SELECT nome, uf, lat, lon FROM municipios WHERE cod_ibge=?', @((P 'inteiro' ([int]$pl.cod_municipio_base))))
+        if ($base.Count -eq 0) { throw 'Cidade-base não está em municipios.' }
+        $mapa = Get-MapaMunicipios $ctx
+        $visitas = @($ctx.Consultar("SELECT v.id, v.data_agendada, v.hora_agendada, v.tipo, v.responsavel, o.codigo, c.empresa, c.cidade, c.uf, ct.nome AS contato, ct.telefone AS contato_telefone FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id) INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id WHERE v.id_planejamento=? AND v.situacao='PENDENTE' ORDER BY v.data_agendada, v.hora_agendada, v.id", @((P 'inteiro' $id))))
+        $linhas = New-Object System.Collections.ArrayList
+        [void]$linhas.Add([ordered]@{ tipo = 'BASE'; visita = $null; atendimento = $null; empresa = $null; contato = $null; telefone = $null
+            cidade = [string]$base[0].nome; uf = [string]$base[0].uf; latitude = [double]$base[0].lat; longitude = [double]$base[0].lon
+            km_base = 0; data_agendada = $null; hora_agendada = $null; tipo_visita = $null; responsavel = $null; situacao = $null })
+        foreach ($v in $visitas) {
+            $m = $null
+            $chave = ([string]$v.uf + '|' + (ConvertTo-NomeBusca ([string]$v.cidade)))
+            if ($mapa.ContainsKey($chave)) { $m = $mapa[$chave] }
+            $km = $null; $lat = $null; $lon = $null
+            if ($null -ne $m) {
+                $lat = [double]$m.lat; $lon = [double]$m.lon
+                $km = [math]::Round((Get-DistanciaKm ([double]$base[0].lat) ([double]$base[0].lon) $lat $lon), 1)
+            }
+            $dt = $null; if ($null -ne $v.data_agendada) { $dt = ([datetime]$v.data_agendada).ToString('yyyy-MM-dd') }
+            [void]$linhas.Add([ordered]@{ tipo = 'VISITA'; visita = [int]$v.id; atendimento = [string]$v.codigo; empresa = [string]$v.empresa
+                contato = [string]$v.contato; telefone = [string]$v.contato_telefone; cidade = [string]$v.cidade; uf = [string]$v.uf
+                latitude = $lat; longitude = $lon; km_base = $km; data_agendada = $dt; hora_agendada = [string]$v.hora_agendada
+                tipo_visita = [string]$v.tipo; responsavel = [string]$v.responsavel; situacao = 'PENDENTE' })
+        }
+        $inicio = ([datetime]$pl.data_inicio).ToString('yyyy-MM-dd')
+        $fim = ([datetime]$pl.data_fim).ToString('yyyy-MM-dd')
+        $pasta = Get-PastaRoteiros
+        if (-not (Test-Path -LiteralPath $pasta)) { New-Item -ItemType Directory -Path $pasta -Force | Out-Null }
+        $arquivo = Join-Path $pasta ($pl.codigo + '_' + $inicio + '_a_' + $fim + '.csv')
+        Write-RoteiroCsv $arquivo @($linhas)
+        return [ordered]@{ caminho = $arquivo; planejamento = [string]$pl.codigo; linhas = $visitas.Count }
     }
 }
 
@@ -1536,7 +2187,10 @@ $script:Ferramentas = @(
                        'Desativar Etapa ou Responsavel afeta o funil e a fila de todos: confirme com o usuário.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('tipo', 'valor', 'acao'); properties = [ordered]@{
             tipo = [ordered]@{ type = 'string' }; valor = [ordered]@{ type = 'string'; maxLength = 120 }
-            acao = [ordered]@{ type = 'string'; enum = @('incluir', 'ativar', 'desativar', 'ordenar') }
+            acao = [ordered]@{ type = 'string'; enum = @('incluir', 'ativar', 'desativar', 'ordenar', 'definir_papel') }
+            encerra = [ordered]@{ type = 'boolean' }; resultado = [ordered]@{ type = 'string'; enum = @('', 'GANHO', 'PERDA') }
+            quadro = [ordered]@{ type = 'string'; enum = @('FUNIL', 'PROSPECCAO') }; exige_familia = [ordered]@{ type = 'boolean' }
+            confirmar = [ordered]@{ type = 'boolean'; description = 'Obrigatório (true) ao mudar encerra de etapa com atendimentos.' }
             ordem = [ordered]@{ type = 'integer' }; autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -1604,10 +2258,179 @@ $script:Ferramentas = @(
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{}; additionalProperties = $false }
     },
     [ordered]@{
+        name = 'criar_visita'; title = 'Criar visita'; handler = 'Invoke-CriarVisita'; annotations = $script:Gravacao
+        description = 'Cria uma visita PENDENTE num atendimento aberto. Um atendimento tem no máximo uma visita pendente por vez. Com id_planejamento, a data tem de cair no período do planejamento.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo'); properties = [ordered]@{
+            codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
+            data_agendada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            hora_agendada = [ordered]@{ type = 'string'; maxLength = 20 }
+            tipo = [ordered]@{ type = 'string'; description = 'Valor da lista TipoVisita (listar_opcoes)' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            id_planejamento = [ordered]@{ type = 'integer' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'atualizar_visita'; title = 'Atualizar visita'; handler = 'Invoke-AtualizarVisita'; annotations = $script:Gravacao
+        description = 'Muda a situação e os dados de uma visita (PENDENTE, REALIZADA ou CANCELADA). REALIZADA exige data e relato e grava o histórico do atendimento; CANCELADA exige motivo. Envie a versão lida (conflito se mudou).'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            situacao = [ordered]@{ type = 'string'; enum = @('PENDENTE', 'REALIZADA', 'CANCELADA') }
+            data_agendada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            hora_agendada = [ordered]@{ type = 'string'; maxLength = 20 }
+            tipo = [ordered]@{ type = 'string' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            data_realizada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            resultado = [ordered]@{ type = 'string' }
+            relato = [ordered]@{ type = 'string' }
+            motivo_cancelamento = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'listar_visitas'; title = 'Listar visitas'; handler = 'Invoke-ListarVisitas'; annotations = $script:SoLeitura
+        description = 'Visitas, com o atendimento, a empresa e o contato (pendentes primeiro). Filtre por codigo do atendimento, situacao ou planejamento.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
+            situacao = [ordered]@{ type = 'string'; enum = @('PENDENTE', 'REALIZADA', 'CANCELADA') }
+            id_planejamento = [ordered]@{ type = 'integer' }
+            limite = [ordered]@{ type = 'integer'; maximum = 200 } } }
+    },
+    [ordered]@{
+        name = 'alterar_situacao_visita'; title = 'Alterar situação da visita'; handler = 'Invoke-AlterarSituacaoVisita'; annotations = $script:Gravacao
+        description = 'Realiza ou cancela uma visita: REALIZADA exige data_realizada, resultado e relato (grava o histórico do atendimento); CANCELADA exige motivo_cancelamento. Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'situacao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            situacao = [ordered]@{ type = 'string'; enum = @('PENDENTE', 'REALIZADA', 'CANCELADA') }
+            data_realizada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD ou AAAA-MM-DD HH:mm' }
+            resultado = [ordered]@{ type = 'string' }
+            relato = [ordered]@{ type = 'string' }
+            motivo_cancelamento = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'criar_planejamento'; title = 'Criar planejamento'; handler = 'Invoke-CriarPlanejamento'; annotations = $script:Gravacao
+        description = 'Cria um planejamento por região: cidade-base (código IBGE), raio de 1 a 500 km e período (início não depois do fim). Código PL-AAAA-NNN gerado.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('descricao', 'cod_municipio', 'raio_km', 'data_inicio', 'data_fim'); properties = [ordered]@{
+            descricao = [ordered]@{ type = 'string'; maxLength = 120 }
+            cod_municipio = [ordered]@{ type = 'integer'; description = 'Código IBGE da cidade-base' }
+            raio_km = [ordered]@{ type = 'integer'; minimum = 1; maximum = 500 }
+            data_inicio = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            data_fim = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'atualizar_planejamento'; title = 'Atualizar planejamento'; handler = 'Invoke-AtualizarPlanejamento'; annotations = $script:Gravacao
+        description = 'Altera um planejamento ABERTO (descrição, cidade-base, raio, período, responsável, observações). Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            descricao = [ordered]@{ type = 'string'; maxLength = 120 }
+            cod_municipio = [ordered]@{ type = 'integer' }
+            raio_km = [ordered]@{ type = 'integer'; minimum = 1; maximum = 500 }
+            data_inicio = [ordered]@{ type = 'string' }
+            data_fim = [ordered]@{ type = 'string' }
+            responsavel = [ordered]@{ type = 'string' }
+            observacoes = [ordered]@{ type = 'string' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'alterar_situacao_planejamento'; title = 'Encerrar ou reabrir planejamento'; handler = 'Invoke-AlterarSituacaoPlanejamento'; annotations = $script:Gravacao
+        description = 'Encerra ou reabre um planejamento. Encerrar com visitas pendentes é recusado, salvo cancelar_pendentes=true (cancela as pendentes com o motivo "planejamento encerrado"). Envie a versão lida.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'situacao'); properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            versao = [ordered]@{ type = 'integer' }
+            situacao = [ordered]@{ type = 'string'; enum = @('ABERTO', 'ENCERRADO') }
+            cancelar_pendentes = [ordered]@{ type = 'boolean' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'listar_candidatos'; title = 'Candidatos do planejamento'; handler = 'Invoke-ListarCandidatos'; annotations = $script:SoLeitura
+        description = 'Atendimentos em aberto a até raio_km da cidade-base do planejamento, na ordem de visita (qualificação, dias parado, km). Cidades não reconhecidas vêm à parte.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id_planejamento'); properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' } } }
+    },
+    [ordered]@{
+        name = 'gerar_visitas'; title = 'Gerar visitas do planejamento'; handler = 'Invoke-GerarVisitas'; annotations = $script:Gravacao
+        description = 'Gera uma visita PENDENTE por atendimento escolhido, no planejamento. simular=true (padrão) só confere e não grava. Com simular=false, se um atendimento for recusado (encerrado ou já com visita pendente), nada é gravado. Até 100 atendimentos.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id_planejamento', 'codigos'); properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' }
+            codigos = [ordered]@{ type = 'array'; minItems = 1; maxItems = 100; items = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' } }
+            simular = [ordered]@{ type = 'boolean' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'lancar_datas'; title = 'Lançar datas das visitas'; handler = 'Invoke-LancarDatas'; annotations = $script:Gravacao
+        description = 'Lança data e hora agendadas em lote (até 100 visitas). simular=true (padrão) só confere. Com simular=false, se um item for recusado, nada é gravado. Cada item traz id e versao lidas.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('itens'); properties = [ordered]@{
+            simular = [ordered]@{ type = 'boolean' }
+            itens = [ordered]@{ type = 'array'; minItems = 1; maxItems = 100; items = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'data_agendada'); properties = [ordered]@{
+                id = [ordered]@{ type = 'integer' }
+                versao = [ordered]@{ type = 'integer' }
+                data_agendada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD' }
+                hora_agendada = [ordered]@{ type = 'string'; maxLength = 20 } } } }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'lancar_resultados'; title = 'Lançar resultados das visitas'; handler = 'Invoke-LancarResultados'; annotations = $script:Gravacao
+        description = 'Lança o resultado em lote (até 100 visitas): REALIZADA exige data_realizada e relato (grava o histórico do atendimento); CANCELADA exige motivo_cancelamento. simular=true (padrão) só confere.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('itens'); properties = [ordered]@{
+            simular = [ordered]@{ type = 'boolean' }
+            itens = [ordered]@{ type = 'array'; minItems = 1; maxItems = 100; items = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id', 'versao', 'situacao'); properties = [ordered]@{
+                id = [ordered]@{ type = 'integer' }
+                versao = [ordered]@{ type = 'integer' }
+                situacao = [ordered]@{ type = 'string'; enum = @('REALIZADA', 'CANCELADA') }
+                data_realizada = [ordered]@{ type = 'string'; description = 'AAAA-MM-DD ou AAAA-MM-DD HH:mm' }
+                resultado = [ordered]@{ type = 'string' }
+                relato = [ordered]@{ type = 'string' }
+                motivo_cancelamento = [ordered]@{ type = 'string' } } } }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'listar_planejamentos'; title = 'Listar planejamentos'; handler = 'Invoke-ListarPlanejamentos'; annotations = $script:SoLeitura
+        description = 'Planejamentos por região, mais recentes primeiro, com a cidade-base e o período. Filtre por situação.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            situacao = [ordered]@{ type = 'string'; enum = @('ABERTO', 'ENCERRADO') }
+            limite = [ordered]@{ type = 'integer'; maximum = 200 } } }
+    },
+    [ordered]@{
+        name = 'obter_planejamento'; title = 'Ficha do planejamento'; handler = 'Invoke-ObterPlanejamento'; annotations = $script:SoLeitura
+        description = 'Um planejamento pelo id ou pelo código PL-AAAA-NNN, com o resumo das visitas (pendentes, realizadas, canceladas). Devolve versao.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            id = [ordered]@{ type = 'integer' }
+            codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
+    },
+    [ordered]@{
+        name = 'buscar_municipios'; title = 'Buscar municípios'; handler = 'Invoke-BuscarMunicipios'; annotations = $script:SoLeitura
+        description = 'Municípios pelo nome (sem acento e sem diferença de maiúsculas), com UF opcional. Devolve o código IBGE para criar um planejamento.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('texto'); properties = [ordered]@{
+            texto = [ordered]@{ type = 'string'; minLength = 2; maxLength = 80 }
+            uf = [ordered]@{ type = 'string'; pattern = '^[A-Za-z]{2}$' } } }
+    },
+    [ordered]@{
+        name = 'resolver_cidade'; title = 'Resolver cidade'; handler = 'Invoke-ResolverCidade'; annotations = $script:SoLeitura
+        description = 'Acha o município pelo nome e pela UF. Se achar um só, devolve o código IBGE; se não, devolve as opções.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('cidade', 'uf'); properties = [ordered]@{
+            cidade = [ordered]@{ type = 'string'; maxLength = 80 }
+            uf = [ordered]@{ type = 'string'; pattern = '^[A-Za-z]{2}$' } } }
+    },
+    [ordered]@{
+        name = 'exportar_roteiro'; title = 'Exportar roteiro do planejamento'; handler = 'Invoke-ExportarRoteiro'; annotations = $script:Gravacao
+        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o banco no esquema 1.1.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            id_planejamento = [ordered]@{ type = 'integer' }
+            codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
+    },
+    [ordered]@{
         name = 'listar_opcoes'; title = 'Opções das listas suspensas'; handler = 'Invoke-ListarOpcoes'; annotations = $script:SoLeitura
         description = 'Valores aceitos em campos de lista (Etapa, Responsavel, Familia, Origem, Prioridade, Motivo, Segmento, UF, Categoria). Sem "tipo", devolve os tipos existentes. Consulte antes de gravar um campo de lista.'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
-            tipo = [ordered]@{ type = 'string'; description = 'Nome da lista, ex.: Etapa' } } }
+            tipo = [ordered]@{ type = 'string'; description = 'Nome da lista, ex.: Etapa' }
+            detalhar = [ordered]@{ type = 'boolean'; description = 'Traz também os inativos, o uso e, na Etapa, o papel.' } } }
     },
     [ordered]@{
         name = 'buscar_clientes'; title = 'Buscar clientes'; handler = 'Invoke-BuscarClientes'; annotations = $script:SoLeitura
@@ -1697,13 +2520,13 @@ $script:Ferramentas = @(
                        'CSV UTF-8, separador vírgula, campos entre aspas; datas AAAA-MM-DD ou AAAA-MM-DDTHH:MM:SS. Regrava os arquivos a cada chamada.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('destino'); properties = [ordered]@{
             destino = [ordered]@{ type = 'string'; maxLength = 255; description = 'Pasta relativa a 1 - COMERCIAL ZAPROMAQ, sem letra de unidade (ex.: 00 - GESTÃO COMERCIAL\01 - PADROES\00 - IA\PROJETOS\PRJ-COM-006-analise-de-dados-crm\20-dados). Precisa existir; 01 - CRM\01 - CONTROLE é recusado.' }
-            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 6; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas. Padrão: clientes, contatos, oportunidades.' } } }
+            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 9; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas, planejamentos, visitas, municipios. Padrão: clientes, contatos, oportunidades.' } } }
     },
     [ordered]@{
         name = 'atualizar_atendimento'; title = 'Atualizar atendimento'; handler = 'Invoke-AtualizarAtendimento'; annotations = $script:Gravacao
         description = ('Altera campos de um atendimento. Leia antes com obter_atendimento e passe a "versao" lida: se alguém alterou depois, a gravação é recusada em vez de sobrescrever. ' +
                        'Envie só os campos que mudam. Campos de lista precisam de valor existente (listar_opcoes). Datas em AAAA-MM-DD. ' +
-                       'Etapa Pedido Fechado/Perdido/Descartado exige motivo_desfecho e dt_desfecho.')
+                       'Etapa que encerra o atendimento (aba Listas, Encerra = Sim) exige motivo_desfecho e dt_desfecho.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo', 'versao'); properties = [ordered]@{
             codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             versao = [ordered]@{ type = 'integer'; description = 'Versão lida em obter_atendimento' }

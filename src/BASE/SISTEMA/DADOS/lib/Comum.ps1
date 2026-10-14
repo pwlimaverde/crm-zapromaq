@@ -146,3 +146,27 @@ function Set-ConfigBanco($cn, [string]$chave, [string]$valor, $tx) {
         [void](Invoke-Comando $cn 'INSERT INTO config (chave, valor) VALUES (?, ?)' @((New-Parametro 'texto' $chave), (New-Parametro 'texto' $valor)) $tx)
     }
 }
+
+# Chave de comparação de lista (C01): sem caixa, sem acento, espaços aparados e colapsados.
+# Mesma regra de modValidacao.ChaveLista (front) e Regras.ps1 (conector): as três tem de concordar.
+function Get-ChaveLista([string]$texto) {
+    if ($null -eq $texto) { return '' }
+    $s = $texto.Replace([string][char]160, ' ').Trim().ToUpperInvariant()
+    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($c in $s.Normalize([Text.NormalizationForm]::FormD).ToCharArray()) {
+        if ([Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne [Globalization.UnicodeCategory]::NonSpacingMark) { [void]$sb.Append($c) }
+    }
+    return $sb.ToString()
+}
+
+# Onde cada tipo de lista é guardado (tabela:coluna). Única fonte: migração 003 e conferência.
+# Uma lista sem coluna aqui não tem uso registrado (ex.: papel das etapas fica na própria listas).
+function Get-ColunasDaLista {
+    return @{
+        UF = @('clientes:uf'); Segmento = @('clientes:segmento'); Qualificacao = @('clientes:qualificacao')
+        Responsavel = @('clientes:responsavel', 'oportunidades:responsavel')
+        Etapa = @('oportunidades:etapa'); Familia = @('oportunidades:familia'); Categoria = @('oportunidades:categoria')
+        Origem = @('oportunidades:origem'); Prioridade = @('oportunidades:prioridade'); Motivo = @('oportunidades:motivo_desfecho')
+    }
+}

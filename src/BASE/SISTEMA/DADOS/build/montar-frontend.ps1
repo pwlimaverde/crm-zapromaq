@@ -1,30 +1,29 @@
 ﻿<#
-  montar-frontend.ps1 - monta o CRM_Zapromaq.xlsm do zero a partir de fonte\ e publica na raiz de BASE.
+  montar-frontend.ps1 - monta o CRM_Zapromaq.xlsm e publica o conjunto (banco + front) na raiz de BASE.
 
-  É o ÚNICO comando da publicação: faz a sequência inteira, na ordem, e cada
-  etapa só começa se a anterior deu certo.
+  É o ÚNICO comando da publicação. Os 12 passos, nesta ordem; a tela mostra
+  "[n/12] <passo>" e, se parar, "PAROU NO PASSO n/12 (<passo>): <motivo>":
 
-    1. pré-checagens: trava contra dois builds, .xlsm da raiz livre, Excel, banco
-    2. BACKUP do banco e do .xlsm atuais (execucao\backup\antes-da-publicacao)
-    3. MIGRAÇÕES do banco que estiverem pendentes (banco\migracoes)
-    4. versão: VERSAO.txt 1.4 -> 1.5 (só gravada no fim, se tudo der certo)
-    5. montagem num arquivo TEMPORÁRIO (execucao\build): abas, módulos, formulários,
-       código, botões, Config!B2 com o caminho UNC do banco, Início!B7
-    6. compilação do projeto VBA e autoteste (modAutoteste) com VIGIA: se o Excel
-       travar numa caixa de erro invisível, o vigia o encerra e o build falha
-    7. conferência do pacote pelo zip (sem Excel): projeto VBA, abas, Início!B7
-    8. TESTE DE USO no arquivo montado: monta as três grades e o Painel com os
-       dados reais (testes\testar-uso.ps1)
-    9. publicação: .xlsm anterior -> execucao\historico-front; novo -> raiz;
-       config.versao_front no banco; VERSAO.txt; VERSAO-FRONT.txt (raiz, para o
-       INICIAR-CRM comparar sem abrir o Excel); CHANGELOG.md
-  Build com falha NUNCA mexe na raiz: o .xlsm publicado continua o de antes.
+    1. pacote de municípios: municipios.csv confere com o SHA-256 do .fonte.json
+    2. ambiente: Excel 64 bits, .xlsm da raiz livre, banco na raiz de BASE
+    3. trava: crm_zapromaq.laccdb existe -> para e mostra as estações conectadas
+    4. esquema: versao_esquema do banco e migrações pendentes
+    5. backup: banco e .xlsm publicados -> execucao\backup\antes-da-publicacao (H0 = hash do banco)
+    6. cópia de trabalho: execucao\publicacao\crm_zapromaq.accdb
+    7. migrações aplicadas NA CÓPIA (dados em transação; estrutura guardada)
+    8. conferências na cópia: municípios, papel das etapas, índice único, valores em uso
+    9. montagem do front com Config!B2 provisório (apontando para a cópia): compilação e autoteste
+    10. teste de uso contra a cópia
+    11. troca: Config!B2 definitivo (UNC do banco de produção) no .xlsm; troca do banco de
+        produção pela cópia SÓ com a trava livre e o hash igual ao H0
+    12. publicação: .xlsm anterior -> execucao\historico-front; novo -> raiz; config.versao_front;
+        VERSAO.txt; VERSAO-FRONT.txt; CHANGELOG.md. Se falhar aqui, o banco volta ao backup.
 
-  -Teste          monta e confere, mas não publica nem sobe a versão (resultado em
-                  execucao\teste); não faz backup nem migração
-  -SemBackup      pula o backup (etapa 2)
-  -SemMigracoes   pula as migrações (etapa 3)
-  -SemTesteDeUso  pula o teste de uso (etapa 8)
+  Falha antes do passo 11 NÃO altera o banco de produção nem a raiz de BASE.
+
+  -Teste          os mesmos passos, só sobre banco com config.ambiente = TESTE (senão recusa);
+                  o passo 12 grava em execucao\teste e não sobe a versão
+  -SemTesteDeUso  pula o teste de uso (passo 10)
   -Ambiente PRODUCAO | TESTE (padrão: config.ambiente do banco; sem banco, PRODUCAO)
 
   "Confiar no acesso ao modelo de objeto do projeto do VBA" é ligado só durante a
@@ -32,8 +31,6 @@
 #>
 param(
     [switch]$Teste,
-    [switch]$SemBackup,
-    [switch]$SemMigracoes,
     [switch]$SemTesteDeUso,
     [ValidateSet('', 'PRODUCAO', 'TESTE')][string]$Ambiente = '',
     [int]$TempoLimite = 300
@@ -44,6 +41,7 @@ $dados = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'lib\Versao.ps1')
 . (Join-Path $PSScriptRoot 'lib\Pacote.ps1')
 . (Join-Path $PSScriptRoot 'lib\Excel.ps1')
+. (Join-Path $dados 'lib\AtualizacaoBanco.ps1')
 
 $raiz = Get-RaizBase $PSScriptRoot
 $fonte = Join-Path $dados 'fonte'
@@ -56,7 +54,12 @@ $destinoRaiz = Get-CaminhoFront $raiz
 $bancoArq = Get-CaminhoBanco $raiz
 
 $xl = $null; $idExcel = 0; $trava = $null; $vbomOriginal = 'nao-alterado'; $sucesso = $false
+$script:passo = 2
+$nomesPassos = @{ 1 = 'pacote de municípios'; 2 = 'ambiente'; 3 = 'trava'; 4 = 'esquema'; 5 = 'backup'; 6 = 'cópia de trabalho';
+                  7 = 'migrações na cópia'; 8 = 'conferências da cópia'; 9 = 'montagem do front'; 10 = 'teste de uso';
+                  11 = 'troca do banco'; 12 = 'publicação' }
 function Parar([string]$msg) { throw $msg }
+function Parar-NoPasso([int]$n, [string]$msg) { throw ('PASSO:' + $n + '|' + $msg) }
 
 try {
     $log.L('=== MONTAGEM DO FRONTEND - CRM Zapromaq ===')
@@ -90,28 +93,31 @@ try {
         } catch { $log.L('AVISO: banco não abriu (' + $_.Exception.Message.Split([char]13)[0] + '); a versão não será gravada nele.') }
     } else { $log.L('AVISO: banco não encontrado em ' + $bancoArq + '; a versão não será gravada nele.') }
     if ($Ambiente -notin @('PRODUCAO', 'TESTE')) { $Ambiente = 'PRODUCAO' }
+    if ($Teste) { $motivoTeste = Test-ModoTeste $Ambiente; if ($motivoTeste) { Parar-NoPasso 2 $motivoTeste } }
     # publicar sem o banco geraria uma planilha apontando para um arquivo que não existe
     # (por exemplo, depois de trocar a pasta BASE inteira e esquecer o .accdb)
     if (-not $Teste -and -not $temBanco) {
         Parar ('o banco ' + $script:NomeBanco + ' não está na raiz de BASE ou não abriu (veja o aviso acima). Ele precisa estar em ' + $bancoArq + '. Nada foi publicado.')
     }
 
-    # ------------------------------------------------------------ 2. backup
-    if (-not $Teste -and -not $SemBackup) {
-        $log.L('')
-        $log.L('--- backup do que está publicado hoje')
-        $pastaBkp = New-BackupAntesDePublicar $raiz $bancoArq $destinoRaiz $log
-        $log.L('  em ......: ' + $pastaBkp)
-    }
+    # ------------------------------------------------------------ passo 1: pacote de municípios
+    $script:passo = 1
+    $log.L('')
+    $log.L('[1/12] pacote de municípios...')
+    $motivoPacote = Test-PacoteMunicipios $dados
+    if ($motivoPacote) { Parar-NoPasso 1 $motivoPacote }
+    $motivoManifesto = Test-Manifesto $raiz
+    if ($motivoManifesto) { Parar-NoPasso 1 $motivoManifesto }
+    $totalMunicipios = [int]((Get-Content -LiteralPath (Join-Path $dados 'banco\referencia\municipios.fonte.json') -Raw -Encoding UTF8 | ConvertFrom-Json).total)
 
-    # ------------------------------------------------------------ 3. migrações do banco
-    if (-not $Teste -and -not $SemMigracoes -and $temBanco) {
-        $log.L('')
-        $log.L('--- migrações do banco')
-        $saidaMig = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dados 'banco\aplicar-migracoes.ps1') 2>&1
-        foreach ($linha in @($saidaMig)) { if ([string]$linha -ne '') { $log.L('  ' + [string]$linha) } }
-        if ($LASTEXITCODE -ne 0) { Parar 'as migrações falharam (veja acima). Nada foi publicado; o backup da etapa 2 está intacto.' }
-    }
+    # ------------------------------------------------------------ passos 3 a 8: trava, esquema, backup, cópia, migração na cópia, conferências
+    $script:passo = 5
+    $log.L('[3/12] a 8/12: trava, esquema, backup, cópia, migração na cópia e conferências...')
+    $pastaBkp = New-BackupAntesDePublicar $raiz $bancoArq $destinoRaiz $log
+    $log.L('  backup do publicado em ' + $pastaBkp)
+    $prep = Invoke-PreparacaoDoBanco $bancoArq (Get-PastaExecucao $raiz 'publicacao') $pastaBkp $totalMunicipios $log
+    if (-not $prep.ok) { Parar-NoPasso $prep.passo $prep.motivo }
+    $log.L('  cópia pronta: ' + $prep.copia)
 
     # parte visual gerada (fundos, modTema) em dia com fonte\layout? senão, gera agora
     $velhos = @(Get-VisualDesatualizado $dados)
@@ -133,6 +139,10 @@ try {
     $log.L('Versão..: ' + $versaoAtual + ' -> ' + $versao + '   ambiente ' + $Ambiente)
     $log.L('')
 
+    # ------------------------------------------------------------ passo 9: montagem do front (aponta para a CÓPIA, provisório)
+    $script:passo = 9
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '9') { throw 'PASSO:9|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
+    $log.L('[9/12] montagem do front (Config!B2 provisório = cópia de trabalho)...')
     # fonte de montagem: cópia com VERSAO_FRONT atualizada (a fonte original não é tocada)
     $palco = Join-Path $pastaBuild 'fonte'
     if (Test-Path -LiteralPath $palco) { Remove-Item -LiteralPath $palco -Recurse -Force }
@@ -204,7 +214,8 @@ try {
     # Config: caminho UNC do banco - o .xlsm roda de Documentos, em qualquer estação
     $cfg = $wb.Worksheets.Item('Config')
     foreach ($p in $abas.config.celulas.PSObject.Properties) { $cfg.Range($p.Name).Value2 = $p.Value }
-    $cfg.Range($abas.config.banco).Value2 = (ConvertTo-CaminhoUNC $bancoArq)
+    # provisório: aponta para a cópia de trabalho; o passo 11 grava o caminho definitivo do banco de produção
+    $cfg.Range($abas.config.banco).Value2 = (ConvertTo-CaminhoUNC $prep.copia)
     $cfg.Range($abas.config.ambiente).Value2 = $Ambiente
     $cfg.Range('A1').Font.Bold = $true
     $cfg.Columns.Item(1).ColumnWidth = 22; $cfg.Columns.Item(2).ColumnWidth = 90
@@ -333,7 +344,9 @@ try {
     if ($prob.Count -gt 0) { Parar ('pacote reprovado: ' + ($prob -join '; ')) }
     $log.L('  projeto VBA, ' + @($abas.abas).Count + ' abas e Início!B7 conferidos no arquivo')
 
-    # ------------------------------------------------------------ 8. teste de uso
+    # ------------------------------------------------------------ passo 10: teste de uso (contra a cópia)
+    $script:passo = 10
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '10') { throw 'PASSO:10|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     if (-not $SemTesteDeUso) {
         $log.L('')
         $log.L('--- teste de uso (grades e Painel com os dados reais)')
@@ -342,7 +355,31 @@ try {
         if ($LASTEXITCODE -ne 0) { Parar 'o teste de uso falhou (veja acima). Nada foi publicado.' }
     }
 
-    # ------------------------------------------------------------ 9. publicação
+    # ------------------------------------------------------------ passo 11: troca do banco (tudo ou nada)
+    $script:passo = 11
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '11') { throw 'PASSO:11|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
+    $log.L('[11/12] troca do banco...')
+    $bancoFinal = ConvertTo-CaminhoUNC $bancoArq
+    $xl2 = $null; $idExcel2 = 0
+    try {
+        $xl2 = New-Excel ([ref]$idExcel2)
+        $xl2.Visible = $false; $xl2.DisplayAlerts = $false; $xl2.EnableEvents = $false
+        $wb2 = $xl2.Workbooks.Open($temp)
+        $wb2.Worksheets.Item('Config').Range($abas.config.banco).Value2 = $bancoFinal
+        $wb2.Save(); $wb2.Close($false)
+    } finally { Close-Excel $xl2 $idExcel2 }
+    if ((Get-TextoCelulaXlsx $temp 'Config' $abas.config.banco) -ne $bancoFinal) { Parar-NoPasso 11 'Config!B2 definitivo não conferiu no .xlsm montado' }
+    $log.L('  Config!B2 definitivo = ' + $bancoFinal)
+    $troca = Trocar-BancoProducao $prep.copia $bancoArq $prep.h0 $pastaBkp
+    if (-not $troca.ok) { Parar-NoPasso 11 $troca.motivo }
+    $hashNovo = Get-HashArquivo $bancoArq
+    $log.L('  ' + $troca.motivo)
+
+    # ------------------------------------------------------------ passo 12: publicação (se falhar, o banco volta ao backup)
+    $script:passo = 12
+    $log.L('[12/12] publicação...')
+    try {
+    if ($Teste -and $env:CRM_FALHA_NO_PASSO -eq '12') { throw 'PASSO:12|falha forçada pelo teste (CRM_FALHA_NO_PASSO)' }
     if ($Teste) {
         $destTeste = Join-Path (Get-PastaExecucao $raiz 'teste') $script:NomeFront
         Copy-Item -LiteralPath $temp -Destination $destTeste -Force
@@ -405,16 +442,36 @@ try {
         [System.IO.File]::WriteAllText($chg, $cab + $entrada + "`r`n" + $resto, (New-Object System.Text.UTF8Encoding($false)))
         $log.L('  CHANGELOG.md atualizado (' + $mud.Count + ' arquivo(s) de fonte alterado(s))')
 
+        $unif = 0; $inativos = 0; $munic = 0; $relatorio = ''
+        foreach ($linha in @($prep.migracao)) {
+            if ($linha -match 'unificações: (\d+)') { $unif = [int]$matches[1] }
+            if ($linha -match 'municípios: (\d+) carregado') { $munic = [int]$matches[1] }
+            if ($linha -match 'entrou INATIVO') { $inativos++ }
+            if ($linha -match '^Log: (.+)$') { $relatorio = $matches[1].Trim() }
+        }
         $log.L('')
-        $log.L('PUBLICADO: versão ' + $versao + '. As estações pegam a versão nova no próximo INICIAR-CRM.')
+        $log.L('PRONTO. CRM ' + $versao + ' publicado; banco no esquema 1.1. Municípios: ' + $munic + '. Listas: ' + $unif +
+               ' unificação(ões), ' + $inativos + ' valor(es) incluído(s) como inativo(s) (relatório: ' + $relatorio + '). Backup: ' + $pastaBkp + '.')
+        $log.L('Usuários do Claude Desktop: fechem e abram o aplicativo e reinstalem a skill IA\instrucoes\crm-zapromaq.zip.')
         $sucesso = $true
     }
+    } catch {
+        if ($troca -and $troca.ok) {
+            $volta = Reverter-Troca $bancoArq $prep.backup $hashNovo
+            $log.L('  ' + $volta.motivo)
+        }
+        throw
+    }
 } catch {
+    $msg = $_.Exception.Message
+    $n = $script:passo
+    if ($msg -match '^PASSO:(\d+)\|(.*)$') { $n = [int]$matches[1]; $msg = $matches[2] }
     $log.L('')
-    $log.L('BUILD FALHOU: ' + $_.Exception.Message)
+    $log.L('PAROU NO PASSO ' + $n + '/12 (' + $nomesPassos[$n] + '): ' + $msg)
     # onde falhou (arquivo:linha) - sem isto, erro de conversão não diz de onde veio
     $log.L('Local: ' + (($_.ScriptStackTrace -split "`n" | Select-Object -First 3) -join ' <- '))
-    $log.L('A raiz de BASE NÃO foi alterada.')
+    if ($n -lt 11) { $log.L('Nada foi publicado: a raiz de BASE e o banco de produção não foram alterados.') }
+    else { $log.L('Veja o backup em ' + $pastaBkp + ' antes de mexer.') }
 } finally {
     if ($xl -or $idExcel) { Close-Excel $xl $idExcel }
     if ($vbomOriginal -ne 'nao-alterado' -and $vbomOriginal -ne 1) { Set-AcessoVBOM $vbomOriginal }

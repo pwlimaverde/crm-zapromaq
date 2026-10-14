@@ -135,6 +135,12 @@ falha:
     If mAtivo Then Agendar
 End Sub
 
+' Processa o que chegou no log agora, sem agendar nada. O Verificar usa isto;
+' o teste de uso chama direto, sem ligar o relogio do feed.
+Public Sub ProcessarAgora()
+    Processar
+End Sub
+
 Private Function MaiorId() As Long
     MaiorId = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM log_alteracoes", 0))
 End Function
@@ -172,6 +178,7 @@ Private Sub Processar()
         End If
     Next i
 
+    If porTabela.Exists("listas") Then modCRM.LimparCacheListas
     For Each chave In porTabela.Keys
         AtualizarAba CStr(chave), porTabela(chave)
     Next chave

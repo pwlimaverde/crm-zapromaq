@@ -8,6 +8,7 @@ $dados = Split-Path -Parent $PSScriptRoot
 . (Join-Path $dados 'lib\Comum.ps1')
 . (Join-Path $dados 'build\lib\Versao.ps1')
 . (Join-Path $dados 'build\lib\Pacote.ps1')
+. (Join-Path $dados 'lib\AtualizacaoBanco.ps1')
 
 $script:falhas = 0
 function Conferir([string]$nome, [bool]$ok, [string]$detalhe = '') {
@@ -77,6 +78,98 @@ try {
     $p = Test-PacoteXlsm $tmp @('Inicio', 'Painel')
     Conferir 'aba faltando detectada' ($p.Count -eq 1 -and $p[0] -match 'Painel') ($p -join '; ')
 } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- banco: trava (C19), H0 na troca (C20) e reversão'
+$tmpB = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-banco-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path (Join-Path $tmpB 'trabalho') -Force | Out-Null
+try {
+    $prod = Join-Path $tmpB 'crm_zapromaq.accdb'
+    $copia = Join-Path $tmpB 'trabalho\crm_zapromaq.accdb'
+    $back = Join-Path $tmpB 'backup'
+    $laccdb = [System.IO.Path]::ChangeExtension($prod, 'laccdb')
+    [IO.File]::WriteAllBytes($prod, [Text.Encoding]::ASCII.GetBytes('producao-antiga'))
+    [IO.File]::WriteAllBytes($copia, [Text.Encoding]::ASCII.GetBytes('copia-migrada'))
+
+    # C19: trava com uma estação conectada -> não livre, com o nome lido da trava
+    $trava = New-Object byte[] 128
+    $nomeTrava = [Text.Encoding]::ASCII.GetBytes('ESTACAO-TESTE')
+    [Array]::Copy($nomeTrava, 0, $trava, 0, $nomeTrava.Length)
+    [IO.File]::WriteAllBytes($laccdb, $trava)
+    $livre = Test-BancoLivre $prod
+    Conferir 'C19 trava presente: banco não livre' (-not $livre.livre)
+    Conferir 'C19 nome da estação lido da trava (registro vazio ignorado)' (@($livre.estacoes).Count -eq 1 -and $livre.estacoes[0] -eq 'ESTACAO-TESTE') ($livre.estacoes -join ',')
+    Remove-Item -LiteralPath $laccdb -Force
+    Conferir 'sem trava: banco livre' ((Test-BancoLivre $prod).livre)
+
+    # troca com H0 igual: produção vira a cópia; o anterior vai para o backup
+    $h0 = Get-HashArquivo $prod
+    $r = Trocar-BancoProducao $copia $prod $h0 $back
+    Conferir 'troca com H0 igual: ok' $r.ok $r.motivo
+    Conferir 'produção passou a ser a cópia' ((Get-HashArquivo $prod) -eq (Get-HashArquivo $copia))
+    Conferir 'backup guarda o banco anterior (H0)' ((Get-HashArquivo (Join-Path $back 'crm_zapromaq.accdb')) -eq $h0)
+
+    # C20: alguém gravou depois do H0 -> recusa e nada muda
+    $copia2 = Join-Path $tmpB 'trabalho\nova.accdb'
+    [IO.File]::WriteAllBytes($copia2, [Text.Encoding]::ASCII.GetBytes('copia-nova'))
+    $h0b = Get-HashArquivo $prod
+    [IO.File]::WriteAllBytes($prod, [Text.Encoding]::ASCII.GetBytes('gravado-durante-a-montagem'))
+    $antesDaRecusa = Get-HashArquivo $prod
+    $r2 = Trocar-BancoProducao $copia2 $prod $h0b (Join-Path $tmpB 'backup2')
+    Conferir 'C20 hash diferente de H0: recusa' (-not $r2.ok)
+    Conferir 'C20 nada foi trocado' ((Get-HashArquivo $prod) -eq $antesDaRecusa)
+    Conferir 'C20 mensagem manda rodar de novo' ($r2.motivo -match 'rode de novo')
+
+    # reversão: volta ao backup enquanto a produção ainda é a da troca
+    $r3 = Trocar-BancoProducao $copia2 $prod $antesDaRecusa (Join-Path $tmpB 'backup3')
+    Conferir 'troca seguinte ok' $r3.ok $r3.motivo
+    $hNovo = Get-HashArquivo $prod
+    $volta = Reverter-Troca $prod (Join-Path $tmpB 'backup3\crm_zapromaq.accdb') $hNovo
+    Conferir 'reversão volta ao banco anterior' ($volta.ok -and (Get-HashArquivo $prod) -eq $antesDaRecusa) $volta.motivo
+    Conferir 'reversão recusa se a produção mudou desde a troca' (-not (Reverter-Troca $prod (Join-Path $tmpB 'backup3\crm_zapromaq.accdb') $hNovo).ok)
+} finally { Remove-Item -LiteralPath $tmpB -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- montagem: pacote de municípios (passo 1), modo TESTE (passo 2) e passos 3 a 8 com erro forçado'
+Conferir 'passo 1: pacote de municípios confere com o .fonte.json' ((Test-PacoteMunicipios $dados) -eq '') (Test-PacoteMunicipios $dados)
+Conferir '-Teste recusa banco de PRODUCAO' ((Test-ModoTeste 'PRODUCAO') -ne '')
+Conferir '-Teste aceita banco de TESTE' ((Test-ModoTeste 'TESTE') -eq '')
+$tmpP = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-prep-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpP -Force | Out-Null
+try {
+    $prodP = Join-Path $tmpP 'crm_zapromaq.accdb'
+    [IO.File]::WriteAllBytes($prodP, [Text.Encoding]::ASCII.GetBytes('producao-sem-migrar'))
+    $hP = Get-HashArquivo $prodP
+    $logP = [pscustomobject]@{ linhas = New-Object System.Collections.ArrayList }
+    $logP | Add-Member -MemberType ScriptMethod -Name L -Value { param($x) [void]$this.linhas.Add([string]$x) }
+    $pr = Invoke-PreparacaoDoBanco $prodP (Join-Path $tmpP 'publicacao') (Join-Path $tmpP 'backup') 5571 $logP
+    Conferir 'passo 7 (migração na cópia) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 7) ($pr.motivo)
+    Conferir 'erro no passo 7: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
+    Conferir 'erro no passo 7: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
+    $tmpT = Join-Path $tmpP 'trava'
+    New-Item -ItemType Directory -Path $tmpT -Force | Out-Null
+    $prodT = Join-Path $tmpT 'crm_zapromaq.accdb'
+    [IO.File]::WriteAllBytes($prodT, [Text.Encoding]::ASCII.GetBytes('x'))
+    $trT = New-Object byte[] 64
+    [Array]::Copy([Text.Encoding]::ASCII.GetBytes('ESTACAO-B'), 0, $trT, 0, 9)
+    [IO.File]::WriteAllBytes([IO.Path]::ChangeExtension($prodT, 'laccdb'), $trT)
+    $pt = Invoke-PreparacaoDoBanco $prodT (Join-Path $tmpT 'publicacao') (Join-Path $tmpT 'backup') 5571 $logP
+    Conferir 'C19 via montagem: para no passo 3 e cita a estação' ((-not $pt.ok) -and $pt.passo -eq 3 -and $pt.motivo -match 'ESTACAO-B') ($pt.motivo)
+    Conferir 'C19: nada criado em publicação nem backup' (-not (Test-Path -LiteralPath (Join-Path $tmpT 'publicacao')) -and -not (Test-Path -LiteralPath (Join-Path $tmpT 'backup')))
+} finally { Remove-Item -LiteralPath $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- pacote: MANIFESTO.json (1.10)'
+$tmpM = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-manifesto-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path (Join-Path $tmpM 'SISTEMA\DADOS') -Force | Out-Null
+try {
+    [IO.File]::WriteAllText((Join-Path $tmpM 'SISTEMA\DADOS\a.txt'), 'um', [Text.Encoding]::ASCII)
+    $man = Join-Path $tmpM 'SISTEMA\DADOS\MANIFESTO.json'
+    $hashA = Get-HashArquivo (Join-Path $tmpM 'SISTEMA\DADOS\a.txt')
+    [IO.File]::WriteAllText($man, ('{"arquivos":[{"caminho":"SISTEMA/DADOS/a.txt","sha256":"' + $hashA + '"}]}'), [Text.Encoding]::UTF8)
+    Conferir 'manifesto confere com os arquivos do pacote' ((Test-Manifesto $tmpM) -eq '') (Test-Manifesto $tmpM)
+    [IO.File]::WriteAllText((Join-Path $tmpM 'SISTEMA\DADOS\a.txt'), 'dois', [Text.Encoding]::ASCII)
+    Conferir 'arquivo alterado depois do pacote é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
+    Remove-Item -LiteralPath (Join-Path $tmpM 'SISTEMA\DADOS\a.txt') -Force
+    Conferir 'arquivo listado e ausente é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
+} finally { Remove-Item -LiteralPath $tmpM -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }

@@ -34,7 +34,9 @@ Private Const P1 As Long = 2
 Private Const P2 As Long = 7
 Private Const P3 As Long = 12
 Private Const LINHAS_GRAFICO_MIN As Long = 13
-Private Const ABERTAS As String = " AND op.etapa NOT IN ('Pedido Fechado','Perdido','Descartado')"
+Private Function ABERTAS() As String
+    ABERTAS = " AND op.etapa NOT IN (" & modCRM.SqlEtapasEncerradas() & ")"
+End Function
 
 Public Sub AtualizarBasePainel()
     Dim ws As Worksheet, inicio As Single, linha As Long, cn As Object
@@ -105,7 +107,7 @@ Public Sub AtualizarBasePainel()
     totais("atendimentos") = modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM oportunidades", 0)
     totais("abertos") = modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM oportunidades op WHERE 1=1" & ABERTAS, 0)
     totais("valor_aberto") = modDB.ConsultarValorEm(cn, "SELECT SUM(op.valor) FROM oportunidades op WHERE 1=1" & ABERTAS, 0)
-    totais("valor_ganho") = modDB.ConsultarValorEm(cn, "SELECT SUM(valor) FROM oportunidades WHERE etapa='Pedido Fechado'", 0)
+    totais("valor_ganho") = modDB.ConsultarValorEm(cn, "SELECT SUM(valor) FROM oportunidades WHERE etapa IN (" & modCRM.SqlEtapasComResultado("GANHO") & ")", 0)
 
     ' Situacao de acompanhamento (atrasada, nesta semana, em dia...):
     ' a regra depende do dia de hoje e esta em modCalc, nao em SQL.
@@ -300,7 +302,7 @@ Private Sub DesenharPainel(ByVal totais As Object, ByVal situacoes As Object, By
     ws.Range("B2").Font.Size = 16: ws.Range("B2").Font.Bold = True
     ws.Range("B2").Font.Color = modTema.COR_AZUL
     ws.Range("B3").Value = "Atualizado em " & Format$(Now, "dd/mm/yyyy hh:nn") & _
-                           "   " & ChrW$(&HB7) & "   em aberto = etapa diferente de Pedido Fechado, Perdido e Descartado"
+                           "   " & ChrW$(&HB7) & "   em aberto = etapa que nao encerra o atendimento (aba Listas, Encerra = Nao)"
     ws.Range("B3").Font.Size = 9: ws.Range("B3").Font.Color = modTema.COR_TEXTO2
 
     ' ---------------- cartoes (6 x 2 colunas)
@@ -704,9 +706,9 @@ Public Function Mensal(ByVal entradas As Variant, ByVal desfechos As Variant) As
             For j = 1 To UBound(desfechos, 1)
                 If CLng(Num(desfechos(j, 1))) = c Then
                     etapa = modDB.Nz(desfechos(j, 2))
-                    If etapa = "Pedido Fechado" Then
+                    If modCRM.EtapaResultado(etapa) = "GANHO" Then
                         r(i, 3) = r(i, 3) + Num(desfechos(j, 3)): r(i, 4) = r(i, 4) + Num(desfechos(j, 4))
-                    ElseIf etapa = "Perdido" Or etapa = "Descartado" Then
+                    ElseIf modCRM.EtapaResultado(etapa) = "PERDA" Then
                         r(i, 5) = r(i, 5) + Num(desfechos(j, 3))
                     End If
                 End If

@@ -1,0 +1,51 @@
+{
+  "_sobre": "Gerenciamento das listas suspensas (Fase 2, aberto pelo Inicio). Nomes dos controles sao contrato com frmListas.txt. Lista e grade a esquerda; a caixa do papel (so vale para a lista Etapa) a direita. Grade com 470 pt uteis (soma das colunas em frmListas.txt).",
+  "nome": "frmListas",
+  "codigo": "formularios/frmListas.txt",
+  "canvas": { "largura": 780, "altura": 492 },
+  "propriedades": { "Caption": "CRM Zapromaq - gerenciamento de listas", "BackColor": "@fundo" },
+  "fundo": [
+    { "tipo": "retangulo", "pos": [0, 0, 780, 48], "gradiente": ["@azul", "@azulMedio"] },
+    { "tipo": "retangulo", "pos": [0, 46, 780, 2], "cor": "@verde" },
+    { "tipo": "imagem", "arquivo": "assets/logo_zapromaq.png", "pos": [12, 10, 76, 28], "filtro": "branco" },
+    { "tipo": "linha", "pos": [98, 10, 1, 28], "cor": "#FFFFFF", "opacidade": 0.35 },
+    { "tipo": "retangulo", "pos": [10, 56, 760, 392], "cor": "@fundoCard", "raio": 8, "borda": "@bordaSuave", "sombra": true },
+    { "tipo": "retangulo", "pos": [506, 110, 256, 300], "cor": "@fundoCard", "raio": 6, "borda": "@bordaSuave" },
+    { "tipo": "retangulo", "pos": [0, 444, 780, 48], "cor": "@branco" },
+    { "tipo": "linha", "pos": [0, 444, 780, 1], "cor": "@bordaSuave" }
+  ],
+  "estilos": {
+    "campo":     { "Font.Name": "@padrao", "Font.Size": 9, "SpecialEffect": 0, "BorderStyle": 1, "BorderColor": "@borda", "BackColor": "@branco", "ForeColor": "@texto" },
+    "rotulo":    { "Font.Name": "@padrao", "Font.Size": 9, "BackStyle": 0, "ForeColor": "@texto2" },
+    "rotuloPeq": { "Font.Name": "@padrao", "Font.Size": 8, "BackStyle": 0, "ForeColor": "@textoClaro", "WordWrap": false },
+    "titulo":    { "Font.Name": "@semibold", "Font.Size": 13, "BackStyle": 0, "ForeColor": "@branco", "WordWrap": false },
+    "subtitulo": { "Font.Name": "@padrao", "Font.Size": 8, "BackStyle": 0, "ForeColor": "@textoClaro", "WordWrap": false },
+    "secao":     { "Font.Name": "@semibold", "Font.Size": 10, "BackStyle": 0, "ForeColor": "@texto", "WordWrap": false }
+  },
+  "controles": [
+    { "nome": "lblTitulo",     "tipo": "Label",    "pos": [110, 6, 500, 20],   "texto": "Gerenciamento de listas", "estilo": "titulo" },
+    { "nome": "lblSubtitulo",  "tipo": "Label",    "pos": [110, 28, 600, 13],  "texto": "Nada e apagado nem renomeado: para tirar um valor de uso, desative. Registros antigos continuam com ele.", "estilo": "subtitulo" },
+    { "nome": "lblLista",      "tipo": "Label",    "pos": [22, 66, 120, 14],   "texto": "Lista", "estilo": "rotulo" },
+    { "nome": "cboLista",      "tipo": "ComboBox", "pos": [22, 82, 220, 22],   "estilo": "campo", "props": { "Style": 2 } },
+    { "nome": "lblResumo",     "tipo": "Label",    "pos": [256, 86, 230, 13],  "estilo": "rotuloPeq", "amostra": "6 valor(es)  -  5 ativo(s)" },
+    { "nome": "lblPapelTit",   "tipo": "Label",    "pos": [520, 120, 230, 16], "texto": "Papel da etapa", "estilo": "secao" },
+    { "nome": "lblPapelDica",  "tipo": "Label",    "pos": [520, 138, 230, 26], "texto": "So a lista Etapa tem papel.", "estilo": "rotuloPeq" },
+    { "nome": "chkEncerra",    "tipo": "CheckBox", "pos": [520, 172, 230, 16], "texto": "Encerra o atendimento", "estilo": "rotulo" },
+    { "nome": "lblResultado",  "tipo": "Label",    "pos": [520, 198, 230, 14], "texto": "Resultado (vazio, GANHO ou PERDA)", "estilo": "rotulo" },
+    { "nome": "cboResultado",  "tipo": "ComboBox", "pos": [520, 214, 120, 22], "estilo": "campo", "props": { "Style": 2 } },
+    { "nome": "lblQuadro",     "tipo": "Label",    "pos": [520, 244, 230, 14], "texto": "Quadro do funil", "estilo": "rotulo" },
+    { "nome": "cboQuadro",     "tipo": "ComboBox", "pos": [520, 260, 120, 22], "estilo": "campo", "props": { "Style": 2 } },
+    { "nome": "chkFamilia",    "tipo": "CheckBox", "pos": [520, 296, 230, 16], "texto": "Exige familia de produto", "estilo": "rotulo" },
+    { "nome": "lblAviso",      "tipo": "Label",    "pos": [520, 326, 230, 60], "estilo": "rotuloPeq", "amostra": "Mudar 'encerra' pede confirmacao." },
+    { "nome": "lblStatus",     "tipo": "Label",    "pos": [22, 452, 640, 14],  "estilo": "rotuloPeq", "amostra": "Duplo clique no valor alterna Ativo e Inativo." }
+  ],
+  "componentes": [
+    { "tipo": "grade", "nome": "grdValores", "pos": [22, 110, 470, 300], "amostra": "listas", "linhas": 12 },
+    { "tipo": "botao", "nome": "cmdIncluir",     "pos": [22, 418, 96, 24],   "texto": "Incluir",    "icone": "novo",      "variante": "primario" },
+    { "tipo": "botao", "nome": "cmdAtivar",      "pos": [124, 418, 116, 24], "texto": "Ativar/Inativar", "icone": "desativar", "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdSubir",       "pos": [246, 418, 84, 24],  "texto": "Subir",      "icone": "acima",     "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdDescer",      "pos": [336, 418, 84, 24],  "texto": "Descer",     "icone": "abaixo",    "variante": "neutro" },
+    { "tipo": "botao", "nome": "cmdSalvarPapel", "pos": [520, 394, 120, 24], "texto": "Salvar papel", "icone": "salvar", "variante": "sucesso" },
+    { "tipo": "botao", "nome": "cmdFechar",      "pos": [688, 458, 80, 24],  "texto": "Fechar",     "icone": "fechar",    "variante": "neutro" }
+  ]
+}

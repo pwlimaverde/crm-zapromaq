@@ -18,7 +18,7 @@ mas pega antes o que custaria uma ida à estação:
 Uso:  python verificar.py            (a partir de qualquer pasta)
 Saída: 0 sem problemas; 1 com problemas.
 """
-import os, re, sys, json, shutil, tempfile, subprocess, importlib.util
+import os, re, sys, json, shutil, tempfile, subprocess, importlib.util, hashlib, unicodedata
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 DADOS = os.path.abspath(os.path.join(AQUI, '..', '..'))
@@ -308,8 +308,203 @@ def verificar_formularios():
                     falha('Formulários', '%s: "%s" usado no código e ausente do layout' % (d['codigo'], n))
 
 
+MUNICIPIOS_TOTAL_OFICIAL = 5571          # IBGE localidades, consultado em 12/10/2026 (2024: 5570)
+MUNICIPIOS_UFS = {'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+                  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'}
+MUNICIPIOS_CABECALHO = 'cod_ibge;nome;nome_busca;uf;lat;lon'
+
+
+def nome_busca_de(nome):
+    # mesma regra de modValidacao.ChaveLista / Regras.ps1: sem acento, maiúsculas, espaços colapsados
+    sem = ''.join(c for c in unicodedata.normalize('NFKD', nome) if not unicodedata.combining(c))
+    return ' '.join(sem.upper().split())
+
+
+def verificar_municipios():
+    ref = os.path.join(DADOS, 'banco', 'referencia')
+    csv_p = os.path.join(ref, 'municipios.csv')
+    fonte_p = os.path.join(ref, 'municipios.fonte.json')
+    if not os.path.isfile(csv_p) or not os.path.isfile(fonte_p):
+        falha('Municipios', 'municipios.csv ou municipios.fonte.json ausente em banco\\referencia')
+        return
+    bruto = open(csv_p, 'rb').read()
+    if not bruto.startswith(b'\xef\xbb\xbf'):
+        falha('Municipios', 'municipios.csv sem BOM UTF-8')
+    try:
+        fonte = json.loads(open(fonte_p, 'rb').read().decode('utf-8'))
+    except (ValueError, UnicodeDecodeError) as e:
+        falha('Municipios', 'municipios.fonte.json inválido: ' + str(e))
+        return
+    if hashlib.sha256(bruto).hexdigest() != fonte.get('csv_sha256'):
+        falha('Municipios', 'SHA-256 do municipios.csv diferente do registrado no .fonte.json')
+    linhas = bruto.decode('utf-8-sig').replace('\r\n', '\n').split('\n')
+    if linhas and linhas[-1] == '':
+        linhas.pop()
+    if linhas[0] != MUNICIPIOS_CABECALHO:
+        falha('Municipios', 'cabeçalho do CSV diferente de ' + MUNICIPIOS_CABECALHO)
+    registros = linhas[1:]
+    if len(registros) != MUNICIPIOS_TOTAL_OFICIAL:
+        falha('Municipios', 'total de linhas %d; esperado %d (IBGE)' % (len(registros), MUNICIPIOS_TOTAL_OFICIAL))
+    if fonte.get('total') != len(registros):
+        falha('Municipios', '.fonte.json: total %s não bate com %d linhas' % (fonte.get('total'), len(registros)))
+    codigos = set()
+    ufs = set()
+    for n, linha in enumerate(registros, 2):
+        c = linha.split(';')
+        if len(c) != 6:
+            falha('Municipios', 'linha %d com %d campos (esperado 6)' % (n, len(c)))
+            continue
+        cod, nome, busca, uf, lat, lon = c
+        if not re.fullmatch(r'\d{7}', cod):
+            falha('Municipios', 'linha %d: cod_ibge não tem 7 dígitos' % n)
+        elif cod in codigos:
+            falha('Municipios', 'linha %d: cod_ibge %s repetido' % (n, cod))
+        codigos.add(cod)
+        if busca != nome_busca_de(nome):
+            falha('Municipios', 'linha %d: nome_busca diferente da regra para "%s"' % (n, nome))
+        if uf not in MUNICIPIOS_UFS:
+            falha('Municipios', 'linha %d: UF "%s" fora das 27' % (n, uf))
+        ufs.add(uf)
+        try:
+            la, lo = float(lat), float(lon)
+        except ValueError:
+            falha('Municipios', 'linha %d: coordenada não numérica' % n)
+            continue
+        if not (-34 <= la <= 6 and -74 <= lo <= -28):
+            falha('Municipios', 'linha %d: coordenada fora do Brasil (%s, %s)' % (n, lat, lon))
+    if len(ufs) != 27:
+        falha('Municipios', 'UFs presentes: %d; esperado 27' % len(ufs))
+
+
+def verificar_casos_regra():
+    # Cada caso de regra (C01...) é provado nos dois lados: o autoteste do front (VBA) e o
+    # teste do conector (PowerShell). Caso só de um lado = regra que pode divergir sem aviso.
+    lados = {}
+    arquivos_casos = {
+        'front': os.path.join(FONTE, 'modulos', 'modAutoteste.bas'),
+        'conector': os.path.join(BASE, 'IA', 'teste', 'testar-mcp.ps1'),
+    }
+    for lado, caminho in arquivos_casos.items():
+        if not os.path.isfile(caminho):
+            falha('Casos de regra', 'arquivo de teste ausente: ' + rel(caminho))
+            return
+        txt = ler_cp1252(caminho) if lado == 'front' else open(caminho, encoding='utf-8-sig').read()
+        lados[lado] = set()
+        for linha in txt.split('\n'):
+            if re.search(r'\b(Confere|Conferir)\b', linha):
+                lados[lado].update(re.findall(r'\bC(\d\d)\b', linha))
+    for n in sorted(lados['front'] ^ lados['conector']):
+        so = 'front' if n in lados['front'] else 'conector'
+        falha('Casos de regra', 'C%s só tem teste no %s' % (n, so))
+
+
+# Estrutura nova do esquema 1.1 (migração 003). Espelha a spec 003 (Contratos > Tabelas).
+ESQUEMA_11_TABELAS = {
+    'municipios': ['cod_ibge', 'nome', 'nome_busca', 'uf', 'lat', 'lon', 'fonte_carga'],
+    'planejamentos': ['id', 'codigo', 'controle', 'descricao', 'cod_municipio_base', 'raio_km', 'data_inicio',
+                      'data_fim', 'responsavel', 'situacao', 'observacoes', 'versao', 'criado_em', 'alterado_em',
+                      'alterado_por'],
+    'visitas': ['id', 'id_oportunidade', 'id_planejamento', 'situacao', 'data_agendada', 'hora_agendada',
+                'responsavel', 'tipo', 'observacoes', 'data_realizada', 'resultado', 'relato', 'motivo_cancelamento',
+                'versao', 'criado_em', 'alterado_em', 'alterado_por'],
+}
+ESQUEMA_11_LISTAS_NOVAS = ['chave', 'encerra', 'resultado', 'quadro', 'exige_familia']
+ESQUEMA_11_INDICES = ['ix_mun_uf_busca', 'ix_pln_codigo', 'ix_pln_controle', 'ix_vis_opo_sit', 'ix_vis_pln',
+                      'ix_vis_data', 'ix_lis_tipo_chave']
+
+
+def verificar_migracao_003():
+    pasta = os.path.join(DADOS, 'banco', 'migracoes')
+    arqs = [f for f in os.listdir(pasta) if f.startswith('003-') and f.endswith('.ps1')] if os.path.isdir(pasta) else []
+    if len(arqs) != 1:
+        falha('Esquema 1.1', 'migração 003 ausente em banco\\migracoes (003-*.ps1)')
+        return
+    txt = open(os.path.join(pasta, arqs[0]), encoding='utf-8-sig').read()
+    junto = re.sub(r"'\s*\+\s*\n\s*'", '', txt)
+    if "EsquemaDe = '1.0'" not in txt or "EsquemaPara = '1.1'" not in txt:
+        falha('Esquema 1.1', '003: EsquemaDe/EsquemaPara devem ser 1.0 -> 1.1')
+    tabelas = ddl_de_texto(junto)
+    for tabela, colunas in ESQUEMA_11_TABELAS.items():
+        if tabela not in tabelas:
+            falha('Esquema 1.1', '003: tabela ' + tabela + ' não é criada')
+            continue
+        faltam = [c for c in colunas if c not in tabelas[tabela]]
+        if faltam:
+            falha('Esquema 1.1', '003: ' + tabela + ' sem colunas ' + ', '.join(faltam))
+    for col in ESQUEMA_11_LISTAS_NOVAS:
+        if col not in tabelas.get('listas', set()):
+            falha('Esquema 1.1', '003: listas sem a coluna ' + col)
+    for ix in ESQUEMA_11_INDICES:
+        if ix not in junto:
+            falha('Esquema 1.1', '003: índice ' + ix + ' não é criado')
+
+
+def ddl_de_texto(junto):
+    # mesma leitura de ddl_colunas, aplicada a um texto; ALTER TABLE ... ADD COLUMN soma colunas
+    tabelas = {}
+    for m in re.finditer(r"CREATE TABLE (\w+) \((.*?)\)'", junto, re.S):
+        cols, prof, atual = [], 0, ''
+        for ch in m.group(2):
+            prof += (ch == '(') - (ch == ')')
+            if ch == ',' and prof == 0:
+                cols.append(atual)
+                atual = ''
+            else:
+                atual += ch
+        cols.append(atual)
+        tabelas.setdefault(m.group(1).lower(), set()).update(c.strip().split()[0].lower() for c in cols if c.strip())
+    for m in re.finditer(r"ALTER TABLE (\w+) ADD COLUMN (\w+)", junto, re.I):
+        tabelas.setdefault(m.group(1).lower(), set()).add(m.group(2).lower())
+    return tabelas
+
+
+# Nomes de etapa que o programa NAO pode fixar em codigo: o papel vem da tabela listas (spec 003, D-c).
+ETAPAS_FIXAS = ['Pedido Fechado', 'Perdido', 'Descartado', 'Contato Inicial', 'Sem Retorno', 'Retorno Agendado',
+                'Elaboração da Proposta', 'Negociação', 'Proposta em Análise', 'Proposta em Stand By']
+# Onde o nome pode aparecer: teste de regra com dados de exemplo e amostra visual do formulario de calibracao
+ETAPAS_EXCECOES = {'modAutoteste.bas', 'frmCalibracao.txt'}
+
+
+def sem_comentario(linha, comentario):
+    # tira o comentario da linha, sem mexer no que esta dentro de aspas
+    dentro = False
+    for i, ch in enumerate(linha):
+        if ch == '"':
+            dentro = not dentro
+        elif ch == comentario and not dentro:
+            return linha[:i]
+    return linha
+
+
+def verificar_textos_de_etapa(vba):
+    alvos = []
+    for p in vba:
+        if os.path.basename(p) not in ETAPAS_EXCECOES:
+            alvos.append((p, "'"))
+    pasta_ps = os.path.join(BASE, 'IA', 'mcp', 'lib')
+    if os.path.isdir(pasta_ps):
+        for nome in sorted(os.listdir(pasta_ps)):
+            if nome.endswith('.ps1'):
+                alvos.append((os.path.join(pasta_ps, nome), '#'))
+    for caminho, marca in alvos:
+        txt = open(caminho, encoding='cp1252' if caminho.endswith(('.bas', '.cls', '.txt')) else 'utf-8-sig',
+                   errors='replace').read()
+        for n, linha in enumerate(txt.replace('\r\n', '\n').split('\n'), 1):
+            if '2. Negocia' in linha:            # titulo de secao do formulario, nao regra de etapa
+                continue
+            codigo = sem_comentario(linha, marca)
+            for nome in ETAPAS_FIXAS:
+                # so literal entre aspas conta ("Perdidos" de um rotulo nao e a etapa Perdido)
+                if ('"' + nome + '"') in codigo or ("'" + nome + "'") in codigo:
+                    falha('Etapas', rel(caminho) + ':' + str(n) + ': texto fixo de etapa "' + nome + '" no codigo')
+                    break
+
+
 def main():
     vba = fontes_vba()
+    verificar_textos_de_etapa(vba)
+    verificar_migracao_003()
+    verificar_casos_regra()
     verificar_formularios()
     verificar_codificacao_vba(vba)
     verificar_estrutura_vba(vba)
@@ -318,6 +513,7 @@ def main():
     verificar_powershell()
     verificar_bat()
     verificar_json()
+    verificar_municipios()
     print('=== VERIFICAÇÃO ESTÁTICA - CRM Zapromaq ===')
     print('fontes VBA: %d   raiz: %s' % (len(vba), BASE))
     if not problemas:

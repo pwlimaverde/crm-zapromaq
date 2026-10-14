@@ -9,53 +9,58 @@ Attribute VB_Name = "modCalc"
 '==========================================================
 Option Explicit
 
-Private Function EhEncerrada(ByVal etapa As String) As Boolean
-    EhEncerrada = (etapa = "Pedido Fechado" Or etapa = "Perdido" Or etapa = "Descartado")
-End Function
-
-Private Function EhProspeccao(ByVal etapa As String) As Boolean
-    EhProspeccao = (etapa = "Contato Inicial" Or etapa = "Sem Retorno" Or _
-                    etapa = "Retorno Agendado" Or etapa = "Descartado")
-End Function
-
 '----------------------------------------------------------
 ' Original: coluna C da aba Oportunidades
 '----------------------------------------------------------
 Public Function Situacao(ByVal temContato As Boolean, ByVal etapa As String, _
                          ByVal dtProxAcao As Variant, ByVal retomarEm As Variant) As String
-    Dim fimSemana As Date
-
     If Not temContato Then Exit Function
     If etapa = "" Then Situacao = "Sem etapa definida": Exit Function
-    If EhEncerrada(etapa) Then Situacao = "Encerrado": Exit Function
+    Situacao = SituacaoDaEtapa(modCRM.EtapaEncerra(etapa), dtProxAcao, retomarEm)
+End Function
+
+'----------------------------------------------------------
+' Regra de prazo sem consultar a lista: quem chama diz se a etapa encerra.
+' O autoteste usa esta funcao (ele nao acessa o banco).
+'----------------------------------------------------------
+Public Function SituacaoDaEtapa(ByVal encerrada As Boolean, ByVal dtProxAcao As Variant, _
+                               ByVal retomarEm As Variant) As String
+    Dim fimSemana As Date
+
+    If encerrada Then SituacaoDaEtapa = "Encerrado": Exit Function
 
     If Not IsNull(retomarEm) Then
         If IsDate(retomarEm) Then
-            If CDate(retomarEm) <= Date Then Situacao = "Retomar hoje": Exit Function
+            If CDate(retomarEm) <= Date Then SituacaoDaEtapa = "Retomar hoje": Exit Function
         End If
     End If
 
-    If IsNull(dtProxAcao) Then Situacao = "Sem próxima ação": Exit Function
-    If Not IsDate(dtProxAcao) Then Situacao = "Sem próxima ação": Exit Function
+    If IsNull(dtProxAcao) Then SituacaoDaEtapa = "Sem próxima ação": Exit Function
+    If Not IsDate(dtProxAcao) Then SituacaoDaEtapa = "Sem próxima ação": Exit Function
 
-    If CDate(dtProxAcao) < Date Then Situacao = "Ação atrasada": Exit Function
+    If CDate(dtProxAcao) < Date Then SituacaoDaEtapa = "Ação atrasada": Exit Function
 
     ' fim da semana corrente: domingo
     fimSemana = Date - Weekday(Date, vbMonday) + 7
     If CDate(dtProxAcao) <= fimSemana Then
-        Situacao = "Ação nesta semana"
+        SituacaoDaEtapa = "Ação nesta semana"
     Else
-        Situacao = "Em dia"
+        SituacaoDaEtapa = "Em dia"
     End If
 End Function
 
 '----------------------------------------------------------
 Public Function Quadro(ByVal etapa As String) As String
     If etapa = "" Then Exit Function
-    If EhProspeccao(etapa) Then
-        Quadro = "1. Prospecção"
+    Quadro = QuadroDoCodigo(modCRM.EtapaQuadro(etapa))
+End Function
+
+' Texto do quadro a partir do codigo gravado na lista (PROSPECCAO ou FUNIL).
+Public Function QuadroDoCodigo(ByVal codigo As String) As String
+    If codigo = "PROSPECCAO" Then
+        QuadroDoCodigo = "1. Prospecção"
     Else
-        Quadro = "2. Funil comercial"
+        QuadroDoCodigo = "2. Funil comercial"
     End If
 End Function
 

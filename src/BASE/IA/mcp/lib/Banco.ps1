@@ -13,7 +13,9 @@ $script:ProvedorAce = $null
 # Versoes de esquema com que este servidor sabe trabalhar. O front grava
 # config.versao_esquema; se o banco estiver numa versao desconhecida, a
 # gravacao e recusada (leitura continua liberada).
-$script:EsquemasSuportados = @('1.0')
+# 1.1 = migração 003 (municípios, planejamentos, visitas, papel das listas). Com 1.0 o banco ainda
+# não tem as colunas novas: a leitura do que existe continua, e a gravação das colunas novas virá com as ferramentas.
+$script:EsquemasSuportados = @('1.0', '1.1')
 
 function Get-ProvedorAce {
     if ($script:ProvedorAce) { return $script:ProvedorAce }
@@ -113,6 +115,30 @@ function Read-Linhas($cmd) {
     } finally { $rd.Close() }
     return ,$linhas
 }
+
+# Papel das etapas (spec 003, D-c): le a tabela listas (Encerra, Resultado, Quadro, Exige familia).
+# Nenhum nome de etapa fica no codigo. Cache de 5 s; Limpar-PapelEtapas zera na hora (gerenciar_lista).
+$script:PapelEtapas = $null
+$script:PapelEtapasLidoEm = [datetime]::MinValue
+function Get-PapelEtapas {
+    if ($null -eq $script:PapelEtapas -or ((Get-Date) - $script:PapelEtapasLidoEm).TotalSeconds -ge 5) {
+        $mapa = @{}
+        $filas = Invoke-Consulta "SELECT chave, valor, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo='Etapa'" @()
+        foreach ($l in $filas) {
+            $mapa[[string]$l.chave] = @{
+                valor         = [string]$l.valor
+                encerra       = [bool]$l.encerra
+                resultado     = [string]$l.resultado
+                quadro        = $(if ([string]::IsNullOrEmpty([string]$l.quadro)) { 'FUNIL' } else { [string]$l.quadro })
+                exige_familia = [bool]$l.exige_familia
+            }
+        }
+        $script:PapelEtapas = $mapa
+        $script:PapelEtapasLidoEm = Get-Date
+    }
+    return $script:PapelEtapas
+}
+function Limpar-PapelEtapas { $script:PapelEtapas = $null }
 
 # Consulta de leitura: conexao propria, curta.
 function Invoke-Consulta([string]$sql, [array]$params) {

@@ -368,5 +368,117 @@
         "(47) 99812-3344"
       ]
     ]
+  },
+  "listas": {
+    "colunas": [
+      {
+        "titulo": "Valor",
+        "largura": 210
+      },
+      {
+        "titulo": "Ordem",
+        "largura": 56
+      },
+      {
+        "titulo": "Situação",
+        "largura": 96
+      },
+      {
+        "titulo": "Em uso",
+        "largura": 78
+      }
+    ],
+    "linhas": [
+      [
+        "Contato Inicial",
+        "1",
+        "Ativo",
+        "4"
+      ],
+      [
+        "Sem Retorno",
+        "2",
+        "Ativo",
+        "2"
+      ],
+      [
+        "Retorno Agendado",
+        "3",
+        "Ativo",
+        "1"
+      ],
+      [
+        "Negociação",
+        "4",
+        "Ativo",
+        "3"
+      ],
+      [
+        "Pedido Fechado",
+        "5",
+        "Ativo",
+        "2"
+      ],
+      [
+        "Descartado",
+        "6",
+        "Inativo",
+        "0"
+      ]
+    ]
+  },
+  "visitas": {
+    "colunas": [
+      {
+        "titulo": "Situação",
+        "largura": 92
+      },
+      {
+        "titulo": "Data",
+        "largura": 80
+      },
+      {
+        "titulo": "Hora",
+        "largura": 52
+      },
+      {
+        "titulo": "Tipo",
+        "largura": 110
+      },
+      {
+        "titulo": "Resultado",
+        "largura": 136
+      }
+    ],
+    "linhas": [
+      [
+        "A AGENDAR",
+        "",
+        "",
+        "Visita",
+        ""
+      ],
+      [
+        "AGENDADA",
+        "20/10/2026",
+        "09:00",
+        "Visita",
+        ""
+      ],
+      [
+        "REALIZADA",
+        "12/10/2026",
+        "15:30",
+        "Retorno",
+        "Positivo"
+      ],
+      [
+        "CANCELADA",
+        "05/10/2026",
+        "10:00",
+        "Demonstração",
+        "Sem contato"
+      ]
+    ]
   }
 }

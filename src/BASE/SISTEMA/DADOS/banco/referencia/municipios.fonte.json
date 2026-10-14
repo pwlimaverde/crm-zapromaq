@@ -1,0 +1,242 @@
+{
+  "gerado_em": "2026-10-12",
+  "gerado_por": "agent-config/ferramentas/gerar-municipios.py",
+  "total": 5571,
+  "total_oficial": 5571,
+  "csv_sha256": "bcf43574ebdd7c240ca21c02701101fff8599f60bbd4a187c443ff2b3a288515",
+  "por_uf": {
+    "AC": 22,
+    "AL": 102,
+    "AM": 62,
+    "AP": 16,
+    "BA": 417,
+    "CE": 184,
+    "DF": 1,
+    "ES": 78,
+    "GO": 246,
+    "MA": 217,
+    "MG": 853,
+    "MS": 79,
+    "MT": 142,
+    "PA": 144,
+    "PB": 223,
+    "PE": 185,
+    "PI": 224,
+    "PR": 399,
+    "RJ": 92,
+    "RN": 167,
+    "RO": 52,
+    "RR": 15,
+    "RS": 497,
+    "SC": 295,
+    "SE": 75,
+    "SP": 645,
+    "TO": 139
+  },
+  "fontes": [
+    {
+      "nome": "IBGE localidades",
+      "url": "https://servicodados.ibge.gov.br/api/v1/localidades/municipios",
+      "sha256": "86ecdccdf97d72e7e5e46f0854cfcea8bacc28154cc1bc4ed0e6110e3a6c9c02",
+      "baixado_em": "2026-10-12T16:02:50"
+    },
+    {
+      "nome": "kelvins/municipios-brasileiros",
+      "url": "https://raw.githubusercontent.com/kelvins/municipios-brasileiros/main/csv/municipios.csv",
+      "sha256": "22bd03d004361329f69ddfa3f6c99cd53012aa53972a172e10b141288ad0b1fe",
+      "baixado_em": "2026-10-12T16:02:50"
+    }
+  ],
+  "divergencias_resolvidas": [
+    {
+      "cod_ibge": "1400605",
+      "ibge": "São Luiz do Anauá",
+      "coordenadas": "São Luiz",
+      "usado": "São Luiz do Anauá"
+    },
+    {
+      "cod_ibge": "1505551",
+      "ibge": "Pau D'Arco",
+      "coordenadas": "Pau d'Arco",
+      "usado": "Pau D'Arco"
+    },
+    {
+      "cod_ibge": "1708254",
+      "ibge": "Tabocão",
+      "coordenadas": "Fortaleza do Tabocão",
+      "usado": "Tabocão"
+    },
+    {
+      "cod_ibge": "2304277",
+      "ibge": "Ereré",
+      "coordenadas": "Ererê",
+      "usado": "Ereré"
+    },
+    {
+      "cod_ibge": "2400208",
+      "ibge": "Assú",
+      "coordenadas": "Açu",
+      "usado": "Assú"
+    },
+    {
+      "cod_ibge": "2401206",
+      "ibge": "Arez",
+      "coordenadas": "Arês",
+      "usado": "Arez"
+    },
+    {
+      "cod_ibge": "2401305",
+      "ibge": "Campo Grande",
+      "coordenadas": "Augusto Severo (Campo Grande)",
+      "usado": "Campo Grande"
+    },
+    {
+      "cod_ibge": "2405306",
+      "ibge": "Januário Cicco",
+      "coordenadas": "Januário Cicco (Boa Saúde)",
+      "usado": "Januário Cicco"
+    },
+    {
+      "cod_ibge": "2408409",
+      "ibge": "Olho d'Água do Borges",
+      "coordenadas": "Olho-d'Água do Borges",
+      "usado": "Olho d'Água do Borges"
+    },
+    {
+      "cod_ibge": "2512606",
+      "ibge": "Quixaba",
+      "coordenadas": "Quixabá",
+      "usado": "Quixaba"
+    },
+    {
+      "cod_ibge": "2613107",
+      "ibge": "São Caitano",
+      "coordenadas": "São Caetano",
+      "usado": "São Caitano"
+    },
+    {
+      "cod_ibge": "2613800",
+      "ibge": "São Vicente Férrer",
+      "coordenadas": "São Vicente Ferrer",
+      "usado": "São Vicente Férrer"
+    },
+    {
+      "cod_ibge": "2800100",
+      "ibge": "Amparo do São Francisco",
+      "coordenadas": "Amparo de São Francisco",
+      "usado": "Amparo do São Francisco"
+    },
+    {
+      "cod_ibge": "2802601",
+      "ibge": "Graccho Cardoso",
+      "coordenadas": "Gracho Cardoso",
+      "usado": "Graccho Cardoso"
+    },
+    {
+      "cod_ibge": "2902054",
+      "ibge": "Araçás",
+      "coordenadas": "Araças",
+      "usado": "Araçás"
+    },
+    {
+      "cod_ibge": "2917334",
+      "ibge": "Iuiu",
+      "coordenadas": "Iuiú",
+      "usado": "Iuiu"
+    },
+    {
+      "cod_ibge": "2922250",
+      "ibge": "Muquém do São Francisco",
+      "coordenadas": "Muquém de São Francisco",
+      "usado": "Muquém do São Francisco"
+    },
+    {
+      "cod_ibge": "2928505",
+      "ibge": "Santa Terezinha",
+      "coordenadas": "Santa Teresinha",
+      "usado": "Santa Terezinha"
+    },
+    {
+      "cod_ibge": "3105509",
+      "ibge": "Barão do Monte Alto",
+      "coordenadas": "Barão de Monte Alto",
+      "usado": "Barão do Monte Alto"
+    },
+    {
+      "cod_ibge": "3122900",
+      "ibge": "Dona Euzébia",
+      "coordenadas": "Dona Eusébia",
+      "usado": "Dona Euzébia"
+    },
+    {
+      "cod_ibge": "3145455",
+      "ibge": "Olhos-d'Água",
+      "coordenadas": "Olhos d'Água",
+      "usado": "Olhos-d'Água"
+    },
+    {
+      "cod_ibge": "3147808",
+      "ibge": "Passa Vinte",
+      "coordenadas": "Passa-Vinte",
+      "usado": "Passa Vinte"
+    },
+    {
+      "cod_ibge": "3165206",
+      "ibge": "São Tomé das Letras",
+      "coordenadas": "São Thomé das Letras",
+      "usado": "São Tomé das Letras"
+    },
+    {
+      "cod_ibge": "3200706",
+      "ibge": "Atílio Vivácqua",
+      "coordenadas": "Atilio Vivacqua",
+      "usado": "Atílio Vivácqua"
+    },
+    {
+      "cod_ibge": "3506607",
+      "ibge": "Biritiba Mirim",
+      "coordenadas": "Biritiba-Mirim",
+      "usado": "Biritiba Mirim"
+    },
+    {
+      "cod_ibge": "3516101",
+      "ibge": "Florínea",
+      "coordenadas": "Florínia",
+      "usado": "Florínea"
+    },
+    {
+      "cod_ibge": "3522158",
+      "ibge": "Itaoca",
+      "coordenadas": "Itaóca",
+      "usado": "Itaoca"
+    },
+    {
+      "cod_ibge": "4206108",
+      "ibge": "Grão-Pará",
+      "coordenadas": "Grão Pará",
+      "usado": "Grão-Pará"
+    },
+    {
+      "cod_ibge": "4209607",
+      "ibge": "Lauro Müller",
+      "coordenadas": "Lauro Muller",
+      "usado": "Lauro Müller"
+    },
+    {
+      "cod_ibge": "4216057",
+      "ibge": "São Cristóvão do Sul",
+      "coordenadas": "São Cristovão do Sul",
+      "usado": "São Cristóvão do Sul"
+    },
+    {
+      "cod_ibge": "5107800",
+      "ibge": "Santo Antônio de Leverger",
+      "coordenadas": "Santo Antônio do Leverger",
+      "usado": "Santo Antônio de Leverger"
+    }
+  ],
+  "licencas": {
+    "IBGE": "dado público (API de localidades)",
+    "kelvins/municipios-brasileiros": "MIT (coordenadas da sede)"
+  }
+}

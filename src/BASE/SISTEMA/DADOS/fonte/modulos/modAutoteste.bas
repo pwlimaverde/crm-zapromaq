@@ -28,7 +28,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     If versaoEsperada <> "" Then
         Confere "VERSAO_FRONT", modConfig.VERSAO_FRONT, versaoEsperada
     End If
-    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.0"
+    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.1"
 
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
@@ -36,6 +36,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
 
     ' ---- modValidacao
     Confere "Normalizar empresa", modValidacao.Normalizar("empresa", "  ind  d'angelo  "), "IND D'ANGELO"
+    ' ---- chave de lista (C01): mesma regra do conector (Regras.ps1)
+    Confere "ChaveLista C01 caixa e espaco", modValidacao.ChaveLista("pedido  fechado "), "PEDIDO FECHADO"
+    Confere "ChaveLista C01 acento", modValidacao.ChaveLista("Ped" & ChrW(237) & "do Fechado"), "PEDIDO FECHADO"
+    Confere "ChaveLista C01 til e cedilha", modValidacao.ChaveLista("Negocia" & ChrW(231) & ChrW(227) & "o " & ChrW(199) & " " & ChrW(209)), "NEGOCIACAO C N"
+    Confere "ChaveLista C01 vazio", modValidacao.ChaveLista("   "), ""
     Confere "Normalizar email", modValidacao.Normalizar("email", " A@B.COM "), "a@b.com"
     Confere "Normalizar cnpj", modValidacao.Normalizar("cnpj", "11.222.333/0001-81"), "11222333000181"
     Confere "Normalizar vazio vira nulo", IsNull(modValidacao.Normalizar("cidade", "   ")), True
@@ -49,16 +54,53 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Telefone certo aceito", modValidacao.CriticarTelefone("41999990000"), ""
 
     ' ---- modCalc (regras da planilha 3.6)
-    Confere "Situacao encerrado", modCalc.Situacao(True, "Perdido", Null, Null), "Encerrado"
+    Confere "Situacao encerrado", modCalc.SituacaoDaEtapa(True, Null, Null), "Encerrado"
     Confere "Situacao sem etapa", modCalc.Situacao(True, "", Null, Null), "Sem etapa definida"
-    Confere "Situacao atrasada", modCalc.Situacao(True, "Contato Inicial", Date - 1, Null), _
+    Confere "Situacao atrasada", modCalc.SituacaoDaEtapa(False, Date - 1, Null), _
             "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
-    Confere "Situacao retomar", modCalc.Situacao(True, "Contato Inicial", Null, Date), "Retomar hoje"
-    Confere "Situacao sem acao", modCalc.Situacao(True, "Contato Inicial", Null, Null), _
+    Confere "Situacao retomar", modCalc.SituacaoDaEtapa(False, Null, Date), "Retomar hoje"
+    Confere "Situacao sem acao", modCalc.SituacaoDaEtapa(False, Null, Null), _
             "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
-    Confere "Situacao em dia", modCalc.Situacao(True, "Contato Inicial", Date + 30, Null), "Em dia"
-    Confere "Quadro prospeccao", modCalc.Quadro("Contato Inicial"), "1. Prospec" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
-    Confere "Quadro funil", modCalc.Quadro("Pedido Fechado"), "2. Funil comercial"
+    Confere "Situacao em dia", modCalc.SituacaoDaEtapa(False, Date + 30, Null), "Em dia"
+    Confere "Quadro prospeccao", modCalc.QuadroDoCodigo("PROSPECCAO"), "1. Prospec" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
+    Confere "Quadro funil", modCalc.QuadroDoCodigo("FUNIL"), "2. Funil comercial"
+    Confere "C06 valor inativo gravado: sem a marca", modCRM.ValorDaLista("Perdido (inativo)"), "Perdido"
+    Confere "C06 valor ativo: nada a tirar", modCRM.ValorDaLista("Perdido"), "Perdido"
+    ' ---- regras de lista da Fase 2 (C03, C04, C05): mesma regra do conector (modListas)
+    Confere "C05 UF valida", modListas.UFValida("sp"), True
+    Confere "C05 UF fora das 27", modListas.UFValida("XX"), False
+    Confere "C05 UF com espaco sobrando", modListas.UFValida(" SP "), False
+    Confere "C04 resultado com encerra Nao e recusado", modListas.PapelEtapaValido(False, "GANHO") <> "", True
+    Confere "C04 PERDA com encerra Sim passa", modListas.PapelEtapaValido(True, "PERDA"), ""
+    Confere "C04 sem resultado e sem encerra passa", modListas.PapelEtapaValido(False, ""), ""
+    Confere "C04 resultado fora de GANHO/PERDA e recusado", modListas.PapelEtapaValido(True, "TALVEZ") <> "", True
+    Confere "C03 desativar a unica GANHO e recusado", modListas.DesativarEtapaPermitido("Pedido Fechado", Array("PEDIDO FECHADO", "PERDIDO"), Array("GANHO", "PERDA"), Array(True, True)), False
+    Confere "C03 uma de duas PERDA pode sair", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, True)), True
+    Confere "C03 etapa sem resultado pode sair", modListas.DesativarEtapaPermitido("Negociacao", Array("NEGOCIACAO"), Array(""), Array(True)), True
+    Confere "C03 a outra PERDA ja inativa: a ultima e recusada", modListas.DesativarEtapaPermitido("Perdido", Array("PERDIDO", "DESCARTADO"), Array("PERDA", "PERDA"), Array(True, False)), False
+    ' ---- regras de visita (C08 a C13): mesma regra do conector (modVisita)
+    Confere "C08 visita em encerrado e recusada", modVisita.VisitaPodeCriar(True) <> "", True
+    Confere "C08 visita em aberto passa", modVisita.VisitaPodeCriar(False), ""
+    Confere "C09 data fora do periodo e recusada", modVisita.DataNoPeriodo(DateSerial(2026, 10, 20), DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)) <> "", True
+    Confere "C09 data na borda passa", modVisita.DataNoPeriodo(DateSerial(2026, 10, 15), DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)), ""
+    Confere "C10 realizada sem relato e recusada", modVisita.RealizadaValida("", DateSerial(2026, 10, 14)) <> "", True
+    Confere "C10 realizada completa passa", modVisita.RealizadaValida("Visitou", DateSerial(2026, 10, 14)), ""
+    Confere "C11 cancelada sem motivo e recusada", modVisita.CanceladaValida("") <> "", True
+    Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
+    Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
+    Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
+    ' ---- planejamento (Fase 4): mesma regra do conector (modPlanejamento)
+    Confere "nome_busca sem acento e maiusculas", modPlanejamento.NomeBusca("S" & ChrW(227) & "o Lu" & ChrW(237) & "s"), "SAO LUIS"
+    Confere "distancia mesma cidade e zero", modPlanejamento.DistanciaKm(-23.5505, -46.6333, -23.5505, -46.6333), 0
+    Confere "distancia SP a RJ entre 340 e 370 km", (modPlanejamento.DistanciaKm(-23.5505, -46.6333, -22.9068, -43.1729) > 340) And (modPlanejamento.DistanciaKm(-23.5505, -46.6333, -22.9068, -43.1729) < 370), True
+    Confere "C14 raio zero e recusado", modPlanejamento.RaioValido(0) <> "", True
+    Confere "C14 raio 501 e recusado", modPlanejamento.RaioValido(501) <> "", True
+    Confere "C14 raio 500 passa", modPlanejamento.RaioValido(500), ""
+    Confere "C15 inicio depois do fim e recusado", modPlanejamento.PeriodoValido("2026-10-20", "2026-10-10") <> "", True
+    Confere "C15 periodo de um dia passa", modPlanejamento.PeriodoValido("2026-10-10", "2026-10-10"), ""
+    Confere "C16 encerrar com pendentes sem cancelar e recusado", modPlanejamento.EncerramentoPermitido(2, False) <> "", True
+    Confere "C16 encerrar cancelando pendentes passa", modPlanejamento.EncerramentoPermitido(2, True), ""
+    Confere "P4 codigo PL-2026-007", modPlanejamento.CodigoPlanejamento(2026, 7), "PL-2026-007"
     Confere "Dias parado", modCalc.DiasParado(Date - 10), 10
     Confere "Ciclo", modCalc.Ciclo(DateSerial(2026, 1, 1), DateSerial(2026, 1, 31)), 30
     Confere "Mes referencia", modCalc.MesReferencia(DateSerial(2026, 9, 19)), 202609
@@ -218,9 +260,10 @@ End Sub
 ' na estacao (itens marcados na spec).
 '----------------------------------------------------------
 Private Sub ContratoFormularios()
-    Dim fv As frmVinculo, ui As clsUI
+    Dim fv As frmVinculo, fl As frmListas, ui As clsUI
     If False Then
         Set fv = New frmVinculo
+        Set fl = New frmListas
         Call fv.EscolherContatoDe(0)
         Call fv.EscolherAtendimentoDe(0, 0)
         ' botao criado em tempo de execucao (campos de vinculo da ficha)

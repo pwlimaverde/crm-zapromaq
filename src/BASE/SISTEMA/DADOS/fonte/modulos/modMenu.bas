@@ -86,7 +86,7 @@ Public Sub FilaDaManha()
         " op.retomar_em, op.valor, op.responsavel" & _
         " FROM (oportunidades op LEFT JOIN contatos ct ON op.id_contato=ct.id)" & _
         " LEFT JOIN clientes cl ON op.id_cliente=cl.id" & _
-        " WHERE op.etapa NOT IN ('Pedido Fechado','Perdido','Descartado')" & _
+        " WHERE op.etapa NOT IN (" & modCRM.SqlEtapasEncerradas() & ")" & _
         " AND ((op.dt_prox_acao IS NOT NULL AND op.dt_prox_acao <= ?)" & _
         "   OR (op.retomar_em IS NOT NULL AND op.retomar_em <= ?))" & _
         " ORDER BY IIf(op.dt_prox_acao Is Null,1,0), op.dt_prox_acao, op.valor DESC, op.id", _
@@ -138,6 +138,20 @@ End Sub
 ' o banco. Serve para comparar a tela real da estacao com a
 ' previa gerada no desenvolvimento (execucao\previa).
 '----------------------------------------------------------
+' Gerenciamento das listas suspensas (Inicio). Usa as regras de modListas.
+Public Sub AbrirGerenciamento()
+    If Not Pronto() Then Exit Sub
+    Dim f As New frmListas
+    f.Show
+End Sub
+
+' Planejamento por regiao (Fase 4): cabecalho, paginas Visitas e Candidatos, roteiro.
+Public Sub AbrirPlanejamento()
+    If Not Pronto() Then Exit Sub
+    Dim f As New frmPlanejamento
+    f.Show
+End Sub
+
 Public Sub AbrirCalibracao()
     Dim f As New frmCalibracao
     f.Show

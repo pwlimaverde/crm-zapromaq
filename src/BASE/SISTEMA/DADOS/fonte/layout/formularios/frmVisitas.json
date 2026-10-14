@@ -1,0 +1,500 @@
+{
+  "_sobre": "Visitas de um atendimento (Fase 3, botao Visitas (n) da ficha). Nomes dos controles sao contrato com frmVisitas.txt. Grade a esquerda (visitas, pendentes primeiro); ficha da visita a direita. Grade com 470 pt uteis (soma das colunas em frmVisitas.txt).",
+  "nome": "frmVisitas",
+  "codigo": "formularios/frmVisitas.txt",
+  "canvas": {
+    "largura": 780,
+    "altura": 492
+  },
+  "propriedades": {
+    "Caption": "CRM Zapromaq - visitas do atendimento",
+    "BackColor": "@fundo"
+  },
+  "fundo": [
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        0,
+        780,
+        48
+      ],
+      "gradiente": [
+        "@azul",
+        "@azulMedio"
+      ]
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        46,
+        780,
+        2
+      ],
+      "cor": "@verde"
+    },
+    {
+      "tipo": "imagem",
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        12,
+        10,
+        76,
+        28
+      ],
+      "filtro": "branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        98,
+        10,
+        1,
+        28
+      ],
+      "cor": "#FFFFFF",
+      "opacidade": 0.35
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        10,
+        56,
+        760,
+        380
+      ],
+      "cor": "@fundoCard",
+      "raio": 8,
+      "borda": "@bordaSuave",
+      "sombra": true
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        506,
+        110,
+        256,
+        332
+      ],
+      "cor": "@fundoCard",
+      "raio": 6,
+      "borda": "@bordaSuave"
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        444,
+        780,
+        48
+      ],
+      "cor": "@branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        0,
+        444,
+        780,
+        1
+      ],
+      "cor": "@bordaSuave"
+    }
+  ],
+  "estilos": {
+    "campo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "SpecialEffect": 0,
+      "BorderStyle": 1,
+      "BorderColor": "@borda",
+      "BackColor": "@branco",
+      "ForeColor": "@texto"
+    },
+    "rotulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "BackStyle": 0,
+      "ForeColor": "@texto2"
+    },
+    "rotuloPeq": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "titulo": {
+      "Font.Name": "@semibold",
+      "Font.Size": 13,
+      "BackStyle": 0,
+      "ForeColor": "@branco",
+      "WordWrap": false
+    },
+    "subtitulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "secao": {
+      "Font.Name": "@semibold",
+      "Font.Size": 10,
+      "BackStyle": 0,
+      "ForeColor": "@texto",
+      "WordWrap": false
+    }
+  },
+  "controles": [
+    {
+      "nome": "lblTitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        6,
+        600,
+        20
+      ],
+      "texto": "Visitas do atendimento",
+      "estilo": "titulo"
+    },
+    {
+      "nome": "lblSubtitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        28,
+        640,
+        13
+      ],
+      "texto": "Pendentes primeiro. Realizada grava o historico do atendimento; cancelada pede motivo.",
+      "estilo": "subtitulo"
+    },
+    {
+      "nome": "lblAtend",
+      "tipo": "Label",
+      "pos": [
+        22,
+        66,
+        470,
+        14
+      ],
+      "estilo": "secao",
+      "amostra": "Atendimento AT-0001-0001  -  METALURGICA EXEMPLO LTDA"
+    },
+    {
+      "nome": "lblResumo",
+      "tipo": "Label",
+      "pos": [
+        22,
+        86,
+        470,
+        13
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "4 visita(s)  -  1 pendente(s)"
+    },
+    {
+      "nome": "lblSecao",
+      "tipo": "Label",
+      "pos": [
+        520,
+        120,
+        230,
+        16
+      ],
+      "texto": "Ficha da visita",
+      "estilo": "secao"
+    },
+    {
+      "nome": "lblSit",
+      "tipo": "Label",
+      "pos": [
+        520,
+        142,
+        110,
+        14
+      ],
+      "texto": "Situacao",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboSituacao",
+      "tipo": "ComboBox",
+      "pos": [
+        520,
+        158,
+        110,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblDataAg",
+      "tipo": "Label",
+      "pos": [
+        520,
+        186,
+        110,
+        14
+      ],
+      "texto": "Data (AAAA-MM-DD)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtDataAg",
+      "tipo": "TextBox",
+      "pos": [
+        520,
+        202,
+        110,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblHora",
+      "tipo": "Label",
+      "pos": [
+        640,
+        186,
+        110,
+        14
+      ],
+      "texto": "Hora",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtHora",
+      "tipo": "TextBox",
+      "pos": [
+        640,
+        202,
+        110,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblTipo",
+      "tipo": "Label",
+      "pos": [
+        520,
+        230,
+        110,
+        14
+      ],
+      "texto": "Tipo",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboTipo",
+      "tipo": "ComboBox",
+      "pos": [
+        520,
+        246,
+        110,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblResp",
+      "tipo": "Label",
+      "pos": [
+        640,
+        230,
+        110,
+        14
+      ],
+      "texto": "Responsavel",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboResp",
+      "tipo": "ComboBox",
+      "pos": [
+        640,
+        246,
+        110,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblObs",
+      "tipo": "Label",
+      "pos": [
+        520,
+        274,
+        230,
+        14
+      ],
+      "texto": "Observacoes",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtObs",
+      "tipo": "TextBox",
+      "pos": [
+        520,
+        290,
+        230,
+        26
+      ],
+      "estilo": "campo",
+      "props": {
+        "MultiLine": true,
+        "ScrollBars": 2
+      }
+    },
+    {
+      "nome": "lblDataReal",
+      "tipo": "Label",
+      "pos": [
+        520,
+        322,
+        230,
+        14
+      ],
+      "texto": "Realizada em (AAAA-MM-DD HH:mm)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtDataReal",
+      "tipo": "TextBox",
+      "pos": [
+        520,
+        338,
+        230,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblResultado",
+      "tipo": "Label",
+      "pos": [
+        520,
+        366,
+        110,
+        14
+      ],
+      "texto": "Resultado",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboResultado",
+      "tipo": "ComboBox",
+      "pos": [
+        520,
+        382,
+        110,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblMotivo",
+      "tipo": "Label",
+      "pos": [
+        520,
+        408,
+        230,
+        14
+      ],
+      "texto": "Relato (realizada) ou motivo (cancelada)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtRelato",
+      "tipo": "TextBox",
+      "pos": [
+        520,
+        424,
+        230,
+        20
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblStatus",
+      "tipo": "Label",
+      "pos": [
+        22,
+        432,
+        470,
+        12
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "Selecione uma visita ou clique em Novo."
+    }
+  ],
+  "componentes": [
+    {
+      "tipo": "grade",
+      "nome": "grdVisitas",
+      "pos": [
+        22,
+        110,
+        470,
+        318
+      ],
+      "amostra": "visitas",
+      "linhas": 13
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdNovo",
+      "pos": [
+        22,
+        458,
+        96,
+        24
+      ],
+      "texto": "Novo",
+      "icone": "novo",
+      "variante": "primario"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdSalvar",
+      "pos": [
+        524,
+        458,
+        110,
+        24
+      ],
+      "texto": "Salvar",
+      "icone": "salvar",
+      "variante": "sucesso"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdFechar",
+      "pos": [
+        688,
+        458,
+        80,
+        24
+      ],
+      "texto": "Fechar",
+      "icone": "fechar",
+      "variante": "neutro"
+    }
+  ]
+}

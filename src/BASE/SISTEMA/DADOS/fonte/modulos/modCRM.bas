@@ -27,6 +27,8 @@ Private Const TENTATIVAS As Long = 5
 ' consulta traz todas, guardadas por 10 minutos.
 Private mListas As Object
 Private mListasLidasEm As Date
+Private mPapel As Object
+Private mPapelLidoEm As Date
 Private Const VALIDADE_LISTAS_MIN As Long = 10
 
 '==========================================================
@@ -81,9 +83,132 @@ Public Function ObterLista(ByVal tipo As String) As Variant
     If mListas.Exists(tipo) Then ObterLista = mListas(tipo)
 End Function
 
+' Valor de lista na ficha (D-j): o valor ativo aparece na lista; um valor INATIVO ja gravado no registro
+' aparece marcado "(inativo)". A marca nao vai para o banco: ValorDaLista tira o sufixo ao salvar.
+Public Sub LimparCacheListas()
+    Set mListas = Nothing
+End Sub
+
+Public Sub MostrarValorDeLista(ByVal cbo As Object, ByVal valor As String)
+    Dim i As Long
+    If valor = "" Then cbo.Value = "": Exit Sub
+    For i = 0 To cbo.ListCount - 1
+        If CStr(cbo.List(i)) = valor Then cbo.Value = valor: Exit Sub
+    Next i
+    cbo.AddItem valor & " (inativo)"
+    cbo.Value = valor & " (inativo)"
+End Sub
+
+Public Function ValorDaLista(ByVal texto As String) As String
+    Const MARCA As String = " (inativo)"
+    ValorDaLista = texto
+    If Len(texto) > Len(MARCA) Then
+        If Right$(texto, Len(MARCA)) = MARCA Then ValorDaLista = Left$(texto, Len(texto) - Len(MARCA))
+    End If
+End Function
+
+' Papel das etapas (spec 003, D-c): vem da tabela listas (Encerra, Resultado, Quadro, Exige familia),
+' nunca de texto fixo no programa. Cache de 10 min, como o das listas; EsquecerListas o zera.
+' Cada papel: Array(encerra, resultado, quadro, exige_familia, valor).
+Public Function PapelEtapa(ByVal etapa As String) As Variant
+    Dim d As Variant, i As Long, chave As String
+    If mPapel Is Nothing Or DateDiff("n", mPapelLidoEm, Now) >= VALIDADE_LISTAS_MIN Then
+        d = modDB.Consultar("SELECT chave, valor, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo='Etapa'")
+        Set mPapel = CreateObject("Scripting.Dictionary")
+        If Not IsEmpty(d) Then
+            For i = 1 To UBound(d, 1)
+                mPapel(CStr(modDB.Nz(d(i, 1)))) = Array(EhVerdadeiro(d(i, 3)), CStr(modDB.Nz(d(i, 4))), _
+                    IIf(IsNull(d(i, 5)), "FUNIL", CStr(d(i, 5))), EhVerdadeiro(d(i, 6)), CStr(d(i, 2)))
+            Next i
+        End If
+        mPapelLidoEm = Now
+    End If
+    chave = modValidacao.ChaveLista(etapa)
+    If mPapel.Exists(chave) Then
+        PapelEtapa = mPapel(chave)
+    Else
+        ' etapa sem linha na lista: vale a regra de "qualquer outra etapa" (aberta, funil, sem familia)
+        PapelEtapa = Array(False, "", "FUNIL", False, etapa)
+    End If
+End Function
+
+Private Function EhVerdadeiro(ByVal v As Variant) As Boolean
+    EhVerdadeiro = (Not IsNull(v)) And (v = True)
+End Function
+
+Public Function EtapaEncerra(ByVal etapa As String) As Boolean
+    Dim p As Variant
+    If etapa = "" Then Exit Function
+    p = PapelEtapa(etapa)
+    EtapaEncerra = p(0)
+End Function
+
+Public Function EtapaResultado(ByVal etapa As String) As String
+    Dim p As Variant
+    p = PapelEtapa(etapa)
+    EtapaResultado = CStr(p(1))
+End Function
+
+Public Function EtapaQuadro(ByVal etapa As String) As String
+    Dim p As Variant
+    p = PapelEtapa(etapa)
+    EtapaQuadro = CStr(p(2))
+End Function
+
+Public Function EtapaExigeFamilia(ByVal etapa As String) As Boolean
+    Dim p As Variant
+    p = PapelEtapa(etapa)
+    EtapaExigeFamilia = p(3)
+End Function
+
+' Subconsultas para o SQL: o banco confere a etapa contra a propria lista (sem texto fixo no programa).
+Public Function SqlEtapasEncerradas() As String
+    SqlEtapasEncerradas = "SELECT l.valor FROM listas AS l WHERE l.tipo='Etapa' AND l.encerra=True"
+End Function
+
+Public Function SqlEtapasComResultado(ByVal resultado As String) As String
+    SqlEtapasComResultado = "SELECT valor FROM listas WHERE tipo='Etapa' AND resultado='" & resultado & "'"
+End Function
+
+' Valores (como gravados) das etapas cujo resultado e o informado: usado para pintar a grade.
+Public Function EtapasComResultado(ByVal resultado As String) As Variant
+    Dim k As Variant, p As Variant, lista As Collection, saida() As Variant, n As Long
+    PapelEtapa ""
+    Set lista = New Collection
+    For Each k In mPapel.Keys
+        p = mPapel(k)
+        If p(1) = resultado Then lista.Add p(4)
+    Next k
+    If lista.Count = 0 Then
+        EtapasComResultado = Array()
+        Exit Function
+    End If
+    ReDim saida(0 To lista.Count - 1)
+    For n = 1 To lista.Count
+        saida(n - 1) = lista(n)
+    Next n
+    EtapasComResultado = saida
+End Function
+
+' Etapa que o vendedor cria num atendimento novo: a primeira ativa de prospeccao que nao encerra.
+Public Function EtapaPadrao() As String
+    Dim d As Variant, i As Long, p As Variant
+    d = ObterLista("Etapa")
+    If IsEmpty(d) Then Exit Function
+    For i = 1 To UBound(d, 1)
+        p = PapelEtapa(CStr(d(i, 1)))
+        If p(2) = "PROSPECCAO" And Not p(0) Then
+            EtapaPadrao = CStr(d(i, 1))
+            Exit Function
+        End If
+    Next i
+    EtapaPadrao = CStr(d(1, 1))
+End Function
+
 ' Depois de alterar a tabela listas, releia na proxima ficha.
 Public Sub EsquecerListas()
     Set mListas = Nothing
+    Set mPapel = Nothing
 End Sub
 
 '----------------------------------------------------------
@@ -586,7 +711,7 @@ Public Function SQLOportunidades(ByVal busca As String, ByVal etapa As String, _
     If Trim$(etapa) <> "" Then w = w & " AND op.etapa=?": ps.Add modDB.P(modDB.adVarWChar, etapa)
     If Trim$(responsavel) <> "" Then w = w & " AND op.responsavel=?": ps.Add modDB.P(modDB.adVarWChar, responsavel)
     If Trim$(origem) <> "" Then w = w & " AND op.origem=?": ps.Add modDB.P(modDB.adVarWChar, origem)
-    If somenteAbertas Then w = w & " AND op.etapa NOT IN ('Pedido Fechado','Perdido','Descartado')"
+    If somenteAbertas Then w = w & " AND op.etapa NOT IN (" & SqlEtapasEncerradas() & ")"
     w = w & FiltroIds("op.id", ids, ps)
 
     params = ParaMatriz(ps)
@@ -817,7 +942,7 @@ Public Function CriticarTrocaContato(ByVal novo As Boolean, ByVal idClienteAtual
     CriticarTrocaContato = "O contato escolhido é de outra empresa." & vbCrLf & vbCrLf & _
         "O atendimento só troca de contato dentro da mesma empresa: o código AT- guarda " & _
         "o código do cliente e não muda. Se o atendimento foi aberto na empresa errada, " & _
-        "encerre-o como Descartado e abra um novo apontando para ele como anterior."
+        "encerre-o numa etapa de encerramento e abra um novo apontando para ele como anterior."
 End Function
 
 Public Function ResumoCliente(ByVal idCliente As Long) As String

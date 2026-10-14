@@ -210,6 +210,192 @@ End Sub
         [void]$xl.Run($ex, "DELETE FROM contatos WHERE nome='CONTATO TESTE USO'")
     } else { Conferir 'banco de demonstração com empresa só de contatos inativos' $false 'rode testes\criar-banco-demo.ps1 -Recriar' }
 
+    # Fase 2.2a: gravacao de listas (C02, C03, C05) pelo front, com volta ao estado original
+    $tl = "'" + $n + "'!modListas."
+    $ri = [string]$xl.Run($tl + 'IncluirValor', 'Familia', 'TESTE FASE 2')
+    Conferir 'listas: incluir valor novo grava (vazio = ok)' ($ri -eq '') $ri
+    $rd = [string]$xl.Run($tl + 'IncluirValor', 'Familia', 'teste  fase 2')
+    Conferir 'listas C02: mesma chave e recusada' ($rd -match 'ja existe') $rd
+    $ruf = [string]$xl.Run($tl + 'IncluirValor', 'UF', 'XX')
+    Conferir 'listas C05: UF fora das 27 e recusada' ($ruf -match 'C05') $ruf
+    $rf = [string]$xl.Run($tl + 'DefinirAtivo', 'Familia', 'TESTE FASE 2', $false)
+    Conferir 'listas: desativar valor de teste grava' ($rf -eq '') $rf
+    $rg = [string]$xl.Run($tl + 'DefinirAtivo', 'Familia', 'TESTE FASE 2', $true)
+    Conferir 'listas: reativar valor de teste grava' ($rg -eq '') $rg
+    $rc = [string]$xl.Run($tl + 'DefinirAtivo', 'Etapa', 'Pedido Fechado', $false)
+    Conferir 'listas C03: desativar a unica etapa GANHO e recusado' ($rc -match 'C03') $rc
+    $nAtivo = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM listas WHERE tipo='Etapa' AND valor='Pedido Fechado' AND ativo=True")
+    Conferir 'listas C03: a etapa recusada continua ativa' ($nAtivo -eq 1) ([string]$nAtivo)
+    # volta: apaga o valor de teste e o log dele (o banco de demonstracao volta como estava)
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id_registro IN (SELECT id FROM listas WHERE valor='TESTE FASE 2')")
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM listas WHERE valor='TESTE FASE 2'")
+
+    # Fase 2.2b: papel da etapa pelo front (C03, C04 e confirmacao de 'encerra'), com volta ao estado original
+    $tp = "'" + $n + "'!modListas."
+    $maxLogAntes = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rp1 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $true, '', 'FUNIL', $true, $false)
+    Conferir 'papel: mudar encerra com atendimentos sem confirmar e recusado' ($rp1 -match 'Confirme') $rp1
+    $rp2 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, 'GANHO', 'FUNIL', $true, $false)
+    Conferir 'papel C04: resultado com encerra Nao e recusado' ($rp2 -match 'C04') $rp2
+    $rp3 = [string]$xl.Run($tp + 'DefinirPapel', 'Pedido Fechado', $true, '', 'FUNIL', $false, $false)
+    Conferir 'papel C03: tirar o resultado da unica etapa GANHO e recusado' ($rp3 -match 'C03') $rp3
+    $rp4 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'PROSPECCAO', $true, $false)
+    Conferir 'papel: mudar quadro grava (vazio = ok)' ($rp4 -eq '') $rp4
+    $rp5 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'FUNIL', $true, $false)
+    Conferir 'papel: volta o quadro para FUNIL' ($rp5 -eq '') $rp5
+    $nLog = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes, 0)
+    Conferir 'papel: a mudanca de quadro foi registrada no log (ida e volta)' ($nLog -ge 2) ([string]$nLog)
+    # volta: o log criado pelo teste sai (o banco de demonstracao volta como estava)
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes)
+
+    # Fase 2.3: outra estacao grava em listas; o cache so muda quando o feed processa o log
+    $tf = "'" + $n + "'!"
+    $mfd = $wb.VBProject.VBComponents.Add(1); $mfd.Name = 'modTesteFeed'
+    $mfd.CodeModule.AddFromString(@'
+Option Explicit
+' grava como outra estacao (origem IA): um valor novo e o log, na mesma transacao
+Public Function OutraEstacao() As Long
+    Dim cn As Object, id As Long
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    id = modDB.InserirEm(cn, "INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)", _
+                         Array(modDB.P(modDB.adVarWChar, "Familia"), modDB.P(modDB.adVarWChar, "TESTE FEED"), _
+                               modDB.P(modDB.adInteger, 999)))
+    modDB.ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+        Array(modDB.P(modDB.adVarWChar, "listas"), modDB.P(modDB.adInteger, id), modDB.P(modDB.adVarWChar, "valor"), _
+              modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "Familia: TESTE FEED"), _
+              modDB.P(modDB.adVarWChar, "INSERIR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), _
+              modDB.P(modDB.adDate, Now), modDB.P(modDB.adVarWChar, "IA"))
+    modDB.Confirmar cn
+    OutraEstacao = id
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    OutraEstacao = -1
+End Function
+'@)
+    $maxLogF = [int]$xl.Run($tf + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    [void]$xl.Run($tf + 'modFeed.ProcessarAgora')
+    [void]$xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $idOutra = [int]$xl.Run($tf + 'modTesteFeed.OutraEstacao')
+    Conferir 'feed: a outra estacao gravou o valor' ($idOutra -gt 0) ([string]$idOutra)
+    $lstAntes = $xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $vAntes = $false
+    for ($i = 1; $i -le $lstAntes.GetLength(0); $i++) { if ([string]$lstAntes.GetValue($i, 1) -eq 'TESTE FEED') { $vAntes = $true } }
+    Conferir 'feed: antes de processar o log, o cache ainda nao mostra o valor' (-not $vAntes)
+    [void]$xl.Run($tf + 'modFeed.ProcessarAgora')
+    $lstDepois = $xl.Run($tf + 'modCRM.ObterLista', 'Familia')
+    $vDepois = $false
+    for ($i = 1; $i -le $lstDepois.GetLength(0); $i++) { if ([string]$lstDepois.GetValue($i, 1) -eq 'TESTE FEED') { $vDepois = $true } }
+    Conferir 'feed: depois de processar o log, o cache mostra o valor da outra estacao' $vDepois
+    # volta: apaga o valor e o log criados pelo teste
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM listas WHERE valor='TESTE FEED'")
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogF)
+    [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
+
+    # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original
+    $tv = "'" + $n + "'!"
+    $idOpV = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT TOP 1 id FROM oportunidades WHERE etapa='Negociação' ORDER BY id", 0)
+    $opAntV = $xl.Run($tv + 'modDB.Consultar', "SELECT observacoes, ultima_interacao, versao FROM oportunidades WHERE id=" + $idOpV)
+    $maxLogV2 = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rv1 = [string]$xl.Run($tv + 'modVisita.CriarVisita', $idOpV, [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita')
+    Conferir 'visita: criar pendente grava (vazio = ok)' ($rv1 -eq '') $rv1
+    $rv2 = [string]$xl.Run($tv + 'modVisita.CriarVisita', $idOpV, [datetime]'2026-10-21', '10:00', 'Visita', 'Vendedor A', 'teste uso visita')
+    Conferir 'visita C13: segunda pendente no mesmo atendimento e recusada' ($rv2 -match 'C13') $rv2
+    $idVis = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT MAX(id) FROM visitas WHERE id_oportunidade=" + $idOpV, 0)
+    $ra = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 9, 'CANCELADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', $null, '', '', 'x')
+    Conferir 'visita: versao lida antiga e recusada (conflito)' ($ra -match 'Conflito') $ra
+    $rc = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 1, 'CANCELADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', $null, '', '', '')
+    Conferir 'visita C11: cancelar sem motivo e recusado' ($rc -match 'C11') $rc
+    $rr = [string]$xl.Run($tv + 'modVisita.AtualizarVisita', $idVis, 1, 'REALIZADA', [datetime]'2026-10-20', '09:00', 'Visita', 'Vendedor A', 'teste uso visita', [datetime]'2026-10-20 09:30', 'Positivo', 'Visitou no front', '')
+    Conferir 'visita: realizar grava (vazio = ok)' ($rr -eq '') $rr
+    $histV = [string]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT observacoes FROM oportunidades WHERE id=" + $idOpV, '')
+    Conferir 'visita V6: histórico do atendimento ganhou VISITA 20/10/2026 09:30' ($histV -match 'VISITA 20/10/2026 09:30') $histV
+    $ultV = $xl.Run($tv + 'modDB.ConsultarValor', "SELECT ultima_interacao FROM oportunidades WHERE id=" + $idOpV, $null)
+    Conferir 'visita V7: última interação é a data realizada (20/10/2026 09:30)' (([datetime]$ultV).ToString('yyyy-MM-dd HH:mm') -eq '2026-10-20 09:30') ([string]$ultV)
+    # volta: visita do teste, histórico e última interação do atendimento, e o log criado pelo teste
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM visitas WHERE id_oportunidade=" + $idOpV)
+    $obsAnt = $opAntV.GetValue(1, 1); $ultAnt = $opAntV.GetValue(1, 2); $verAnt = [int]$opAntV.GetValue(1, 3)
+    # parametros no mesmo formato do modDB.P (tipo ADO, valor): nulo continua nulo
+    $pRest = [object[]]@( [object[]]@(203, $obsAnt), [object[]]@(7, $ultAnt), [object[]]@(3, $verAnt), [object[]]@(3, $idOpV) )
+    [void]$xl.Run($tv + 'modDB.Executar', "UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?", $pRest)
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogV2)
+
+    # Fase 4.3a: gravacao de planejamento pelo front (C14, C16, reabrir), com volta ao estado original
+    $tp4 = "'" + $n + "'!"
+    $cidP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'", 0)
+    $maxLogP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rp0 = [string]$xl.Run($tp4 + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT PLAN', $cidP, 0, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    Conferir 'planejamento: raio 0 é recusado (C14)' ($rp0 -match 'C14') $rp0
+    $rp1 = [string]$xl.Run($tp4 + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT PLAN', $cidP, 60, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    Conferir 'planejamento: criar grava (vazio = ok)' ($rp1 -eq '') $rp1
+    $idP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM planejamentos WHERE descricao='TESTE FRONT PLAN'", 0)
+    $codP = [string]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT codigo FROM planejamentos WHERE id=" + $idP, '')
+    Conferir 'planejamento: código PL-AAAA-NNN' ($codP -match '^PL-\d{4}-\d{3}$') $codP
+    $idAt = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT TOP 1 id FROM oportunidades WHERE etapa='Negociação' ORDER BY id", 0)
+    $rv4 = [string]$xl.Run($tp4 + 'modVisita.CriarVisita', $idAt, [datetime]'2026-10-22', '', 'Visita', '', '')
+    Conferir 'visita de teste (sem planejamento) criada para o encerramento' ($rv4 -eq '') $rv4
+    $idV4 = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM visitas WHERE id_oportunidade=" + $idAt, 0)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "UPDATE visitas SET id_planejamento=" + $idP + " WHERE id=" + $idV4)
+    $re1 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 1, 'ENCERRADO', $false)
+    Conferir 'planejamento C16: encerrar com visita pendente sem cancelar é recusado' ($re1 -match 'C16') $re1
+    $re2 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 1, 'ENCERRADO', $true)
+    Conferir 'planejamento: encerrar cancelando pendentes grava' ($re2 -eq '') $re2
+    $stV4 = [string]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT situacao FROM visitas WHERE id=" + $idV4, '')
+    Conferir 'planejamento: a visita pendente virou CANCELADA' ($stV4 -eq 'CANCELADA') $stV4
+    $re3 = [string]$xl.Run($tp4 + 'modPlanejamento.AlterarSituacaoPlanejamento', $idP, 2, 'ABERTO', $false)
+    Conferir 'planejamento: reabrir grava (vazio = ok)' ($re3 -eq '') $re3
+    # volta: visita e planejamento de teste, e o log criado pelo teste
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idP)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idP)
+    [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogP)
+
+    # Fase 4.2, 4.4, 5.2: candidatos, gerar visitas e roteiro pelo front, com volta ao estado original
+    $tq = "'" + $n + "'!"
+    $cidQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'", 0)
+    $maxLogQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    [void]$xl.Run($tq + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT CAND', $cidQ, 500, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    $idQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MAX(id) FROM planejamentos WHERE descricao='TESTE FRONT CAND'", 0)
+    $cand = $xl.Run($tq + 'modPlanejamento.Candidatos', $idQ)
+    $qtdC = 0; if ($cand -ne $null -and $cand -isnot [System.DBNull]) { $qtdC = $cand.GetLength(0) }
+    Conferir 'candidatos do front: achados em Curitiba e vizinhas (raio 500)' ($qtdC -ge 1) ([string]$qtdC)
+    $ordOk = $true
+    for ($i = 2; $i -le $qtdC; $i++) { if ([int]$cand.GetValue($i, 10) -lt [int]$cand.GetValue($i - 1, 10)) { $ordOk = $false } }
+    Conferir 'candidatos do front: qualificação não decresce' $ordOk ''
+    # candidato sem visita pendente (coluna 9 = 0); a coluna 9 é informativa e o dado de demonstração já tem pendentes
+    $idOpQ = 0
+    for ($i = 1; $i -le $qtdC; $i++) { if ([int]$cand.GetValue($i, 9) -eq 0) { $idOpQ = [int]$cand.GetValue($i, 1); break } }
+    Conferir 'candidatos do front: há ao menos um sem visita pendente' ($idOpQ -gt 0) ''
+    $ger = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    Conferir 'gerar visitas pelo front grava (vazio = ok)' ($ger -eq '') $ger
+    $ger2 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    Conferir 'gerar visitas: segunda pendente é recusada e nada é gravado (C13)' ($ger2 -match 'C13') $ger2
+    # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como
+    # IDispatch; o Excel chama de volta este processo para ler o valor e os dois travam (o Run não volta).
+    # Nome próprio: $pasta (execucao\teste) ainda recebe o PDF do Painel no fim do teste.
+    $pastaR = [string](Join-Path $env:TEMP ('crm-uso-roteiro-' + $PID))
+    # o caminho sai por ByRef (não volta pelo Run via COM): o arquivo é achado na pasta indicada
+    $msgR = [string]$xl.Run($tq + 'modPlanejamento.ExportarRoteiro', $idQ, $pastaR, '')
+    $arqR = $null
+    if (Test-Path -LiteralPath $pastaR) { $arqR = Get-ChildItem -LiteralPath $pastaR -Filter '*.csv' | Select-Object -First 1 }
+    $caminho = ''; if ($arqR) { $caminho = $arqR.FullName }
+    Conferir 'roteiro do front: arquivo gravado na pasta indicada (retorno vazio = ok)' ($msgR -eq '' -and $caminho -ne '') ($msgR + ' ' + $caminho)
+    if ($caminho -ne '') {
+        $bytesQ = [System.IO.File]::ReadAllBytes($caminho)
+        Conferir 'roteiro do front: BOM UTF-8' ($bytesQ[0] -eq 0xEF -and $bytesQ[1] -eq 0xBB -and $bytesQ[2] -eq 0xBF) ''
+        $lq = @([System.IO.File]::ReadAllLines($caminho, [System.Text.Encoding]::UTF8))
+        Conferir 'roteiro do front: BASE e uma visita pendente' ($lq.Count -eq 3 -and $lq[1].StartsWith('"BASE"') -and $lq[2].StartsWith('"VISITA"')) ($lq -join ' | ')
+        Remove-Item -LiteralPath $pastaR -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $ua = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'TESTE FRONT CAND 2', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    Conferir 'atualizar planejamento: grava com versão lida (vazio = ok)' ($ua -eq '') $ua
+    $ua2 = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'X', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    Conferir 'atualizar planejamento: versão antiga é conflito' ($ua2 -match 'Conflito') $ua2
+    # volta: visitas e planejamento de teste, e o log criado pelo teste
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogQ)
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"
@@ -279,6 +465,7 @@ End Sub
 } catch {
     $falhas++
     Write-Host ('ERRO: ' + $_.Exception.Message)
+    Write-Host ('  onde: ' + $_.InvocationInfo.ScriptLineNumber + ': ' + $_.InvocationInfo.Line.Trim())
     if (-not (Get-Process -Id $idExcel -ErrorAction SilentlyContinue)) { Write-Host '  (o Excel travou numa caixa de mensagem e foi encerrado pelo vigia)' }
 } finally {
     if ($vigia) { Stop-Vigia $vigia $sinal }
