@@ -1,0 +1,367 @@
+{
+  "_sobre": "Lancamento da visita de um planejamento (Fase 4.7c): data, hora, situacao, tipo, resultado e relato ou motivo. Janela propria, aberta pela pagina Visitas. Nomes dos controles sao contrato com frmLancamento.txt.",
+  "nome": "frmLancamento",
+  "codigo": "formularios/frmLancamento.txt",
+  "canvas": {
+    "largura": 620,
+    "altura": 330
+  },
+  "propriedades": {
+    "Caption": "CRM Zapromaq - lancamento da visita",
+    "BackColor": "@fundo"
+  },
+  "fundo": [
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        0,
+        620,
+        48
+      ],
+      "gradiente": [
+        "@azul",
+        "@azulMedio"
+      ]
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        46,
+        620,
+        2
+      ],
+      "cor": "@verde"
+    },
+    {
+      "tipo": "imagem",
+      "arquivo": "assets/logo_zapromaq.png",
+      "pos": [
+        12,
+        10,
+        76,
+        28
+      ],
+      "filtro": "branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        98,
+        10,
+        1,
+        28
+      ],
+      "cor": "#FFFFFF",
+      "opacidade": 0.35
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        10,
+        56,
+        600,
+        262
+      ],
+      "cor": "@fundoCard",
+      "raio": 8,
+      "borda": "@bordaSuave",
+      "sombra": true
+    },
+    {
+      "tipo": "retangulo",
+      "pos": [
+        0,
+        282,
+        620,
+        48
+      ],
+      "cor": "@branco"
+    },
+    {
+      "tipo": "linha",
+      "pos": [
+        0,
+        282,
+        620,
+        1
+      ],
+      "cor": "@bordaSuave"
+    }
+  ],
+  "estilos": {
+    "campo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "SpecialEffect": 0,
+      "BorderStyle": 1,
+      "BorderColor": "@borda",
+      "BackColor": "@branco",
+      "ForeColor": "@texto"
+    },
+    "rotulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 9,
+      "BackStyle": 0,
+      "ForeColor": "@texto2"
+    },
+    "rotuloPeq": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "titulo": {
+      "Font.Name": "@semibold",
+      "Font.Size": 13,
+      "BackStyle": 0,
+      "ForeColor": "@branco",
+      "WordWrap": false
+    },
+    "subtitulo": {
+      "Font.Name": "@padrao",
+      "Font.Size": 8,
+      "BackStyle": 0,
+      "ForeColor": "@textoClaro",
+      "WordWrap": false
+    },
+    "secao": {
+      "Font.Name": "@semibold",
+      "Font.Size": 10,
+      "BackStyle": 0,
+      "ForeColor": "@texto",
+      "WordWrap": false
+    }
+  },
+  "controles": [
+    {
+      "nome": "lblTitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        6,
+        460,
+        20
+      ],
+      "texto": "Lancamento da visita",
+      "estilo": "titulo"
+    },
+    {
+      "nome": "lblSubtitulo",
+      "tipo": "Label",
+      "pos": [
+        110,
+        28,
+        460,
+        13
+      ],
+      "texto": "Realizada grava o historico do atendimento; cancelada pede motivo.",
+      "estilo": "subtitulo"
+    },
+    {
+      "nome": "lblLVisita",
+      "tipo": "Label",
+      "pos": [
+        30,
+        68,
+        560,
+        14
+      ],
+      "estilo": "secao",
+      "amostra": "Visita 12  -  AT-0001-0001  -  METALURGICA EXEMPLO LTDA"
+    },
+    {
+      "nome": "lblLData",
+      "tipo": "Label",
+      "pos": [
+        30,
+        94,
+        120,
+        14
+      ],
+      "texto": "Data realizada",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtLData",
+      "tipo": "TextBox",
+      "pos": [
+        30,
+        110,
+        120,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblLHora",
+      "tipo": "Label",
+      "pos": [
+        160,
+        94,
+        80,
+        14
+      ],
+      "texto": "Hora",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtLHora",
+      "tipo": "TextBox",
+      "pos": [
+        160,
+        110,
+        80,
+        22
+      ],
+      "estilo": "campo"
+    },
+    {
+      "nome": "lblLSit",
+      "tipo": "Label",
+      "pos": [
+        250,
+        94,
+        120,
+        14
+      ],
+      "texto": "Situacao",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboLSit",
+      "tipo": "ComboBox",
+      "pos": [
+        250,
+        110,
+        120,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblLTipo",
+      "tipo": "Label",
+      "pos": [
+        380,
+        94,
+        110,
+        14
+      ],
+      "texto": "Tipo",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboLTipo",
+      "tipo": "ComboBox",
+      "pos": [
+        380,
+        110,
+        110,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblLRes",
+      "tipo": "Label",
+      "pos": [
+        500,
+        94,
+        110,
+        14
+      ],
+      "texto": "Resultado",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "cboLRes",
+      "tipo": "ComboBox",
+      "pos": [
+        500,
+        110,
+        100,
+        22
+      ],
+      "estilo": "campo",
+      "props": {
+        "Style": 2
+      }
+    },
+    {
+      "nome": "lblLRelato",
+      "tipo": "Label",
+      "pos": [
+        30,
+        144,
+        560,
+        14
+      ],
+      "texto": "Relato (realizada) ou motivo (cancelada)",
+      "estilo": "rotulo"
+    },
+    {
+      "nome": "txtLRelato",
+      "tipo": "TextBox",
+      "pos": [
+        30,
+        160,
+        570,
+        80
+      ],
+      "estilo": "campo",
+      "props": {
+        "MultiLine": true,
+        "ScrollBars": 2
+      }
+    },
+    {
+      "nome": "lblStatus",
+      "tipo": "Label",
+      "pos": [
+        30,
+        252,
+        570,
+        12
+      ],
+      "estilo": "rotuloPeq",
+      "amostra": "Preencha e salve."
+    }
+  ],
+  "componentes": [
+    {
+      "tipo": "botao",
+      "nome": "cmdLSalvar",
+      "pos": [
+        30,
+        294,
+        120,
+        24
+      ],
+      "texto": "Salvar",
+      "icone": "salvarProximo",
+      "variante": "sucesso"
+    },
+    {
+      "tipo": "botao",
+      "nome": "cmdLFechar",
+      "pos": [
+        508,
+        294,
+        80,
+        24
+      ],
+      "texto": "Fechar",
+      "icone": "fechar",
+      "variante": "neutro"
+    }
+  ]
+}

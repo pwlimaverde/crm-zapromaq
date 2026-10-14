@@ -1,0 +1,447 @@
+'==========================================================
+' CODIGO DO USERFORM  frmPlanejamento
+'
+' Planejamento por regiao (Fase 4). A tela so pede e mostra: as
+' regras e as gravacoes estao em modPlanejamento (C14 a C16, P1 a P4)
+' e modVisita (C13).
+'
+' Cabecalho com o planejamento escolhido; paginas Visitas e Candidatos
+' trocadas pelos botoes da aba. Candidatos sao marcados com
+' Marcar/desmarcar na linha atual (ou Marcar todos); Gerar visitas
+' cria uma visita PENDENTE por marcado, tudo ou nada.
+'
+' Visual: botoes sao clsBotao (Labels) e a grade e a clsGrade do
+' grdPagina, criados pelo build a partir de
+' layout\formularios\frmPlanejamento.json.
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+Private mGrade As clsGrade
+Private mIdPl As Long                  ' planejamento na tela (0 = novo)
+Private mVersao As Long
+Private mSit As String
+Private mCodMun As Long                ' cidade-base escolhida (codigo IBGE)
+Private mIdsPl() As Long               ' ids do combo, na ordem do combo
+Private mPagina As String              ' VISITAS ou CANDIDATOS
+Private mIdsGrade As Variant           ' ids das linhas da grade atual (visitas ou candidatos)
+Private mOpoGrade As Variant           ' atendimento de cada linha de candidatos
+Private mMarcados As Object            ' atendimentos marcados (id do atendimento -> True)
+
+'----------------------------------------------------------
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Set mGrade = mUI.Grade("grdPagina")
+    Me.Caption = "CRM Zapromaq  -  planejamento por regiao"
+    lblTitulo.Caption = "Planejamento por regiao"
+    Set mMarcados = CreateObject("Scripting.Dictionary")
+    mPagina = "VISITAS"
+    PreencherResponsaveis
+    CarregarPlanejamentos
+    If mIdPl = 0 Then Novo
+    RecarregarPagina
+    Repintar
+    modTela.Encaixar Me
+End Sub
+
+Private Sub PreencherResponsaveis()
+    Dim arr As Variant, i As Long
+    arr = modCRM.ObterLista("Responsavel")
+    If IsEmpty(arr) Then Exit Sub
+    For i = LBound(arr, 1) To UBound(arr, 1)
+        cboResp.AddItem CStr(arr(i, 1))
+    Next i
+End Sub
+
+Private Sub Repintar()
+    If Not mUI Is Nothing Then mUI.Pintar
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsGrade/clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdNovo":            cmdNovo_Click
+        Case "cmdSalvar":          cmdSalvar_Click
+        Case "cmdEncerrar":        cmdEncerrar_Click
+        Case "cmdCidade":          cmdCidade_Click
+        Case "cmdPagVisitas":      cmdPagVisitas_Click
+        Case "cmdPagCandidatos":   cmdPagCandidatos_Click
+        Case "cmdLancar":          cmdLancar_Click
+        Case "cmdMarcarTodos":     cmdMarcarTodos_Click
+        Case "cmdMarcar":          cmdMarcar_Click
+        Case "cmdGerar":           cmdGerar_Click
+        Case "cmdRoteiro":         cmdRoteiro_Click
+        Case "cmdFechar":          cmdFechar_Click
+    End Select
+End Sub
+
+Public Sub UI_GradeClique(ByVal nome As String)
+    Repintar
+End Sub
+
+Public Sub UI_GradeDuploClique(ByVal nome As String)
+    If mPagina = "VISITAS" Then cmdLancar_Click
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+' Combo de planejamentos e cabecalho
+'----------------------------------------------------------
+Private Sub CarregarPlanejamentos()
+    Dim d As Variant, i As Long, escolhido As Long
+    cboPlanejamento.Clear
+    d = modDB.Consultar("SELECT id, codigo, descricao FROM planejamentos ORDER BY codigo DESC")
+    If IsEmpty(d) Then
+        ReDim mIdsPl(0 To 0)
+        mIdPl = 0
+        Exit Sub
+    End If
+    ReDim mIdsPl(0 To UBound(d, 1) - 1)
+    For i = 1 To UBound(d, 1)
+        cboPlanejamento.AddItem CStr(d(i, 2)) & "  -  " & CStr(d(i, 3))
+        mIdsPl(i - 1) = CLng(d(i, 1))
+    Next i
+    escolhido = 0
+    cboPlanejamento.ListIndex = escolhido
+    mIdPl = mIdsPl(0)
+    Mostrar mIdPl
+End Sub
+
+Private Sub cboPlanejamento_Change()
+    Dim i As Long
+    i = cboPlanejamento.ListIndex
+    If i < 0 Then Exit Sub
+    If i > UBound(mIdsPl) Then Exit Sub
+    mMarcados.RemoveAll
+    Mostrar mIdsPl(i)
+End Sub
+
+' Preenche o cabecalho com o planejamento escolhido.
+Private Sub Mostrar(ByVal id As Long)
+    Dim d As Variant
+    d = modDB.Consultar("SELECT p.id, p.codigo, p.descricao, p.raio_km, p.data_inicio, p.data_fim, p.responsavel, " & _
+                        "p.observacoes, p.situacao, p.versao, p.cod_municipio_base, m.nome, m.uf " & _
+                        "FROM planejamentos p LEFT JOIN municipios m ON p.cod_municipio_base = m.cod_ibge WHERE p.id=?", _
+                        Array(modDB.P(modDB.adInteger, id)))
+    If IsEmpty(d) Then Exit Sub
+    mIdPl = CLng(d(1, 1))
+    txtDescricao.Text = CStr(d(1, 3))
+    txtRaio.Text = CStr(d(1, 4))
+    txtInicio.Text = Format$(d(1, 5), "yyyy-mm-dd")
+    txtFim.Text = Format$(d(1, 6), "yyyy-mm-dd")
+    cboResp.Text = modDB.Nz(d(1, 7))
+    txtObs.Text = modDB.Nz(d(1, 8))
+    mSit = CStr(d(1, 9))
+    mVersao = CLng(d(1, 10))
+    mCodMun = CLng(d(1, 11))
+    txtCidade.Text = modDB.Nz(d(1, 12)) & "/" & modDB.Nz(d(1, 13))
+    lblSituacao.Caption = mSit
+    If mSit = "ABERTO" Then cmdEncerrar.Caption = "Encerrar" Else cmdEncerrar.Caption = "Reabrir"
+    lblPagina.Caption = d(1, 2) & "  -  versao " & mVersao
+    RecarregarPagina
+End Sub
+
+' Novo planejamento: campos vazios, grava com Salvar.
+Private Sub Novo()
+    mIdPl = 0
+    mVersao = 0
+    mSit = "NOVO"
+    mCodMun = 0
+    txtDescricao.Text = ""
+    txtCidade.Text = ""
+    txtRaio.Text = ""
+    txtInicio.Text = ""
+    txtFim.Text = ""
+    cboResp.Text = ""
+    txtObs.Text = ""
+    lblSituacao.Caption = "NOVO"
+    cmdEncerrar.Caption = "Encerrar"
+    lblPagina.Caption = "Novo planejamento: preencha e Salvar."
+End Sub
+
+Private Sub cmdNovo_Click()
+    Novo
+    mIdsGrade = Empty
+    mGrade.Clear
+    Repintar
+End Sub
+
+' Data AAAA-MM-DD. Vazio ou invalido: erro preenchido.
+Private Function LerIso(ByVal texto As String, ByRef erro As String) As Variant
+    Dim p As Variant
+    On Error GoTo Ruim
+    p = Split(Trim$(texto), "-")
+    If UBound(p) <> 2 Then GoTo Ruim
+    LerIso = DateSerial(CLng(p(0)), CLng(p(1)), CLng(p(2)))
+    Exit Function
+Ruim:
+    erro = "Data invalida: '" & texto & "'. Use AAAA-MM-DD."
+    LerIso = Null
+End Function
+
+Private Sub cmdSalvar_Click()
+    Dim erro As String, ini As Variant, fim As Variant, raio As Long, msg As String
+    If Not IsNumeric(txtRaio.Text) Then
+        MsgBox "Raio invalido: informe um numero de 1 a 500 km.", vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    raio = CLng(txtRaio.Text)
+    ini = LerIso(txtInicio.Text, erro)
+    If erro = "" Then fim = LerIso(txtFim.Text, erro)
+    If erro <> "" Then
+        MsgBox erro, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    If mCodMun = 0 Then
+        MsgBox "Escolha a cidade-base (botao Buscar).", vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    If mIdPl = 0 Then
+        msg = modPlanejamento.CriarPlanejamento(txtDescricao.Text, mCodMun, raio, CDate(ini), CDate(fim), txtObs.Text)
+    Else
+        msg = modPlanejamento.AtualizarPlanejamento(mIdPl, mVersao, txtDescricao.Text, mCodMun, raio, CDate(ini), CDate(fim), _
+                                                    cboResp.Text, txtObs.Text)
+    End If
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    lblPagina.Caption = "Planejamento gravado."
+    Dim novoId As Long
+    If mIdPl = 0 Then novoId = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM planejamentos", 0)) Else novoId = mIdPl
+    CarregarPlanejamentos
+    Mostrar novoId
+End Sub
+
+' Cidade-base: 'Nome/UF'. Acha uma cidade; se nao achar ou achar mais de uma, avisa.
+Private Sub cmdCidade_Click()
+    Dim texto As String, partes As Variant, nome As String, uf As String, d As Variant
+    texto = Trim$(txtCidade.Text)
+    partes = Split(texto, "/")
+    If UBound(partes) <> 1 Then
+        MsgBox "Informe a cidade e a UF, como Curitiba/PR.", vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    nome = Trim$(partes(0))
+    uf = UCase$(Trim$(partes(1)))
+    d = modDB.Consultar("SELECT cod_ibge, nome, uf FROM municipios WHERE uf=? AND nome_busca=?", _
+                        Array(modDB.P(modDB.adVarWChar, uf), modDB.P(modDB.adVarWChar, modPlanejamento.NomeBusca(nome))))
+    If IsEmpty(d) Then
+        MsgBox "Cidade nao encontrada em " & uf & ". Confira o nome e a UF.", vbExclamation, "CRM Zapromaq"
+    ElseIf UBound(d, 1) > 1 Then
+        MsgBox "Ha mais de uma cidade com esse nome em " & uf & ".", vbExclamation, "CRM Zapromaq"
+    Else
+        mCodMun = CLng(d(1, 1))
+        txtCidade.Text = CStr(d(1, 2)) & "/" & CStr(d(1, 3))
+        lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
+    End If
+End Sub
+
+' Encerrar (ou reabrir). C16: encerrar com visitas pendentes pede para cancela-las.
+Private Sub cmdEncerrar_Click()
+    Dim sit As String, msg As String
+    If mIdPl = 0 Then Exit Sub
+    If mSit = "ABERTO" Then sit = "ENCERRADO" Else sit = "ABERTO"
+    msg = modPlanejamento.AlterarSituacaoPlanejamento(mIdPl, mVersao, sit, False)
+    If InStr(1, msg, "(C16)", vbBinaryCompare) > 0 Then
+        If MsgBox(msg & vbCrLf & vbCrLf & "Cancelar essas visitas pendentes e encerrar?", vbYesNo + vbQuestion, _
+                  "CRM Zapromaq") = vbYes Then
+            msg = modPlanejamento.AlterarSituacaoPlanejamento(mIdPl, mVersao, sit, True)
+        Else
+            msg = ""
+        End If
+    End If
+    If msg <> "" Then MsgBox msg, vbExclamation, "CRM Zapromaq"
+    Mostrar mIdPl
+End Sub
+
+'----------------------------------------------------------
+' Paginas
+'----------------------------------------------------------
+Private Sub cmdPagVisitas_Click()
+    mPagina = "VISITAS"
+    RecarregarPagina
+End Sub
+
+Private Sub cmdPagCandidatos_Click()
+    mPagina = "CANDIDATOS"
+    RecarregarPagina
+End Sub
+
+' Carrega a grade da pagina atual e ajusta o que vale em cada uma.
+Private Sub RecarregarPagina()
+    Dim pos As Long
+    pos = mGrade.ListIndex
+    If mIdPl = 0 Then
+        mGrade.Clear
+        mIdsGrade = Empty
+        lblPagina.Caption = "Salve o planejamento para ver as visitas e os candidatos."
+        AtivarBotoes False
+        Repintar
+        Exit Sub
+    End If
+    If mPagina = "VISITAS" Then
+        CarregarVisitas
+    Else
+        CarregarCandidatos
+    End If
+    AtivarBotoes True
+    If pos >= 0 Then
+        If mGrade.ListCount > 0 Then
+            If pos > mGrade.ListCount - 1 Then pos = mGrade.ListCount - 1
+            mGrade.ListIndex = pos
+        End If
+    End If
+    Repintar
+End Sub
+
+' Botoes que valem em cada pagina.
+Private Sub AtivarBotoes(ByVal ligado As Boolean)
+    cmdPagVisitas.Enabled = ligado
+    cmdPagCandidatos.Enabled = ligado
+    cmdLancar.Enabled = ligado And (mPagina = "VISITAS")
+    cmdRoteiro.Enabled = ligado And (mPagina = "VISITAS")
+    cmdMarcarTodos.Enabled = ligado And (mPagina = "CANDIDATOS")
+    cmdMarcar.Enabled = ligado And (mPagina = "CANDIDATOS")
+    cmdGerar.Enabled = ligado And (mPagina = "CANDIDATOS")
+End Sub
+
+Private Sub CarregarVisitas()
+    Dim d As Variant, n As Long, m() As Variant, i As Long, pend As Long
+    mGrade.ColumnWidths = "100;90;60;120;220;132"
+    mGrade.Cabecalho Array("Situacao", "Data", "Hora", "Atendimento", "Empresa", "Contato")
+    d = modDB.Consultar("SELECT v.id, v.situacao, v.data_agendada, v.hora_agendada, o.codigo, c.empresa, ct.nome " & _
+                        "FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id) " & _
+                        "INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id " & _
+                        "WHERE v.id_planejamento=? ORDER BY IIf(v.situacao='PENDENTE', 0, 1), v.data_agendada, v.id", _
+                        Array(modDB.P(modDB.adInteger, mIdPl)))
+    If IsEmpty(d) Then n = 0 Else n = UBound(d, 1)
+    ReDim m(1 To n, 1 To 6)
+    ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
+    For i = 1 To n
+        mIdsGrade(i - 1) = CLng(d(i, 1))
+        m(i, 1) = CStr(d(i, 2))
+        m(i, 2) = IIf(IsNull(d(i, 3)), "", Format$(d(i, 3), "dd/mm/yyyy"))
+        m(i, 3) = IIf(IsNull(d(i, 4)), "", Format$(d(i, 4), "hh:nn"))
+        m(i, 4) = CStr(d(i, 5))
+        m(i, 5) = CStr(d(i, 6))
+        m(i, 6) = modDB.Nz(d(i, 7))
+        If CStr(d(i, 2)) = "PENDENTE" Then pend = pend + 1
+    Next i
+    mGrade.Carregar m
+    lblPagina.Caption = n & " visita(s), " & pend & " pendente(s). Duplo clique ou Lancar visita para registrar."
+End Sub
+
+Private Sub CarregarCandidatos()
+    Dim c As Variant, n As Long, m() As Variant, i As Long, marcados As Long, sinal As String
+    mGrade.ColumnWidths = "60;110;270;190;50;42"
+    mGrade.Cabecalho Array("Marca", "Atendimento", "Empresa", "Cidade/UF", "Km", "Dias")
+    c = modPlanejamento.Candidatos(mIdPl)
+    If IsEmpty(c) Then n = 0 Else n = UBound(c, 1)
+    ReDim m(1 To n, 1 To 6)
+    ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
+    ReDim mOpoGrade(0 To IIf(n > 0, n - 1, 0))
+    For i = 1 To n
+        mIdsGrade(i - 1) = CStr(c(i, 2))
+        mOpoGrade(i - 1) = CLng(c(i, 1))
+        sinal = "[ ]"
+        If mMarcados.Exists(CLng(c(i, 1))) Then sinal = "[x]": marcados = marcados + 1
+        If CLng(c(i, 9)) > 0 Then sinal = sinal & "*"
+        m(i, 1) = sinal
+        m(i, 2) = CStr(c(i, 2))
+        m(i, 3) = CStr(c(i, 3))
+        m(i, 4) = CStr(c(i, 4)) & "/" & CStr(c(i, 5))
+        m(i, 5) = Format$(c(i, 7), "0.0")
+        m(i, 6) = modDB.Nz(c(i, 8))
+    Next i
+    mGrade.Carregar m
+    lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * ja tem visita pendente."
+End Sub
+
+'----------------------------------------------------------
+' Acoes da pagina Candidatos e Visitas
+'----------------------------------------------------------
+Private Sub cmdMarcar_Click()
+    Dim i As Long, opo As Long
+    If mPagina <> "CANDIDATOS" Or mGrade.ListCount = 0 Then Exit Sub
+    i = mGrade.ListIndex
+    If i < 0 Then Exit Sub
+    opo = mOpoGrade(i)
+    If mMarcados.Exists(opo) Then mMarcados.Remove opo Else mMarcados.Add opo, True
+    RecarregarPagina
+End Sub
+
+Private Sub cmdMarcarTodos_Click()
+    Dim i As Long, todos As Boolean
+    If mPagina <> "CANDIDATOS" Or mGrade.ListCount = 0 Then Exit Sub
+    todos = True
+    For i = LBound(mOpoGrade) To UBound(mOpoGrade)
+        If Not mMarcados.Exists(mOpoGrade(i)) Then todos = False
+    Next i
+    If todos Then
+        mMarcados.RemoveAll
+    Else
+        For i = LBound(mOpoGrade) To UBound(mOpoGrade)
+            If Not mMarcados.Exists(mOpoGrade(i)) Then mMarcados.Add mOpoGrade(i), True
+        Next i
+    End If
+    RecarregarPagina
+End Sub
+
+Private Sub cmdGerar_Click()
+    Dim ids() As Long, k As Variant, n As Long, msg As String
+    If mMarcados.Count = 0 Then
+        lblPagina.Caption = "Marque ao menos um candidato."
+        Exit Sub
+    End If
+    ReDim ids(0 To mMarcados.Count - 1)
+    For Each k In mMarcados.Keys
+        ids(n) = CLng(k)
+        n = n + 1
+    Next k
+    msg = modPlanejamento.GerarVisitas(mIdPl, ids)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    mMarcados.RemoveAll
+    mPagina = "VISITAS"
+    lblPagina.Caption = n & " visita(s) gerada(s)."
+    RecarregarPagina
+End Sub
+
+Private Sub cmdLancar_Click()
+    Dim i As Long, f As frmLancamento
+    If mPagina <> "VISITAS" Then Exit Sub
+    i = mGrade.ListIndex
+    If i < 0 Then
+        lblPagina.Caption = "Escolha uma visita na lista."
+        Exit Sub
+    End If
+    Set f = New frmLancamento
+    f.Abrir CLng(mIdsGrade(i))
+    RecarregarPagina
+End Sub
+
+' Roteiro CSV na pasta Documentos\CRM Zapromaq\Roteiros (mesmo arquivo do conector).
+Private Sub cmdRoteiro_Click()
+    Dim pasta As String, caminho As String, msg As String, shell As Object
+    Set shell = CreateObject("WScript.Shell")
+    pasta = shell.SpecialFolders("MyDocuments") & "\CRM Zapromaq\Roteiros"
+    msg = modPlanejamento.ExportarRoteiro(mIdPl, pasta, caminho)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+    Else
+        lblPagina.Caption = "Roteiro gravado: " & caminho
+    End If
+End Sub
+
+Private Sub cmdFechar_Click()
+    Unload Me
+End Sub

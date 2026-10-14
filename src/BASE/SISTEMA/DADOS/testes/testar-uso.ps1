@@ -350,6 +350,52 @@ End Function
     [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idP)
     [void]$xl.Run($tp4 + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogP)
 
+    # Fase 4.2, 4.4, 5.2: candidatos, gerar visitas e roteiro pelo front, com volta ao estado original
+    $tq = "'" + $n + "'!"
+    $cidQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'", 0)
+    $maxLogQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    [void]$xl.Run($tq + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT CAND', $cidQ, 500, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
+    $idQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MAX(id) FROM planejamentos WHERE descricao='TESTE FRONT CAND'", 0)
+    $cand = $xl.Run($tq + 'modPlanejamento.Candidatos', $idQ)
+    $qtdC = 0; if ($cand -ne $null -and $cand -isnot [System.DBNull]) { $qtdC = $cand.GetLength(0) }
+    Conferir 'candidatos do front: achados em Curitiba e vizinhas (raio 500)' ($qtdC -ge 1) ([string]$qtdC)
+    $ordOk = $true
+    for ($i = 2; $i -le $qtdC; $i++) { if ([int]$cand.GetValue($i, 10) -lt [int]$cand.GetValue($i - 1, 10)) { $ordOk = $false } }
+    Conferir 'candidatos do front: qualificação não decresce' $ordOk ''
+    # candidato sem visita pendente (coluna 9 = 0); a coluna 9 é informativa e o dado de demonstração já tem pendentes
+    $idOpQ = 0
+    for ($i = 1; $i -le $qtdC; $i++) { if ([int]$cand.GetValue($i, 9) -eq 0) { $idOpQ = [int]$cand.GetValue($i, 1); break } }
+    Conferir 'candidatos do front: há ao menos um sem visita pendente' ($idOpQ -gt 0) ''
+    $ger = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    Conferir 'gerar visitas pelo front grava (vazio = ok)' ($ger -eq '') $ger
+    $ger2 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    Conferir 'gerar visitas: segunda pendente é recusada e nada é gravado (C13)' ($ger2 -match 'C13') $ger2
+    # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como
+    # IDispatch; o Excel chama de volta este processo para ler o valor e os dois travam (o Run não volta).
+    # Nome próprio: $pasta (execucao\teste) ainda recebe o PDF do Painel no fim do teste.
+    $pastaR = [string](Join-Path $env:TEMP ('crm-uso-roteiro-' + $PID))
+    # o caminho sai por ByRef (não volta pelo Run via COM): o arquivo é achado na pasta indicada
+    $msgR = [string]$xl.Run($tq + 'modPlanejamento.ExportarRoteiro', $idQ, $pastaR, '')
+    $arqR = $null
+    if (Test-Path -LiteralPath $pastaR) { $arqR = Get-ChildItem -LiteralPath $pastaR -Filter '*.csv' | Select-Object -First 1 }
+    $caminho = ''; if ($arqR) { $caminho = $arqR.FullName }
+    Conferir 'roteiro do front: arquivo gravado na pasta indicada (retorno vazio = ok)' ($msgR -eq '' -and $caminho -ne '') ($msgR + ' ' + $caminho)
+    if ($caminho -ne '') {
+        $bytesQ = [System.IO.File]::ReadAllBytes($caminho)
+        Conferir 'roteiro do front: BOM UTF-8' ($bytesQ[0] -eq 0xEF -and $bytesQ[1] -eq 0xBB -and $bytesQ[2] -eq 0xBF) ''
+        $lq = @([System.IO.File]::ReadAllLines($caminho, [System.Text.Encoding]::UTF8))
+        Conferir 'roteiro do front: BASE e uma visita pendente' ($lq.Count -eq 3 -and $lq[1].StartsWith('"BASE"') -and $lq[2].StartsWith('"VISITA"')) ($lq -join ' | ')
+        Remove-Item -LiteralPath $pastaR -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $ua = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'TESTE FRONT CAND 2', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    Conferir 'atualizar planejamento: grava com versão lida (vazio = ok)' ($ua -eq '') $ua
+    $ua2 = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'X', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    Conferir 'atualizar planejamento: versão antiga é conflito' ($ua2 -match 'Conflito') $ua2
+    # volta: visitas e planejamento de teste, e o log criado pelo teste
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogQ)
+
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
     $t = "`t"

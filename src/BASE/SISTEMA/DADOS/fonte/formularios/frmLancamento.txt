@@ -1,0 +1,156 @@
+'==========================================================
+' CODIGO DO USERFORM  frmLancamento
+'
+' Lancamento de uma visita (Fase 4.7c). A tela so pede e mostra:
+' a gravacao e as regras estao em modVisita (C10, C11, C13, V6, V7).
+'
+' Abre pela pagina Visitas do planejamento (botao Lancar visita).
+' Realizada pede data e relato e grava o historico do atendimento;
+' cancelada pede o motivo, no mesmo campo de relato.
+'
+' Visual: botoes sao clsBotao (Labels) criados pelo build a partir de
+' layout\formularios\frmLancamento.json.
+'==========================================================
+Option Explicit
+
+Private mUI As clsUI
+Private mVisita As Long
+Private mVersao As Long
+Private mDataAg As Variant
+Private mHora As String
+Private mResp As String
+Private mObs As String
+Private mSalvou As Boolean
+
+' Abre a visita para lancar. Depois de fechar, Salvou diz se gravou.
+Public Sub Abrir(ByVal idVisita As Long)
+    mVisita = idVisita
+    mSalvou = False
+    If Not Carregar() Then Exit Sub
+    Me.Show
+End Sub
+
+Public Property Get Salvou() As Boolean
+    Salvou = mSalvou
+End Property
+
+Private Sub UserForm_Initialize()
+    Set mUI = New clsUI
+    mUI.Preparar Me
+    Me.Caption = "CRM Zapromaq  -  lancamento da visita"
+    lblTitulo.Caption = "Lancamento da visita"
+    cboLSit.AddItem "PENDENTE"
+    cboLSit.AddItem "REALIZADA"
+    cboLSit.AddItem "CANCELADA"
+    PreencherCombo cboLTipo, "TipoVisita"
+    PreencherCombo cboLRes, "ResultadoVisita"
+    Repintar
+    modTela.Encaixar Me
+End Sub
+
+Private Sub PreencherCombo(ByVal cbo As Object, ByVal tipo As String)
+    Dim arr As Variant, i As Long
+    arr = modCRM.ObterLista(tipo)
+    If IsEmpty(arr) Then Exit Sub
+    For i = LBound(arr, 1) To UBound(arr, 1)
+        cbo.AddItem CStr(arr(i, 1))
+    Next i
+End Sub
+
+Private Sub Repintar()
+    If Not mUI Is Nothing Then mUI.Pintar
+End Sub
+
+'----------------------------------------------------------
+' Contrato com clsBotao (fonte\classes)
+'----------------------------------------------------------
+Public Sub UI_Acao(ByVal nome As String)
+    Select Case nome
+        Case "cmdLSalvar": cmdLSalvar_Click
+        Case "cmdLFechar": cmdLFechar_Click
+    End Select
+End Sub
+
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    mUI.Soltar
+End Sub
+
+'----------------------------------------------------------
+' Le a visita e preenche a tela. False se a visita nao existe.
+'----------------------------------------------------------
+Private Function Carregar() As Boolean
+    Dim d As Variant, sit As String
+    d = modDB.Consultar("SELECT v.situacao, v.data_agendada, v.hora_agendada, v.tipo, v.resultado, v.versao, " & _
+                        "v.data_realizada, v.relato, v.motivo_cancelamento, v.responsavel, v.observacoes, " & _
+                        "o.codigo, c.empresa FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id) " & _
+                        "INNER JOIN clientes c ON o.id_cliente = c.id) WHERE v.id=?", _
+                        Array(modDB.P(modDB.adInteger, mVisita)))
+    If IsEmpty(d) Then
+        MsgBox "Visita nao encontrada.", vbExclamation, "CRM Zapromaq"
+        Exit Function
+    End If
+    sit = CStr(d(1, 1))
+    mVersao = CLng(d(1, 6))
+    mDataAg = d(1, 2)
+    mHora = modDB.Nz(d(1, 3))
+    mResp = modDB.Nz(d(1, 10))
+    mObs = modDB.Nz(d(1, 11))
+    lblLVisita.Caption = "Visita " & mVisita & "  -  " & modDB.Nz(d(1, 12)) & "  -  " & modDB.Nz(d(1, 13))
+    cboLSit.Text = sit
+    If IsNull(d(1, 7)) Then
+        txtLData.Text = IIf(IsNull(mDataAg), "", Format$(mDataAg, "yyyy-mm-dd"))
+        txtLHora.Text = mHora
+    Else
+        txtLData.Text = Format$(d(1, 7), "yyyy-mm-dd")
+        txtLHora.Text = Format$(d(1, 7), "hh:nn")
+    End If
+    cboLTipo.Text = modDB.Nz(d(1, 4))
+    cboLRes.Text = modDB.Nz(d(1, 5))
+    If sit = "CANCELADA" Then txtLRelato.Text = modDB.Nz(d(1, 9)) Else txtLRelato.Text = modDB.Nz(d(1, 8))
+    lblStatus.Caption = "Versao " & mVersao & "."
+    Repintar
+    Carregar = True
+End Function
+
+' Data AAAA-MM-DD com hora opcional HH:mm. Vazio = Null. Erro = mensagem.
+Private Function LerDataHora(ByVal data As String, ByVal hora As String, ByRef erro As String) As Variant
+    Dim dt As Variant, hr As Variant, s As String
+    s = Trim$(data)
+    If s = "" Then LerDataHora = Null: Exit Function
+    On Error GoTo Ruim
+    dt = Split(s, "-")
+    If UBound(dt) <> 2 Then GoTo Ruim
+    LerDataHora = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2)))
+    If Trim$(hora) <> "" Then
+        hr = Split(Trim$(hora), ":")
+        LerDataHora = LerDataHora + TimeSerial(CLng(hr(0)), CLng(hr(1)), 0)
+    End If
+    Exit Function
+Ruim:
+    erro = "Data ou hora invalida. Use AAAA-MM-DD e HH:mm."
+    LerDataHora = Null
+End Function
+
+'----------------------------------------------------------
+Private Sub cmdLSalvar_Click()
+    Dim sit As String, dataReal As Variant, erro As String, msg As String, relato As String, motivo As String
+    sit = UCase$(Trim$(cboLSit.Text))
+    dataReal = LerDataHora(txtLData.Text, txtLHora.Text, erro)
+    If erro <> "" Then
+        MsgBox erro, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    If sit = "CANCELADA" Then motivo = txtLRelato.Text Else relato = txtLRelato.Text
+    msg = modVisita.AtualizarVisita(mVisita, mVersao, sit, mDataAg, mHora, cboLTipo.Text, mResp, mObs, _
+                                    dataReal, cboLRes.Text, relato, motivo)
+    If msg <> "" Then
+        MsgBox msg, vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    mSalvou = True
+    Unload Me
+End Sub
+
+Private Sub cmdLFechar_Click()
+    Unload Me
+End Sub

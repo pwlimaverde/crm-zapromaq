@@ -93,6 +93,11 @@
           "cor": "@azul"
         },
         {
+          "texto": "Planejamento",
+          "macro": "AbrirPlanejamento",
+          "cor": "@verdeBotao"
+        },
+        {
           "texto": "Fila da manha",
           "macro": "FilaDaManha",
           "cor": "@tomBotao3"

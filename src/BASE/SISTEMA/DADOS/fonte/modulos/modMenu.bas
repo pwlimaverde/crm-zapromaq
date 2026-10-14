@@ -145,6 +145,13 @@ Public Sub AbrirGerenciamento()
     f.Show
 End Sub
 
+' Planejamento por regiao (Fase 4): cabecalho, paginas Visitas e Candidatos, roteiro.
+Public Sub AbrirPlanejamento()
+    If Not Pronto() Then Exit Sub
+    Dim f As New frmPlanejamento
+    f.Show
+End Sub
+
 Public Sub AbrirCalibracao()
     Dim f As New frmCalibracao
     f.Show

@@ -52,9 +52,9 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 4.4 Gerar visitas em transação, C13 dentro dela, tudo ou nada (conector); VBA junto da tela — `testar-mcp`
 - [x] 4.5 Lançamento de datas e resultados em lote (conector, tudo ou nada, simular) — `testar-mcp`; VBA junto da tela
 - [ ] 4.6 `clsGrade` com marcação — `verificar.py` e `testar-uso`
-- [ ] 4.7a `frmPlanejamento` layout (cabeçalho e três páginas) — prévia e `verificar.py`
-- [ ] 4.7b Páginas Visitas e Candidatos — `testar-uso`
-- [ ] 4.7c Página Lançamento — `testar-uso`
+- [x] 4.7a `frmPlanejamento` layout (cabeçalho e três páginas) — prévia e `verificar.py`
+- [x] 4.7b Páginas Visitas e Candidatos — `testar-uso`
+- [x] 4.7c Página Lançamento — `testar-uso`
 - [ ] 4.7d `frmVinculo` modo `municipio` — `verificar.py` e `testar-uso`
 - [ ] 4.8 Aba Planejamentos (seletor, duplo clique, feed) — `testar-uso`; 🖥B
 - [x] 4.9a Ferramentas de planejamento no conector (listar, obter, criar, atualizar, encerrar) — `testar-mcp`
