@@ -162,7 +162,9 @@ function Executa-Visita([string]$sql, $params = @()) {
 }
 $filaNeg = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
 $codNeg = [string]$filaNeg[0].codigo
-$filaFech = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Pedido Fechado' ORDER BY id"
+# atendimento numa etapa que encerra (pelo papel da lista): o banco de teste não tem 'Pedido Fechado'
+# (só 'Perdido'), o de demonstração tem os dois; com o código vazio a recusa vinha do formato, não da C08
+$filaFech = Linhas-Visita "SELECT o.codigo FROM oportunidades o INNER JOIN listas l ON o.etapa = l.valor WHERE l.tipo='Etapa' AND l.encerra=True ORDER BY o.id"
 $codFech = [string]$filaFech[0].codigo
 $opAntes = (Linhas-Visita "SELECT id, observacoes, ultima_interacao, versao FROM oportunidades WHERE codigo='$codNeg'")[0]
 $maxLogV = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
@@ -172,7 +174,7 @@ try {
     $criadas += $c1.id
     Conferir 'criar_visita grava PENDENTE na versão 1' ($c1.gravado -and $c1.situacao -eq 'PENDENTE' -and $c1.versao -eq 1) ($c1 | ConvertTo-Json -Compress)
     Conferir 'C13: segunda visita pendente no mesmo atendimento e recusada' ((Mensagem { Invoke-CriarVisita ([pscustomobject]@{ codigo = $codNeg }) }) -match 'C13')
-    Conferir 'C08: visita em atendimento encerrado (Pedido Fechado) e recusada' ((Mensagem { Invoke-CriarVisita ([pscustomobject]@{ codigo = $codFech }) }) -match 'C08')
+    Conferir ('C08: visita em atendimento encerrado (' + $codFech + ') e recusada') ($codFech -ne '' -and (Mensagem { Invoke-CriarVisita ([pscustomobject]@{ codigo = $codFech }) }) -match 'C08')
     Conferir 'V4/C10: realizada sem relato e recusada' ((Mensagem { Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 1; situacao = 'REALIZADA'; data_realizada = '2026-10-12' }) }) -match 'C10')
     Conferir 'conflito: versão lida antiga e recusada' ((Mensagem { Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 9; situacao = 'CANCELADA'; motivo_cancelamento = 'x' }) }) -match 'Conflito')
     $r1 = Invoke-AtualizarVisita ([pscustomobject]@{ id = $c1.id; versao = 1; situacao = 'REALIZADA'; data_realizada = '2026-10-12 09:30'; resultado = 'Positivo'; relato = 'Visitou e apresentou a proposta' })
@@ -281,8 +283,8 @@ try {
     $ger = Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $false })
     $visT10 += @($ger.visitas_criadas)
     Conferir 'gerar_visitas grava uma visita PENDENTE no planejamento' ($ger.visitas_criadas.Count -eq 1) ($ger | ConvertTo-Json -Compress -Depth 4)
-    $encerrado = [string](Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Pedido Fechado' ORDER BY id")[0].codigo
-    Conferir 'gerar_visitas: atendimento encerrado é recusado e nada é gravado (C08)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo, $encerrado); simular = $false }) }) -match 'Nada gravado') ''
+    $encerrado = $codFech
+    Conferir 'gerar_visitas: atendimento encerrado é recusado e nada é gravado (C08)' ($encerrado -ne '' -and (Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo, $encerrado); simular = $false }) }) -match 'Nada gravado') ''
     Conferir 'gerar_visitas: a recusa desfez tudo (mesma quantidade de visitas)' ([int](Invoke-Valor 'SELECT COUNT(*) FROM visitas' @()) -eq ($cntAntes + 1)) ''
     Conferir 'gerar_visitas: segunda pendente no mesmo atendimento é recusada (C13)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $false }) }) -match 'Nada gravado') ''
 } finally {
