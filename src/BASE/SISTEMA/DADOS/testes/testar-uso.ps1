@@ -449,6 +449,32 @@ End Function
     Conferir 'gerar visitas pelo front grava (vazio = ok)' ($ger -eq '') $ger
     $ger2 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
     Conferir 'gerar visitas: segunda pendente é recusada e nada é gravado (C13)' ($ger2 -match 'C13') $ger2
+    # Fase 4.8: aba Planejamentos - seletor em C4, grade só leitura com _id, feed
+    $wsPl = $wb.Worksheets.Item('Planejamentos')
+    [void]$xl.Run($tq + 'modAbaPlanejamentos.GradePlanejamentos')
+    $xl.EnableEvents = $false
+    $plQ = $xl.Run($tq + 'modDB.Consultar', "SELECT codigo, descricao, situacao FROM planejamentos WHERE id=" + $idQ)
+    $txtQ = [string]$xl.Run($tq + 'modAbaPlanejamentos.TextoDoSeletor', [string]$plQ.GetValue(1, 1), [string]$plQ.GetValue(1, 2), [string]$plQ.GetValue(1, 3))
+    $wsPl.Unprotect('zpm'); $wsPl.Range('C4').Value2 = $txtQ; $wsPl.Protect('zpm')
+    [void]$xl.Run($tq + 'modAbaPlanejamentos.PlanejamentosAtualizar')
+    $xl.EnableEvents = $false
+    $loPl = if ($wsPl.ListObjects.Count -gt 0) { $wsPl.ListObjects.Item(1) } else { $null }
+    $nPl = if ($loPl -and $loPl.DataBodyRange) { $loPl.DataBodyRange.Rows.Count } else { 0 }
+    Conferir 'aba Planejamentos: C4 mostra o planejamento escolhido e a grade tem a visita gerada' ([string]$wsPl.Range('C4').Value2 -eq $txtQ -and $nPl -eq 1) ('C4=[' + [string]$wsPl.Range('C4').Value2 + '] linhas=' + $nPl + ' ' + [string]$wsPl.Range('B5').Value2)
+    Conferir 'aba Planejamentos: aba protegida, C4 com lista' ([bool]$wsPl.ProtectContents -and [int]$wsPl.Range('C4').Validation.Type -eq 3)
+    $idVisQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT MAX(id) FROM visitas WHERE id_planejamento=" + $idQ, 0)
+    $idLinha = [int]$xl.Run($tq + 'modAbaPlanejamentos.IdDaVisitaNaLinha', $wsPl, $wsPl.Cells.Item(8, 2))
+    Conferir 'aba Planejamentos: a linha leva ao id da visita (coluna _id)' ($idLinha -eq $idVisQ -and $idVisQ -gt 0) ([string]$idLinha + ' x ' + $idVisQ)
+    $idOpQ2 = $idOpQ
+    for ($i = 1; $i -le $qtdC; $i++) { $c1 = [int]$cand.GetValue($i, 1); if ($c1 -ne $idOpQ -and [int]$cand.GetValue($i, 9) -eq 0) { $idOpQ2 = $c1; break } }
+    [void]$xl.Run($tq + 'modFeed.ProcessarAgora')
+    $idOutraV = [int]$xl.Run($tq + 'modTesteFeedVisita.OutraVisita', $idOpQ2, $idQ)
+    [void]$xl.Run($tq + 'modFeed.ProcessarAgora')
+    $nPl2 = if ($wsPl.ListObjects.Count -gt 0 -and $wsPl.ListObjects.Item(1).DataBodyRange) { $wsPl.ListObjects.Item(1).DataBodyRange.Rows.Count } else { 0 }
+    Conferir 'aba Planejamentos: o feed mostra a visita gravada em outra estacao' ($idOutraV -gt 0 -and $nPl2 -eq 2) ('id=' + $idOutraV + ' linhas=' + $nPl2)
+    Conferir 'aba Planejamentos: depois do feed a aba continua protegida' ([bool]$wsPl.ProtectContents)
+    $wsPl.ExportAsFixedFormat(0, (Join-Path $pasta 'uso-Planejamentos.pdf'))
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id=" + $idOutraV)
     # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como
     # IDispatch; o Excel chama de volta este processo para ler o valor e os dois travam (o Run não volta).
     # Nome próprio: $pasta (execucao\teste) ainda recebe o PDF do Painel no fim do teste.

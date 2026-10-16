@@ -18,7 +18,8 @@ src/BASE/SISTEMA/DADOS/fonte/layout/
   tema.json            cores, fontes, variantes de botão, cores de situação, moldura
   icones.json          glifos Segoe MDL2 (nome -> [código, nome oficial])
   amostras.json        dados FICTÍCIOS da prévia
-  abas.json            abas, células (inclui Config!B2 e Início!B7)
+  abas.json            abas, células (inclui Config!B2 e Início!B7); botões do Início, das
+                       grades, do Painel e da aba Planejamentos (seção "planejamentos")
   formularios/<tela>.json   v2: canvas (pt), fundo (decoração -> BMP), controles, componentes
 src/BASE/SISTEMA/DADOS/build/gerar-visual.ps1 + visual/previa.{html,js,css}
 src/BASE/SISTEMA/DADOS/fonte/assets/gerado/   GERADO: <tela>-fundo.png + manifesto.json (hash das entradas)

@@ -184,6 +184,11 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
 End Sub
 
 Private Sub Workbook_SheetBeforeDoubleClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    ' aba Planejamentos: duplo clique numa visita abre o lancamento dela
+    If modAbaPlanejamentos.EhAba(Sh) Then
+        If modAbaPlanejamentos.DuploClique(Sh, Target) Then Cancel = True
+        Exit Sub
+    End If
     If modGrade.TabelaDaAba(Sh) = "" Then Exit Sub
     Cancel = True
     modGrade.AbrirFichaDaLinha Sh, Target
@@ -207,6 +212,11 @@ Private Sub Workbook_SheetBeforeRightClick(ByVal Sh As Object, ByVal Target As R
 End Sub
 
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    ' aba Planejamentos: o seletor em C4 troca o planejamento mostrado
+    If modAbaPlanejamentos.EhAba(Sh) Then
+        modAbaPlanejamentos.Mudou Sh, Target
+        Exit Sub
+    End If
     If modGrade.TabelaDaAba(Sh) = "" Then Exit Sub
     If Target.Row = modGrade.LIN_BUSCA And Target.Column = modGrade.COL_INI + 1 Then
         modGrade.Pesquisar Sh, Target

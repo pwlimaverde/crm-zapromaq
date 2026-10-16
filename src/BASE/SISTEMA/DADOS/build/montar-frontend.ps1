@@ -273,6 +273,40 @@ try {
         $log.L('  Painel        ' + @($b.itens).Count + ' botões')
     }
 
+    # Planejamentos (fatia 4.8): logo, título e botões; seletor e grade vêm do modAbaPlanejamentos
+    if ($abas.PSObject.Properties['planejamentos']) {
+        $wsL = $wb.Worksheets.Item('Planejamentos')
+        $b = $abas.planejamentos.botoes
+        $x = [double]$b.pos[0]; $n = 0
+        foreach ($it in $b.itens) {
+            $n++
+            [void](Add-BotaoMarca $wsL $it.texto $it.macro @($x, [double]$b.pos[1], [double]$b.pos[2], [double]$b.pos[3]) ('btnPla' + $n) (Resolve-ValorTema $tema $it.cor) $tema)
+            $x += [double]$b.passo
+        }
+        if (Test-Path -LiteralPath $logoArq) {
+            $l = $abas.grades.logo.pos
+            $lg = $wsL.Shapes.AddPicture($logoArq, $false, $true, [double]$l[0], [double]$l[1], [double]$l[2], [double]$l[3])
+            $lg.Name = 'logoAba'; try { $lg.Placement = 3 } catch { }
+        }
+        $wsL.Columns.Item(1).ColumnWidth = 2.25
+        $wsL.Rows.Item(1).RowHeight = 4; $wsL.Rows.Item(2).RowHeight = 28; $wsL.Rows.Item(3).RowHeight = 34
+        $wsL.Range('A1:AN6').Interior.Color = $fundo
+        $tit = $wsL.Shapes.AddTextbox(1, 96, $wsL.Rows.Item(2).Top, 460, $wsL.Rows.Item(2).Height)
+        $tit.Name = 'tituloAba'
+        $tit.Line.Visible = $false; $tit.Fill.Visible = $false
+        try { $tit.Placement = 3 } catch { }
+        $tf = $tit.TextFrame2
+        $tf.MarginLeft = 0; $tf.MarginRight = 0; $tf.MarginTop = 0; $tf.MarginBottom = 0
+        $tf.VerticalAnchor = 3; $tf.WordWrap = $false
+        $tf.TextRange.Text = 'Planejamentos'
+        $tf.TextRange.Font.Name = (Resolve-ValorTema $tema '@semibold')
+        $tf.TextRange.Font.Size = 15
+        $tf.TextRange.Font.Bold = $true
+        $tf.TextRange.Font.Fill.ForeColor.RGB = (Resolve-ValorTema $tema '@azul')
+        $wsL.Range($abas.planejamentos.aviso.celula).Value2 = $abas.planejamentos.aviso.texto
+        $log.L('  Planejamentos ' + @($b.itens).Count + ' botões')
+    }
+
     $ini = $wb.Worksheets.Item($abas.abas[0].nome)
     $ini.Range('A1:Z60').Interior.Color = $fundo
     $ini.Columns.Item(1).ColumnWidth = 2.25

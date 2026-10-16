@@ -185,6 +185,8 @@ Private Sub Processar()
     For Each chave In deOutros.Keys
         AvisarFichas CStr(chave), deOutros(chave)
     Next chave
+    ' aba Planejamentos (fatia 4.8): uma consulta, so se ja foi carregada
+    If porTabela.Exists("visitas") Or porTabela.Exists("planejamentos") Then modAbaPlanejamentos.AtualizarPeloFeed
 End Sub
 
 '----------------------------------------------------------

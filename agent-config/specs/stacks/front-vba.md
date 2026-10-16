@@ -19,9 +19,11 @@ vínculo. O `.xlsm` **não é fonte**: é montado do zero pelo build a partir de
 src/BASE/SISTEMA/DADOS/fonte/
   modulos/*.bas        modConfig, modDB, modSchema, modCRM, modCalc, modValidacao, modGrade,
                        modPainel, modRelatorio, modAcoes, modLote, modMenu, modFeed, modTela,
+                       modListas, modVisita, modPlanejamento, modAbaPlanejamentos,
                        modAutoteste, modTema (GERADO)
   classes/*.cls        clsUI, clsBotao, clsGrade, clsLinhaGrade
-  formularios/*.txt    código de frmCRM, frmLote, frmVinculo, frmCalibracao
+  formularios/*.txt    código de frmCRM, frmLote, frmVinculo, frmCalibracao, frmListas,
+                       frmVisitas, frmPlanejamento, frmLancamento
   pasta-de-trabalho/ThisWorkbook.txt
   layout/              (ver visual-layout.md)
 ```
@@ -90,6 +92,19 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   desenvolvimento) falha em `EF BF BD` e em fonte com acento gravado em UTF-8.
 - Nome de variável do formulário encobre função do VBA: em `frmCRM`, `Mid$` é `mID` — use
   `VBA.Mid$`.
+- **ComboBox de lista fechada (`Style` = 2):** `Text = ""` ou texto fora da lista é o erro 380.
+  Valor sempre por `modTela.DefinirCombo cbo, valor` (vazio limpa; valor que saiu da lista entra
+  nela para continuar visível). Matriz para `clsGrade.Carregar` nunca com `ReDim (1 To 0)` (erro
+  9): lista vazia é `Clear`.
+- **Feed nas telas abertas:** `modFeed.AvisarFichas` chama `AvisoExterno(tabela, ids)` de
+  `frmCRM`, `frmVisitas` e `frmPlanejamento`. A tela recarrega só a lista (sem mexer no que está
+  sendo digitado) e avisa; a versão lida faz o Salvar recusar o que mudou por fora.
+- **Aba Planejamentos** (`modAbaPlanejamentos`, fora do `modGrade`): seletor em C4 (lista de
+  validação apontando para faixa oculta da própria aba), grade de visitas só leitura com `_id`,
+  aba protegida; duplo clique numa visita abre `frmLancamento`; o feed remonta a aba quando
+  `visitas` ou `planejamentos` mudam. Botões e logo vêm do build (`abas.json` › `planejamentos`).
+- **Cidade-base do planejamento:** `frmVinculo.EscolherMunicipio` (modo municipio, busca por
+  `modPlanejamento.ListarMunicipios`); com UF e um nome exato, a escolha é direta.
 
 ## Testes
 
