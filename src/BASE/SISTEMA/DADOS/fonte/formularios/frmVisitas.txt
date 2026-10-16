@@ -21,11 +21,19 @@ Private mOpo As Long          ' atendimento (oportunidades.id)
 Private mVisitas As Variant   ' linhas da grade: id, situacao, data, hora, tipo, resultado, versao
 Private mVisAtual As Long     ' id da visita na ficha (0 = nova)
 Private mVersaoAtual As Long
+Private mSilencio As Boolean  ' recarga do feed: mudar a selecao nao reescreve a ficha
 
 '----------------------------------------------------------
 ' Abre as visitas do atendimento. Chamado por frmCRM (cmdVisitas).
 '----------------------------------------------------------
 Public Sub Abrir(ByVal idOportunidade As Long)
+    Preparar idOportunidade
+    Me.Show
+End Sub
+
+' Carrega o atendimento sem mostrar a tela (Abrir mostra; o teste de uso
+' usa direto para conferir o feed sem janela modal).
+Public Sub Preparar(ByVal idOportunidade As Long)
     Dim d As Variant
     mOpo = idOportunidade
     d = modDB.Consultar("SELECT o.codigo, c.empresa FROM oportunidades o LEFT JOIN clientes c ON o.id_cliente = c.id " & _
@@ -34,7 +42,63 @@ Public Sub Abrir(ByVal idOportunidade As Long)
         lblAtend.Caption = "Atendimento " & modDB.Nz(d(1, 1)) & "  -  " & modDB.Nz(d(1, 2))
     End If
     Carregar 0
-    Me.Show
+End Sub
+
+' Linhas na grade agora (usado pelo teste de uso do feed).
+Public Property Get TotalNaLista() As Long
+    TotalNaLista = mGrade.ListCount
+End Property
+
+'----------------------------------------------------------
+' Feed (modFeed, fatia 3.3b): outra estacao ou a IA gravou em visitas.
+' Uma consulta diz se alguma das visitas e deste atendimento; se for,
+' a lista e recarregada sem mexer na ficha (o que esta sendo digitado
+' fica). A visita aberta alterada por outro so recebe aviso: o controle
+' de versao recusa o Salvar com a versao antiga.
+'----------------------------------------------------------
+Public Sub AvisoExterno(ByVal tabela As String, ByVal ids As Object)
+    Dim k As Variant, lista As String, n As Long
+    If tabela <> "visitas" Or mOpo = 0 Then Exit Sub
+    For Each k In ids.Keys
+        lista = lista & IIf(lista = "", "", ",") & CStr(CLng(k))
+    Next k
+    If lista = "" Then Exit Sub
+    ' ids sao numeros do proprio log (CLng acima): seguros no IN
+    n = CLng(modDB.ConsultarValor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND id IN (" & lista & ")", 0, _
+                                  Array(modDB.P(modDB.adInteger, mOpo))))
+    If n = 0 Then Exit Sub
+    RecarregarLista
+    lblStatus.Caption = ChrW$(&H25B2) & " Visitas alteradas em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA (" & _
+                        Format$(Now, "hh:nn") & ")." & _
+                        IIf(mVisAtual > 0 And ids.Exists(mVisAtual), " A visita aberta mudou: clique nela para ver a vers" & _
+                            ChrW$(&HE3) & "o atual.", "")
+    lblStatus.ForeColor = modTema.COR_ALERTA
+End Sub
+
+' Recarrega so a lista, devolvendo a selecao para a visita da ficha.
+Private Sub RecarregarLista()
+    Dim n As Long, m() As Variant, i As Long, pend As Long, alvo As Long
+    mVisitas = modDB.Consultar("SELECT id, situacao, data_agendada, hora_agendada, tipo, resultado, versao " & _
+                               "FROM visitas WHERE id_oportunidade=? ORDER BY IIf(situacao='PENDENTE', 0, 1), data_agendada, id", _
+                               Array(modDB.P(modDB.adInteger, mOpo)))
+    If IsEmpty(mVisitas) Then n = 0 Else n = UBound(mVisitas, 1)
+    alvo = -1
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 5)
+    For i = 1 To n
+        m(i, 1) = CStr(mVisitas(i, 2))
+        m(i, 2) = IIf(IsNull(mVisitas(i, 3)), "", Format$(mVisitas(i, 3), "dd/mm/yyyy"))
+        m(i, 3) = modDB.Nz(mVisitas(i, 4))
+        m(i, 4) = modDB.Nz(mVisitas(i, 5))
+        m(i, 5) = modDB.Nz(mVisitas(i, 6))
+        If CStr(mVisitas(i, 2)) = "PENDENTE" Then pend = pend + 1
+        If CLng(mVisitas(i, 1)) = mVisAtual Then alvo = i - 1
+    Next i
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
+    lblResumo.Caption = n & " visita(s)  -  " & pend & " pendente(s)"
+    mSilencio = True
+    If alvo >= 0 Then mGrade.ListIndex = alvo
+    mSilencio = False
+    Repintar
 End Sub
 
 Private Sub UserForm_Initialize()
@@ -81,6 +145,7 @@ Public Sub UI_Acao(ByVal nome As String)
 End Sub
 
 Public Sub UI_GradeClique(ByVal nome As String)
+    If mSilencio Then Exit Sub
     If mGrade.ListIndex < 0 Then Exit Sub
     Mostrar mGrade.ListIndex
     Repintar

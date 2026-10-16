@@ -86,6 +86,38 @@ Public Sub UI_GradeDuploClique(ByVal nome As String)
     If mPagina = "VISITAS" Then cmdLancar_Click
 End Sub
 
+'----------------------------------------------------------
+' Feed (modFeed): outra estacao ou a IA gravou. Visitas deste
+' planejamento recarregam a pagina Visitas (a de Candidatos so avisa:
+' recalcular os candidatos e caro e apagaria a leitura do usuario);
+' o proprio planejamento alterado so recebe aviso, porque o cabecalho
+' pode estar sendo editado e a versao lida faz o Salvar recusar.
+'----------------------------------------------------------
+Public Sub AvisoExterno(ByVal tabela As String, ByVal ids As Object)
+    Dim k As Variant, lista As String, n As Long, aviso As String
+    If mIdPl = 0 Then Exit Sub
+    If tabela = "planejamentos" Then
+        If Not ids.Exists(mIdPl) Then Exit Sub
+        aviso = "Este planejamento foi alterado em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA (" & _
+                Format$(Now, "hh:nn") & "). Escolha-o de novo no seletor para ver a vers" & ChrW$(&HE3) & "o atual."
+    ElseIf tabela = "visitas" Then
+        For Each k In ids.Keys
+            lista = lista & IIf(lista = "", "", ",") & CStr(CLng(k))
+        Next k
+        If lista = "" Then Exit Sub
+        ' ids sao numeros do proprio log (CLng acima): seguros no IN
+        n = CLng(modDB.ConsultarValor("SELECT COUNT(*) FROM visitas WHERE id_planejamento=? AND id IN (" & lista & ")", 0, _
+                                      Array(modDB.P(modDB.adInteger, mIdPl))))
+        If n = 0 Then Exit Sub
+        If mPagina = "VISITAS" Then RecarregarPagina
+        aviso = n & " visita(s) deste planejamento alterada(s) em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA (" & _
+                Format$(Now, "hh:nn") & ")."
+    Else
+        Exit Sub
+    End If
+    lblPagina.Caption = ChrW$(&H25B2) & " " & aviso
+End Sub
+
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     mUI.Soltar
 End Sub

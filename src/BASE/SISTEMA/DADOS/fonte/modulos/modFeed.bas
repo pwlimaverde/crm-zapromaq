@@ -203,13 +203,17 @@ Private Sub AtualizarAba(ByVal tabela As String, ByVal ids As Object)
     Next ws
 End Sub
 
+' Telas abertas que sabem receber o aviso: a ficha (frmCRM), as visitas
+' do atendimento (frmVisitas) e o planejamento (frmPlanejamento). Cada
+' uma decide o que fazer com a tabela e os ids (fatia 3.3b).
 Private Sub AvisarFichas(ByVal tabela As String, ByVal ids As Object)
     Dim f As Object
     For Each f In VBA.UserForms
-        If TypeName(f) = "frmCRM" Then
-            On Error Resume Next
-            f.AvisoExterno tabela, ids
-            On Error GoTo 0
-        End If
+        Select Case TypeName(f)
+            Case "frmCRM", "frmVisitas", "frmPlanejamento"
+                On Error Resume Next
+                f.AvisoExterno tabela, ids
+                On Error GoTo 0
+        End Select
     Next f
 End Sub

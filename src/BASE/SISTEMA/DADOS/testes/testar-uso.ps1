@@ -321,9 +321,88 @@ End Function
     [void]$xl.Run($tv + 'modDB.Executar', "UPDATE oportunidades SET observacoes=?, ultima_interacao=?, versao=? WHERE id=?", $pRest)
     [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogV2)
 
+    # Fase 3.3b: outra estacao grava uma visita; a tela de visitas aberta (carregada sem
+    # Show, para nao travar numa janela modal) so ganha a linha quando o feed processa o log
+    $mfv = $wb.VBProject.VBComponents.Add(1); $mfv.Name = 'modTesteFeedVisita'
+    $mfv.CodeModule.AddFromString(@'
+Option Explicit
+' devolve "antes|sem feed|depois do feed|id da visita"
+Public Function FeedVisitas(ByVal idOpo As Long) As String
+    Dim f As frmVisitas, n1 As Long, n2 As Long, n3 As Long, cn As Object, id As Long
+    modFeed.ProcessarAgora
+    Set f = New frmVisitas
+    f.Preparar idOpo
+    n1 = f.TotalNaLista
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    id = modDB.InserirEm(cn, "INSERT INTO visitas (id_oportunidade, situacao, versao, criado_em, alterado_em, alterado_por) VALUES (?,'PENDENTE',1,?,?,?)", _
+                         Array(modDB.P(modDB.adInteger, idOpo), modDB.P(modDB.adDate, Now), modDB.P(modDB.adDate, Now), _
+                               modDB.P(modDB.adVarWChar, "OUTRA ESTACAO")))
+    modDB.ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+        Array(modDB.P(modDB.adVarWChar, "visitas"), modDB.P(modDB.adInteger, id), modDB.P(modDB.adVarWChar, "situacao"), _
+              modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "PENDENTE"), _
+              modDB.P(modDB.adVarWChar, "INSERIR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), _
+              modDB.P(modDB.adDate, Now), modDB.P(modDB.adVarWChar, "IA"))
+    modDB.Confirmar cn
+    n2 = f.TotalNaLista
+    modFeed.ProcessarAgora
+    n3 = f.TotalNaLista
+    Unload f
+    FeedVisitas = n1 & "|" & n2 & "|" & n3 & "|" & id
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    Unload f
+    FeedVisitas = "erro " & Err.Description
+End Function
+
+' outra estacao (origem IA) grava uma visita pendente no planejamento, com o log
+Public Function OutraVisita(ByVal idOpo As Long, ByVal idPl As Long) As Long
+    Dim cn As Object, id As Long
+    Set cn = modDB.AbrirTransacao()
+    On Error GoTo Falha
+    id = modDB.InserirEm(cn, "INSERT INTO visitas (id_oportunidade, id_planejamento, situacao, versao, criado_em, alterado_em, alterado_por) VALUES (?,?,'PENDENTE',1,?,?,?)", _
+                         Array(modDB.P(modDB.adInteger, idOpo), modDB.P(modDB.adInteger, idPl), modDB.P(modDB.adDate, Now), _
+                               modDB.P(modDB.adDate, Now), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO")))
+    modDB.ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+        Array(modDB.P(modDB.adVarWChar, "visitas"), modDB.P(modDB.adInteger, id), modDB.P(modDB.adVarWChar, "situacao"), _
+              modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "PENDENTE"), _
+              modDB.P(modDB.adVarWChar, "INSERIR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), _
+              modDB.P(modDB.adDate, Now), modDB.P(modDB.adVarWChar, "IA"))
+    modDB.Confirmar cn
+    OutraVisita = id
+    Exit Function
+Falha:
+    modDB.Desfazer cn
+    OutraVisita = -1
+End Function
+'@)
+    $maxLogFV = [int]$xl.Run($tv + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
+    $rfv = [string]$xl.Run($tv + 'modTesteFeedVisita.FeedVisitas', $idOpV)
+    $pfv = $rfv -split '\|'
+    Conferir 'feed de visitas: a outra estacao gravou a visita' ($pfv.Count -eq 4 -and [int]$pfv[3] -gt 0) $rfv
+    if ($pfv.Count -eq 4) {
+        Conferir 'feed de visitas: antes de processar o log, a tela aberta nao muda' ([int]$pfv[1] -eq [int]$pfv[0]) $rfv
+        Conferir 'feed de visitas: depois do feed, a tela aberta mostra a visita nova' ([int]$pfv[2] -eq [int]$pfv[0] + 1) $rfv
+    }
+    # volta: a visita e o log criados pelo teste
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM visitas WHERE id_oportunidade=" + $idOpV)
+    [void]$xl.Run($tv + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogFV)
+
     # Fase 4.3a: gravacao de planejamento pelo front (C14, C16, reabrir), com volta ao estado original
     $tp4 = "'" + $n + "'!"
     $cidP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'", 0)
+    # Fase 4.7d: busca da cidade-base (frmVinculo modo municipio) pela chave do nome
+    $lm = $xl.Run($tp4 + 'modPlanejamento.ListarMunicipios', 'curitiba/pr')
+    $nLm = if ($lm -is [array]) { $lm.GetLength(0) } else { 0 }
+    $iEx = if ($nLm -gt 0) { [int]$xl.Run($tp4 + 'modPlanejamento.MunicipioExato', $lm, 'curitiba/pr') } else { 0 }
+    $codEx = if ($iEx -gt 0) { [int]$lm.GetValue($iEx, 1) } else { 0 }
+    Conferir 'municipios: Curitiba/PR achada pela chave e escolhida direto (nome exato)' ($nLm -ge 1 -and $codEx -eq $cidP) ('linhas=' + $nLm + ' exata=' + $iEx + ' cod=' + $codEx)
+    $lm2 = $xl.Run($tp4 + 'modPlanejamento.ListarMunicipios', 'curiti')
+    $nLm2 = if ($lm2 -is [array]) { $lm2.GetLength(0) } else { 0 }
+    Conferir 'municipios: parte do nome sem UF traz a lista (Curitiba e outras)' ($nLm2 -ge 2) ('linhas=' + $nLm2)
+    $lz = $xl.Run($tp4 + 'modPlanejamento.ListarMunicipios', 'XYZXYZ')
+    Conferir 'municipios: busca sem resultado vem vazia' (-not ($lz -is [array]))
     $maxLogP = [int]$xl.Run($tp4 + 'modDB.ConsultarValor', "SELECT MAX(id) FROM log_alteracoes", 0)
     $rp0 = [string]$xl.Run($tp4 + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT PLAN', $cidP, 0, [datetime]'2026-10-20', [datetime]'2026-10-30', '')
     Conferir 'planejamento: raio 0 é recusado (C14)' ($rp0 -match 'C14') $rp0
