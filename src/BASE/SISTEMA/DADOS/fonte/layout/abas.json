@@ -24,6 +24,10 @@
       "novaFicha": "NovoAtendimento"
     },
     {
+      "nome": "Planejamentos",
+      "visivel": -1
+    },
+    {
       "nome": "Painel",
       "visivel": -1
     },
@@ -93,8 +97,8 @@
           "cor": "@azul"
         },
         {
-          "texto": "Planejamento",
-          "macro": "AbrirPlanejamento",
+          "texto": "Planejamentos",
+          "macro": "GradePlanejamentos",
           "cor": "@verdeBotao"
         },
         {
@@ -180,6 +184,39 @@
     },
     "banco": "B2",
     "ambiente": "B3"
+  },
+  "planejamentos": {
+    "_sobre": "Aba Planejamentos (fatia 4.8): logo, título e botões; o seletor em C4 e a grade de visitas são desenhados pelo modAbaPlanejamentos a cada montagem.",
+    "botoes": {
+      "pos": [
+        12,
+        36,
+        112,
+        26
+      ],
+      "passo": 118,
+      "itens": [
+        {
+          "texto": "Abrir planejamento",
+          "macro": "PlanejamentosAbrirForm",
+          "cor": "@verdeBotao"
+        },
+        {
+          "texto": "Atualizar",
+          "macro": "PlanejamentosAtualizar",
+          "cor": "@azul"
+        },
+        {
+          "texto": "Inicio",
+          "macro": "GradeVoltar",
+          "cor": "@texto2"
+        }
+      ]
+    },
+    "aviso": {
+      "celula": "B5",
+      "texto": "Clique em Atualizar para carregar os planejamentos."
+    }
   },
   "painel": {
     "_sobre": "Botões da aba Painel (o conteúdo é desenhado pelo modPainel a cada atualização, da linha 4 para baixo).",

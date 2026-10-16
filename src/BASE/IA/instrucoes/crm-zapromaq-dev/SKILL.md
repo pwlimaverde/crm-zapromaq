@@ -46,6 +46,16 @@ Onde ficam as coisas:
 | Regras de negócio e consultas | `modulos\modCRM.bas` |
 | Campos calculados (situação, dias parado) | `modulos\modCalc.bas` |
 | Normalização na gravação | `modulos\modValidacao.bas` |
+| Abas, botões do Início e das abas | `layout\abas.json` |
+| Listas suspensas e papel das etapas (regras C02 a C05) | `modulos\modListas.bas` (tela `frmListas`) |
+| Visitas do atendimento (regras V2 a V8) | `modulos\modVisita.bas` (telas `frmVisitas`, `frmLancamento`) |
+| Planejamento, candidatos, roteiro CSV, busca de município | `modulos\modPlanejamento.bas` (tela `frmPlanejamento`) |
+| Aba Planejamentos (seletor em C4, grade de visitas) | `modulos\modAbaPlanejamentos.bas` |
+| Atualização automática das telas e abas abertas | `modulos\modFeed.bas` |
+
+O papel das etapas (encerra, resultado, quadro, exige família) vem das colunas da tabela
+`listas` (esquema 1.1): nenhuma regra compara o texto da etapa. Contrato completo do banco
+1.1 em `SISTEMA\DADOS\docs\contrato-banco.md`.
 
 Regras do VBA que o conector já cobre, mas que mudam como você escreve:
 Windows-1252 (caractere fora da página é recusado — use `ChrW$(&H2192)`),

@@ -96,7 +96,7 @@ Private Function Carregar() As Boolean
     mResp = modDB.Nz(d(1, 10))
     mObs = modDB.Nz(d(1, 11))
     lblLVisita.Caption = "Visita " & mVisita & "  -  " & modDB.Nz(d(1, 12)) & "  -  " & modDB.Nz(d(1, 13))
-    cboLSit.Text = sit
+    modTela.DefinirCombo cboLSit, sit
     If IsNull(d(1, 7)) Then
         txtLData.Text = IIf(IsNull(mDataAg), "", Format$(mDataAg, "yyyy-mm-dd"))
         txtLHora.Text = mHora
@@ -104,8 +104,8 @@ Private Function Carregar() As Boolean
         txtLData.Text = Format$(d(1, 7), "yyyy-mm-dd")
         txtLHora.Text = Format$(d(1, 7), "hh:nn")
     End If
-    cboLTipo.Text = modDB.Nz(d(1, 4))
-    cboLRes.Text = modDB.Nz(d(1, 5))
+    modTela.DefinirCombo cboLTipo, modDB.Nz(d(1, 4))
+    modTela.DefinirCombo cboLRes, modDB.Nz(d(1, 5))
     If sit = "CANCELADA" Then txtLRelato.Text = modDB.Nz(d(1, 9)) Else txtLRelato.Text = modDB.Nz(d(1, 8))
     lblStatus.Caption = "Versao " & mVersao & "."
     Repintar

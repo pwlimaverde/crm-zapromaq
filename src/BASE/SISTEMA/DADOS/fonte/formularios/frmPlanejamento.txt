@@ -86,6 +86,38 @@ Public Sub UI_GradeDuploClique(ByVal nome As String)
     If mPagina = "VISITAS" Then cmdLancar_Click
 End Sub
 
+'----------------------------------------------------------
+' Feed (modFeed): outra estacao ou a IA gravou. Visitas deste
+' planejamento recarregam a pagina Visitas (a de Candidatos so avisa:
+' recalcular os candidatos e caro e apagaria a leitura do usuario);
+' o proprio planejamento alterado so recebe aviso, porque o cabecalho
+' pode estar sendo editado e a versao lida faz o Salvar recusar.
+'----------------------------------------------------------
+Public Sub AvisoExterno(ByVal tabela As String, ByVal ids As Object)
+    Dim k As Variant, lista As String, n As Long, aviso As String
+    If mIdPl = 0 Then Exit Sub
+    If tabela = "planejamentos" Then
+        If Not ids.Exists(mIdPl) Then Exit Sub
+        aviso = "Este planejamento foi alterado em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA (" & _
+                Format$(Now, "hh:nn") & "). Escolha-o de novo no seletor para ver a vers" & ChrW$(&HE3) & "o atual."
+    ElseIf tabela = "visitas" Then
+        For Each k In ids.Keys
+            lista = lista & IIf(lista = "", "", ",") & CStr(CLng(k))
+        Next k
+        If lista = "" Then Exit Sub
+        ' ids sao numeros do proprio log (CLng acima): seguros no IN
+        n = CLng(modDB.ConsultarValor("SELECT COUNT(*) FROM visitas WHERE id_planejamento=? AND id IN (" & lista & ")", 0, _
+                                      Array(modDB.P(modDB.adInteger, mIdPl))))
+        If n = 0 Then Exit Sub
+        If mPagina = "VISITAS" Then RecarregarPagina
+        aviso = n & " visita(s) deste planejamento alterada(s) em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA (" & _
+                Format$(Now, "hh:nn") & ")."
+    Else
+        Exit Sub
+    End If
+    lblPagina.Caption = ChrW$(&H25B2) & " " & aviso
+End Sub
+
 Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     mUI.Soltar
 End Sub
@@ -135,7 +167,7 @@ Private Sub Mostrar(ByVal id As Long)
     txtRaio.Text = CStr(d(1, 4))
     txtInicio.Text = Format$(d(1, 5), "yyyy-mm-dd")
     txtFim.Text = Format$(d(1, 6), "yyyy-mm-dd")
-    cboResp.Text = modDB.Nz(d(1, 7))
+    modTela.DefinirCombo cboResp, modDB.Nz(d(1, 7))
     txtObs.Text = modDB.Nz(d(1, 8))
     mSit = CStr(d(1, 9))
     mVersao = CLng(d(1, 10))
@@ -158,7 +190,7 @@ Private Sub Novo()
     txtRaio.Text = ""
     txtInicio.Text = ""
     txtFim.Text = ""
-    cboResp.Text = ""
+    modTela.DefinirCombo cboResp, ""
     txtObs.Text = ""
     lblSituacao.Caption = "NOVO"
     cmdEncerrar.Caption = "Encerrar"
@@ -219,28 +251,32 @@ Private Sub cmdSalvar_Click()
     Mostrar novoId
 End Sub
 
-' Cidade-base: 'Nome/UF'. Acha uma cidade; se nao achar ou achar mais de uma, avisa.
+' Cidade-base: 'Nome' ou 'Nome/UF', em qualquer parte do nome. Com UF e um so nome
+' exato, escolhe direto; senao abre a lista de municipios (frmVinculo modo municipio).
 Private Sub cmdCidade_Click()
-    Dim texto As String, partes As Variant, nome As String, uf As String, d As Variant
+    Dim texto As String, d As Variant, i As Long, f As frmVinculo, cod As Long
     texto = Trim$(txtCidade.Text)
-    partes = Split(texto, "/")
-    If UBound(partes) <> 1 Then
-        MsgBox "Informe a cidade e a UF, como Curitiba/PR.", vbExclamation, "CRM Zapromaq"
+    d = modPlanejamento.ListarMunicipios(texto)
+    If InStr(texto, "/") > 0 Then i = modPlanejamento.MunicipioExato(d, texto)
+    If i = 0 And Not IsEmpty(d) Then
+        If UBound(d, 1) = 1 Then i = 1
+    End If
+    If i > 0 Then
+        DefinirCidade CLng(d(i, 1)), CStr(d(i, 2)), CStr(d(i, 3))
         Exit Sub
     End If
-    nome = Trim$(partes(0))
-    uf = UCase$(Trim$(partes(1)))
-    d = modDB.Consultar("SELECT cod_ibge, nome, uf FROM municipios WHERE uf=? AND nome_busca=?", _
-                        Array(modDB.P(modDB.adVarWChar, uf), modDB.P(modDB.adVarWChar, modPlanejamento.NomeBusca(nome))))
-    If IsEmpty(d) Then
-        MsgBox "Cidade nao encontrada em " & uf & ". Confira o nome e a UF.", vbExclamation, "CRM Zapromaq"
-    ElseIf UBound(d, 1) > 1 Then
-        MsgBox "Ha mais de uma cidade com esse nome em " & uf & ".", vbExclamation, "CRM Zapromaq"
-    Else
-        mCodMun = CLng(d(1, 1))
-        txtCidade.Text = CStr(d(1, 2)) & "/" & CStr(d(1, 3))
-        lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
-    End If
+    Set f = New frmVinculo
+    If f.EscolherMunicipio(texto) Then cod = f.IdEscolhido
+    Unload f
+    If cod = 0 Then Exit Sub
+    d = modDB.Consultar("SELECT cod_ibge, nome, uf FROM municipios WHERE cod_ibge=?", Array(modDB.P(modDB.adInteger, cod)))
+    If Not IsEmpty(d) Then DefinirCidade CLng(d(1, 1)), CStr(d(1, 2)), CStr(d(1, 3))
+End Sub
+
+Private Sub DefinirCidade(ByVal cod As Long, ByVal nome As String, ByVal uf As String)
+    mCodMun = cod
+    txtCidade.Text = nome & "/" & uf
+    lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
 End Sub
 
 ' Encerrar (ou reabrir). C16: encerrar com visitas pendentes pede para cancela-las.
@@ -322,7 +358,8 @@ Private Sub CarregarVisitas()
                         "WHERE v.id_planejamento=? ORDER BY IIf(v.situacao='PENDENTE', 0, 1), v.data_agendada, v.id", _
                         Array(modDB.P(modDB.adInteger, mIdPl)))
     If IsEmpty(d) Then n = 0 Else n = UBound(d, 1)
-    ReDim m(1 To n, 1 To 6)
+    ' ReDim (1 To 0) e erro 9: planejamento sem visita tem a grade vazia
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 6)
     ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
     For i = 1 To n
         mIdsGrade(i - 1) = CLng(d(i, 1))
@@ -334,7 +371,7 @@ Private Sub CarregarVisitas()
         m(i, 6) = modDB.Nz(d(i, 7))
         If CStr(d(i, 2)) = "PENDENTE" Then pend = pend + 1
     Next i
-    mGrade.Carregar m
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
     lblPagina.Caption = n & " visita(s), " & pend & " pendente(s). Duplo clique ou Lancar visita para registrar."
 End Sub
 
@@ -344,7 +381,7 @@ Private Sub CarregarCandidatos()
     mGrade.Cabecalho Array("Marca", "Atendimento", "Empresa", "Cidade/UF", "Km", "Dias")
     c = modPlanejamento.Candidatos(mIdPl)
     If IsEmpty(c) Then n = 0 Else n = UBound(c, 1)
-    ReDim m(1 To n, 1 To 6)
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 6)
     ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
     ReDim mOpoGrade(0 To IIf(n > 0, n - 1, 0))
     For i = 1 To n
@@ -360,7 +397,7 @@ Private Sub CarregarCandidatos()
         m(i, 5) = Format$(c(i, 7), "0.0")
         m(i, 6) = modDB.Nz(c(i, 8))
     Next i
-    mGrade.Carregar m
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
     lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * ja tem visita pendente."
 End Sub
 

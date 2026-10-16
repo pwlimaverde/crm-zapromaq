@@ -1,3 +1,19 @@
+## Visitas, planejamentos, municípios e listas — esquema 1.1 (spec 003)
+
+O conector de dados passa de 25 para **41 ferramentas** (`instalar-mcp.ps1` anuncia 41).
+Novas: `listar_planejamentos`, `obter_planejamento`, `criar_planejamento`,
+`atualizar_planejamento`, `alterar_situacao_planejamento`, `listar_candidatos`,
+`gerar_visitas`, `listar_visitas`, `criar_visita`, `atualizar_visita`, `lancar_datas`,
+`lancar_resultados`, `alterar_situacao_visita`, `exportar_roteiro`, `buscar_municipios`,
+`resolver_cidade`. Alteradas: `gerenciar_lista` (`incluir`, `ativar`, `desativar`, `ordenar`,
+`definir_papel`), `listar_opcoes` (`detalhar`), `obter_atendimento` (resumo de visitas),
+`crm_status` (esquemas) e `exportar_base` (`planejamentos`, `visitas`, `municipios`).
+O servidor aceita os esquemas 1.0 e 1.1 (`EsquemasSuportados` em `lib\Banco.ps1`); as
+tabelas novas e o papel das etapas na lista estão em `SISTEMA\DADOS\docs\contrato-banco.md`
+(seção 8). Lotes (`gerar_visitas`, `lancar_datas`, `lancar_resultados`): até 100 itens,
+`simular` padrão `true`, tudo ou nada. Depois de levar a base: fechar e abrir o Claude
+Desktop e reinstalar a skill a partir de `instrucoes\crm-zapromaq.zip`.
+
 ## Ajuste de atendimentos_por_proxima_acao — 28/09/2026 (1.4.1)
 
 Teste real da 1.4.0: páginas de 54 a 60 mil caracteres passam do que o cliente
@@ -143,7 +159,7 @@ IA\
     lib\Protocolo.ps1     núcleo do protocolo MCP (dual-era), usado pelos dois servidores
     lib\Banco.ps1         conexão curta, parâmetros tipados, transação, log
     lib\Regras.ps1        normalização e campos calculados — espelho do front
-    lib\Ferramentas.ps1   catálogo fechado de operações (25 ferramentas)
+    lib\Ferramentas.ps1   catálogo fechado de operações (41 ferramentas)
   mcp-dev\
     servidor-dev.ps1      MCP de desenvolvimento: fontes do front, prévia, montagem
     lib\Catalogo.ps1       catálogo fechado (15 ferramentas)
@@ -185,7 +201,7 @@ Windows PowerShell 5.1 que já vem no Windows. Exige **Office 64 bits** (ou o
    (`TESTAR-MCP.bat -SoProtocolo` testa só o protocolo, sem banco.)
 4. `IA\INSTALAR-MCP.bat` — registra o servidor. Feche o Claude Desktop por completo
    (inclusive o ícone perto do relógio) e abra de novo.
-5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 11 ferramentas.
+5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 41 ferramentas.
 6. Instale a skill (conforme a documentação do Claude, em `doc_dev`):
    - ligue **Code execution and file creation** em **Settings › Capabilities**
      (skills dependem disso; em plano Team/Enterprise, o administrador liga em

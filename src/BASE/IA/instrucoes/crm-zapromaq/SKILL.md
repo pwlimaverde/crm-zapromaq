@@ -1,6 +1,6 @@
 ---
 name: crm-zapromaq
-description: Consulta e mantém todo o CRM Comercial Zapromaq (clientes, contatos, atendimentos AT-0000-0000, listas e metas) pelas ferramentas do conector crm-zapromaq. Use quando o usuário pedir para ver, procurar, conferir ou alterar dados do CRM, atualizar etapa, próxima ação ou valor de um atendimento, corrigir cadastro de cliente, cadastrar, alterar, transferir ou desativar contato, cadastrar, promover, desativar ou excluir empresa, abrir atendimento, manter listas suspensas e metas, ou registrar o resumo de contexto de um cliente ou atendimento.
+description: Consulta e mantém todo o CRM Comercial Zapromaq (clientes, contatos, atendimentos AT-0000-0000, visitas, planejamentos por região PL-AAAA-NNN, listas e metas) pelas ferramentas do conector crm-zapromaq. Use quando o usuário pedir para ver, procurar, conferir ou alterar dados do CRM, atualizar etapa, próxima ação ou valor de um atendimento, corrigir cadastro de cliente, cadastrar, alterar, transferir ou desativar contato, cadastrar, promover, desativar ou excluir empresa, abrir atendimento, agendar, realizar ou cancelar visita, montar um planejamento por região e o roteiro, manter listas suspensas e metas, ou registrar o resumo de contexto de um cliente ou atendimento.
 ---
 
 # CRM Comercial Zapromaq
@@ -40,6 +40,10 @@ de esquema que este conector não conhece: faça só leituras e avise o usuário
 | Metas mensais | `listar_metas` |
 | Quem alterou o quê | `ultimas_alteracoes` |
 | Extrato da base inteira para análise por script | `exportar_base` |
+| Visitas (de um atendimento, de um planejamento ou por situação) | `listar_visitas` |
+| Planejamentos por região | `listar_planejamentos`, `obter_planejamento` (id ou `PL-AAAA-NNN`) |
+| Atendimentos candidatos a visita perto de uma cidade | `listar_candidatos` |
+| Código IBGE de uma cidade | `buscar_municipios`, `resolver_cidade` |
 
 A **situação** (Ação atrasada, Retomar hoje, Ação nesta semana, Em dia, Sem próxima
 ação, Encerrado) é calculada com a mesma regra da planilha.
@@ -134,7 +138,7 @@ conversa: quem lê e calcula é o script. Não altera o banco.
 | Parâmetro | Uso |
 |---|---|
 | `destino` | Obrigatório. Pasta relativa a `1 - COMERCIAL ZAPROMAQ`, sem letra de unidade; precisa existir. `01 - CRM\01 - CONTROLE` é recusado. |
-| `tabelas` | Opcional: `clientes`, `contatos`, `oportunidades`, `log_alteracoes`, `listas`, `metas`. Padrão: as três primeiras. |
+| `tabelas` | Opcional: `clientes`, `contatos`, `oportunidades`, `log_alteracoes`, `listas`, `metas`, `planejamentos`, `visitas`, `municipios`. Padrão: as três primeiras. |
 
 Formato: UTF-8, separador vírgula, todo campo entre aspas (texto com quebra
 de linha fica dentro das aspas) — o formato que os scripts do padrão leem, datas `AAAA-MM-DD` ou `AAAA-MM-DDTHH:MM:SS`,
@@ -195,6 +199,42 @@ Regras que o conector confere e recusa com mensagem:
 - **Trocar o contato:** `atualizar_atendimento` com `codigo_contato` — só contato ativo da mesma empresa.
 - Atendimento não se exclui nem desativa: encerra-se pela etapa (Pedido Fechado, Perdido, Descartado).
 
+## Visitas
+
+O banco precisa estar no esquema 1.1 (`crm_status`). Um atendimento tem 0 a N visitas; a
+situação gravada é PENDENTE, REALIZADA ou CANCELADA (a planilha mostra a pendente sem data como
+A AGENDAR e com data como AGENDADA).
+
+- **Criar:** `criar_visita` com o `codigo` do atendimento (PENDENTE). Recusa atendimento
+  encerrado (etapa que encerra) e segunda visita pendente no mesmo atendimento. Com
+  `id_planejamento`, a data tem de cair no período do planejamento. `tipo` vem da lista
+  `TipoVisita`; `resultado`, da lista `ResultadoVisita` (`listar_opcoes`).
+- **Realizar ou cancelar:** `alterar_situacao_visita` (ou `atualizar_visita` para outros campos)
+  com a `versao` lida em `listar_visitas`. REALIZADA exige `data_realizada` e `relato` (o
+  `alterar_situacao_visita` pede também `resultado`) e grava,
+  na mesma transação, a linha `VISITA dd/MM/aaaa HH:mm - ...` no histórico do atendimento e a
+  última interação dele. CANCELADA exige `motivo_cancelamento`. Visita não se exclui.
+- `obter_atendimento` traz o resumo das visitas do atendimento.
+
+## Planejamento por região
+
+1. Ache a cidade-base: `resolver_cidade` (nome + UF) ou `buscar_municipios`; use o código IBGE.
+2. `criar_planejamento`: descrição, `cod_municipio`, `raio_km` de 1 a 500 e período
+   (`data_inicio` até `data_fim`). O código `PL-AAAA-NNN` é gerado e não muda.
+3. `listar_candidatos`: atendimentos em aberto até o raio, na ordem de visita (qualificação, dias
+   parado, km); cidades não reconhecidas vêm à parte.
+4. `gerar_visitas` com os códigos escolhidos: primeiro com `simular` (padrão `true`), mostre o
+   resultado ao usuário e só então repita com `simular=false`. Se um atendimento for recusado,
+   nada é gravado. Até 100 por chamada.
+5. `exportar_roteiro`: grava o CSV em `Documentos\CRM Zapromaq\Roteiros` (linha BASE e uma por
+   visita pendente) e devolve só o caminho e o total. A ordem do roteiro não volta ao sistema.
+6. `lancar_datas` e `lancar_resultados` em lote (até 100, cada item com `id` e `versao` lidas;
+   `simular` padrão `true`, tudo ou nada).
+7. `alterar_situacao_planejamento`: encerrar com visitas pendentes é recusado, salvo
+   `cancelar_pendentes=true` (confirme com o usuário: cancela as pendentes com o motivo
+   "planejamento encerrado"). Reabrir volta para ABERTO. `atualizar_planejamento` só altera
+   planejamento ABERTO.
+
 ## Listas e metas
 
 - `gerenciar_lista`: `incluir`, `ativar`, `desativar`, `ordenar` ou `definir_papel` (só na lista
@@ -209,7 +249,9 @@ Regras que o conector confere e recusa com mensagem:
 ## O que confirmar sempre com o usuário antes de gravar
 
 Promoção de pré-cliente, desativação ou exclusão de empresa, desativação de contato,
-alteração de lista e de meta. Mostre o valor atual e o novo.
+alteração de lista e de meta, gravação em lote (`gerar_visitas`, `lancar_datas`,
+`lancar_resultados` com `simular=false`) e encerramento de planejamento com pendentes.
+Mostre o valor atual e o novo.
 
 ## Contexto do cliente e do atendimento
 
