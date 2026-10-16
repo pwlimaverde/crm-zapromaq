@@ -87,3 +87,26 @@ Public Function Diagnostico(ByVal frm As Object) As String
                   " pt | " & DPI() & " dpi | area util " & Format$(w, "0") & " x " & Format$(h, "0") & _
                   " pt | zoom " & frm.Zoom
 End Function
+
+'----------------------------------------------------------
+' Valor numa ComboBox de lista fechada (Style = 2). Nela,
+' Text = "" ou um texto fora da lista e o erro 380 ("valor de
+' propriedade invalido"): a tela de visitas quebrava ao abrir
+' um atendimento sem visita. Vazio limpa a escolha; valor que
+' saiu da lista (desativado) entra nela para continuar visivel.
+'----------------------------------------------------------
+Public Sub DefinirCombo(ByVal cbo As Object, ByVal valor As String)
+    Dim i As Long
+    If valor = "" Then
+        cbo.ListIndex = -1
+        Exit Sub
+    End If
+    For i = 0 To cbo.ListCount - 1
+        If CStr(cbo.List(i, 0)) = valor Then
+            cbo.ListIndex = i
+            Exit Sub
+        End If
+    Next i
+    cbo.AddItem valor
+    cbo.ListIndex = cbo.ListCount - 1
+End Sub

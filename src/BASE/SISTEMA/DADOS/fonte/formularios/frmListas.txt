@@ -149,13 +149,13 @@ Private Sub AtualizarPapel()
     cmdSalvarPapel.Enabled = etapa
     If i = 0 Then
         chkEncerra.Value = False
-        cboResultado.Text = ""
-        cboQuadro.Text = ""
+        modTela.DefinirCombo cboResultado, ""
+        modTela.DefinirCombo cboQuadro, ""
         chkFamilia.Value = False
     Else
         chkEncerra.Value = Booleano(mLinhas(i, 5))
-        cboResultado.Text = modDB.Nz(mLinhas(i, 6))
-        cboQuadro.Text = modDB.Nz(mLinhas(i, 7), "FUNIL")
+        modTela.DefinirCombo cboResultado, modDB.Nz(mLinhas(i, 6))
+        modTela.DefinirCombo cboQuadro, modDB.Nz(mLinhas(i, 7), "FUNIL")
         chkFamilia.Value = Booleano(mLinhas(i, 8))
     End If
     If etapa Then

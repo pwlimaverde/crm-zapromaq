@@ -99,7 +99,8 @@ Private Sub Carregar(ByVal posicao As Long)
                                "FROM visitas WHERE id_oportunidade=? ORDER BY IIf(situacao='PENDENTE', 0, 1), data_agendada, id", _
                                Array(modDB.P(modDB.adInteger, mOpo)))
     If IsEmpty(mVisitas) Then n = 0 Else n = UBound(mVisitas, 1)
-    ReDim m(1 To n, 1 To 5)
+    ' ReDim (1 To 0) e erro 9: atendimento sem visita tem a lista vazia
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 5)
     For i = 1 To n
         m(i, 1) = CStr(mVisitas(i, 2))
         m(i, 2) = IIf(IsNull(mVisitas(i, 3)), "", Format$(mVisitas(i, 3), "dd/mm/yyyy"))
@@ -108,7 +109,7 @@ Private Sub Carregar(ByVal posicao As Long)
         m(i, 5) = modDB.Nz(mVisitas(i, 6))
         If CStr(mVisitas(i, 2)) = "PENDENTE" Then pend = pend + 1
     Next i
-    mGrade.Carregar m
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
     lblResumo.Caption = n & " visita(s)  -  " & pend & " pendente(s)"
     If n = 0 Then
         Novo
@@ -131,12 +132,12 @@ Private Sub Mostrar(ByVal posicao As Long)
     mVisAtual = CLng(mVisitas(i, 1))
     mVersaoAtual = CLng(mVisitas(i, 7))
     cboSituacao.Enabled = True
-    cboSituacao.Text = CStr(mVisitas(i, 2))
+    modTela.DefinirCombo cboSituacao, CStr(mVisitas(i, 2))
     txtDataAg.Text = Iso(mVisitas(i, 3), False)
     txtHora.Text = modDB.Nz(mVisitas(i, 4))
-    cboTipo.Text = modDB.Nz(mVisitas(i, 5))
-    cboResultado.Text = modDB.Nz(d(1, 1))
-    cboResp.Text = modDB.Nz(d(1, 2))
+    modTela.DefinirCombo cboTipo, modDB.Nz(mVisitas(i, 5))
+    modTela.DefinirCombo cboResultado, modDB.Nz(d(1, 1))
+    modTela.DefinirCombo cboResp, modDB.Nz(d(1, 2))
     txtObs.Text = modDB.Nz(d(1, 3))
     txtDataReal.Text = Iso(d(1, 4), True)
     If CStr(mVisitas(i, 2)) = "CANCELADA" Then
@@ -184,13 +185,13 @@ End Function
 Private Sub Novo()
     mVisAtual = 0
     mVersaoAtual = 0
-    cboSituacao.Text = "PENDENTE"
+    modTela.DefinirCombo cboSituacao, "PENDENTE"
     cboSituacao.Enabled = False
     txtDataAg.Text = ""
     txtHora.Text = ""
-    cboTipo.Text = ""
-    cboResp.Text = ""
-    cboResultado.Text = ""
+    modTela.DefinirCombo cboTipo, ""
+    modTela.DefinirCombo cboResp, ""
+    modTela.DefinirCombo cboResultado, ""
     txtObs.Text = ""
     txtDataReal.Text = ""
     txtRelato.Text = ""

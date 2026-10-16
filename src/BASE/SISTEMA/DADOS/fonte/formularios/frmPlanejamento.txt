@@ -135,7 +135,7 @@ Private Sub Mostrar(ByVal id As Long)
     txtRaio.Text = CStr(d(1, 4))
     txtInicio.Text = Format$(d(1, 5), "yyyy-mm-dd")
     txtFim.Text = Format$(d(1, 6), "yyyy-mm-dd")
-    cboResp.Text = modDB.Nz(d(1, 7))
+    modTela.DefinirCombo cboResp, modDB.Nz(d(1, 7))
     txtObs.Text = modDB.Nz(d(1, 8))
     mSit = CStr(d(1, 9))
     mVersao = CLng(d(1, 10))
@@ -158,7 +158,7 @@ Private Sub Novo()
     txtRaio.Text = ""
     txtInicio.Text = ""
     txtFim.Text = ""
-    cboResp.Text = ""
+    modTela.DefinirCombo cboResp, ""
     txtObs.Text = ""
     lblSituacao.Caption = "NOVO"
     cmdEncerrar.Caption = "Encerrar"
@@ -322,7 +322,8 @@ Private Sub CarregarVisitas()
                         "WHERE v.id_planejamento=? ORDER BY IIf(v.situacao='PENDENTE', 0, 1), v.data_agendada, v.id", _
                         Array(modDB.P(modDB.adInteger, mIdPl)))
     If IsEmpty(d) Then n = 0 Else n = UBound(d, 1)
-    ReDim m(1 To n, 1 To 6)
+    ' ReDim (1 To 0) e erro 9: planejamento sem visita tem a grade vazia
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 6)
     ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
     For i = 1 To n
         mIdsGrade(i - 1) = CLng(d(i, 1))
@@ -334,7 +335,7 @@ Private Sub CarregarVisitas()
         m(i, 6) = modDB.Nz(d(i, 7))
         If CStr(d(i, 2)) = "PENDENTE" Then pend = pend + 1
     Next i
-    mGrade.Carregar m
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
     lblPagina.Caption = n & " visita(s), " & pend & " pendente(s). Duplo clique ou Lancar visita para registrar."
 End Sub
 
@@ -344,7 +345,7 @@ Private Sub CarregarCandidatos()
     mGrade.Cabecalho Array("Marca", "Atendimento", "Empresa", "Cidade/UF", "Km", "Dias")
     c = modPlanejamento.Candidatos(mIdPl)
     If IsEmpty(c) Then n = 0 Else n = UBound(c, 1)
-    ReDim m(1 To n, 1 To 6)
+    ReDim m(1 To IIf(n > 0, n, 1), 1 To 6)
     ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
     ReDim mOpoGrade(0 To IIf(n > 0, n - 1, 0))
     For i = 1 To n
@@ -360,7 +361,7 @@ Private Sub CarregarCandidatos()
         m(i, 5) = Format$(c(i, 7), "0.0")
         m(i, 6) = modDB.Nz(c(i, 8))
     Next i
-    mGrade.Carregar m
+    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
     lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * ja tem visita pendente."
 End Sub
 
