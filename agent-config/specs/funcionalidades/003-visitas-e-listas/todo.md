@@ -17,7 +17,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 1.10 MANIFESTO.json e conferência no passo 1 (`fd815e1`)
 - [x] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
 - [x] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
-- [ ] 1.11 Documentação da Fase 1 (`banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `contrato-banco`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+) — `verificar.py`
+- [~] 1.11 Documentação da Fase 1 — feito: `contrato-banco` (seção 8, esquema 1.1: tabelas, `listas` com chave e papel, regras de gravação). Falta: `banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+ — `verificar.py`
 - [ ] 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação; trava falsa
 
 ## Fase 2: gerenciamento de listas (publicação A)
@@ -30,7 +30,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 2.4a `frmListas` layout (JSON, `.txt`, prévia) — `verificar.py`
 - [x] 2.4b (código pronto; interação só 🖥) `frmListas` código (combo, grade, botões, confirmação de encerra) — `testar-uso` + `verificar.py`
 - [x] 2.4c (botão Gerenciamento no Início; 🖥 pendente) Botão Gerenciamento no Início — 🖥B em 1366×768
-- [ ] 2.5b Documentação e `SKILL.md`, `IA\LEIA-ME.md`, `front-vba.md`, `visual-layout.md`, `ia-mcp.md`
+- [x] 2.5b Documentação: `IA\instrucoes\crm-zapromaq\SKILL.md` (visitas, planejamento, lotes, listas novas), `crm-zapromaq-dev\SKILL.md` (onde mexer), `IA\LEIA-ME.md` (41 ferramentas), `instalar-mcp.ps1` anuncia 41, `front-vba.md`, `visual-layout.md`, `ia-mcp.md`
 - [ ] Checkpoint A: `verificar-tudo -Completo`, 🖥B acima, autorização do usuário
 
 ## Fase 3: visitas no atendimento (publicação B)
@@ -39,7 +39,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 3.2a Gravação no conector: `criar_visita`, `atualizar_visita`, V6/V7 na transação — `testar-mcp`
 - [x] 3.2b Gravação no front (`modVisita.bas`) — `testar-uso`
 - [x] 3.3a Botão `Visitas (n)` na ficha do atendimento — `verificar.py` e prévia (🖥 pendente)
-- [~] 3.3b Tela de visitas (`frmVisitas`: lista e ficha) feita; falta o feed de `visitas` que atualiza a tela aberta — `testar-uso` + prévia; 🖥B
+- [x] 3.3b Tela de visitas (`frmVisitas`) e feed: `modFeed.AvisarFichas` chama `frmVisitas.AvisoExterno` (e `frmPlanejamento.AvisoExterno`); a lista recarrega sem mexer na ficha, a visita aberta alterada por fora só recebe aviso (a versão lida recusa o Salvar). `testar-uso` (tela carregada sem Show; outra estação grava; só muda depois do feed). Corrigido junto: atendimento sem visita quebrava a tela (`ReDim (1 To 0)` e `Text = ""` em combo de lista fechada → `modTela.DefinirCombo`). 🖥B pendente: tela em 1366×768 e o feed com a janela modal aberta (OnTime durante formulário modal)
 - [x] 3.4 Ferramentas `listar_visitas`, `alterar_situacao_visita`, resumo em `obter_atendimento` — `testar-mcp`
 - [ ] Checkpoint B: 🖥B acima; banco exclusivo na janela (A3)
 
@@ -51,12 +51,12 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 4.3b Encerrar e reabrir (P3, C16) no conector — `testar-mcp`; VBA junto da tela (4.7)
 - [x] 4.4 Gerar visitas em transação, C13 dentro dela, tudo ou nada (conector); VBA junto da tela — `testar-mcp`
 - [x] 4.5 Lançamento de datas e resultados em lote (conector, tudo ou nada, simular) — `testar-mcp`; VBA junto da tela
-- [ ] 4.6 `clsGrade` com marcação — `verificar.py` e `testar-uso`
+- [x] 4.6 Marcação de candidatos — decisão de implementação: em vez de seleção múltipla dentro da `clsGrade`, a página Candidatos do `frmPlanejamento` marca pela linha atual com os botões **Marcar/desmarcar** e **Marcar todos** (coluna `[x]`, dicionário `mMarcados`); `clsGrade` continua de seleção simples. Gravação testada em `testar-uso` (`GerarVisitas`); clique 🖥
 - [x] 4.7a `frmPlanejamento` layout (cabeçalho e três páginas) — prévia e `verificar.py`
 - [x] 4.7b Páginas Visitas e Candidatos — `testar-uso`
 - [x] 4.7c Página Lançamento — `testar-uso`
-- [ ] 4.7d `frmVinculo` modo `municipio` — `verificar.py` e `testar-uso`
-- [ ] 4.8 Aba Planejamentos (seletor, duplo clique, feed) — `testar-uso`; 🖥B
+- [x] 4.7d `frmVinculo` modo `municipio` (`EscolherMunicipio`), usado pelo botão Buscar da cidade-base do `frmPlanejamento`: com UF e um só nome exato escolhe direto; senão abre a lista (busca por `modPlanejamento.ListarMunicipios`, chave do nome, em qualquer parte). `testar-uso` (Curitiba/PR exata, parte do nome, sem resultado) e `verificar.py`; tela 🖥
+- [x] 4.8 Aba Planejamentos (`modAbaPlanejamentos`): seletor em C4 (lista de validação), grade de visitas só leitura com `_id`, aba protegida, botões Abrir planejamento / Atualizar / Inicio; feed remonta a aba quando `visitas` ou `planejamentos` mudam. Botão do Início **Planejamentos** → `GradePlanejamentos`. Decisão: o duplo clique abre o `frmLancamento` da visita (no front o Lançamento é janela própria, não página do `frmPlanejamento`). `testar-uso` (seletor, `_id`, proteção, feed). 🖥B pendente: escolher no seletor e duplo clique na estação, aba em 1366×768
 - [x] 4.9a Ferramentas de planejamento no conector (listar, obter, criar, atualizar, encerrar) — `testar-mcp`
 - [x] 4.9b Candidatos, `gerar_visitas`, lotes, `buscar_municipios`, `resolver_cidade` no conector — `testar-mcp` (falta `exportar_roteiro`, Fase 5)
 - [ ] Checkpoint C: 🖥B das três páginas em 1366×768; autorização
@@ -64,7 +64,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 ## Fase 5: exportação (publicação C)
 
 - [x] 5.1 Linha do CSV do roteiro (conector: BASE primeiro, uma linha por visita pendente; D-a: contato e telefone) — `testar-mcp`; VBA junto da tela
-- [ ] 5.2 Gravação do arquivo em `modRelatorio.bas` — `testar-uso`; 🖥B abrir no Excel 2019
+- [x] 5.2 Gravação do arquivo: fica em `modPlanejamento.ExportarRoteiro` (não em `modRelatorio.bas`), chamada pelo botão Roteiro do `frmPlanejamento`; `testar-uso` (BOM UTF-8, linha BASE e uma por visita pendente). 🖥B pendente: abrir o CSV no Excel 2019
 - [x] 5.3 `exportar_roteiro` (só o caminho e o total), `exportar_base` com planejamentos, visitas e municipios; conector com 41 ferramentas — `testar-mcp`
 
 ## Documentação final (com a publicação C)

@@ -21,7 +21,7 @@ if ($Dev) {
 } else {
     $nomeServidor = 'crm-zapromaq'
     $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'servidor.ps1')).ProviderPath
-    $qtdFerramentas = 25
+    $qtdFerramentas = 41
 }
 
 # Unidade mapeada (ex.: G:) vira caminho UNC: o Claude Desktop pode subir antes

@@ -51,7 +51,7 @@ controle de versão (não há conflito possível entre os dois).
 | `nome`, `cargo`, `responsavel` | trim; preserva a digitação |
 | `email` | minúsculas |
 | `cnpj`, `telefone` | só dígitos; telefone com 10 ou 11 dígitos, um número por campo |
-| listas (`etapa`, `familia`, `origem`, `prioridade`, `motivo_desfecho`, `segmento`, `uf`, `qualificacao`, `categoria`) | valor exato da tabela `listas` |
+| listas (`etapa`, `familia`, `origem`, `prioridade`, `motivo_desfecho`, `segmento`, `uf`, `qualificacao`, `categoria`; nas visitas `tipo` = `TipoVisita` e `resultado` = `ResultadoVisita`) | valor exato da tabela `listas`; valor inativo só se já era o gravado no registro |
 | memo (`observacoes`, `prox_acao`, `ctx_resumo`) | como digitado, só trim |
 
 Texto vazio grava **NULL**, nunca cadeia vazia (o índice único de CNPJ aceita vários nulos).
@@ -76,3 +76,49 @@ Acento é preservado.
 - Apagar cliente com contato ou contato com atendimento (as chaves estrangeiras recusam).
 - Excluir atendimento (encerra-se pela etapa).
 - Gravar fora do ACE, fora de transação ou sem log.
+- Apagar ou renomear valor de lista (só incluir, desativar/reativar e reordenar).
+- Excluir visita ou planejamento (visita se cancela; planejamento se encerra).
+
+## 8. Esquema 1.1 (migração 003)
+
+O front espera exatamente `1.1`; o conector aceita `1.0` e `1.1` (`EsquemasSuportados` em
+`IA\mcp\lib\Banco.ps1`). Num banco 1.0 as ferramentas de visitas, planejamentos e municípios não
+têm as tabelas; `exportar_roteiro` recusa com a mensagem do esquema.
+
+### Tabelas novas
+
+| Tabela | Colunas principais | Observações |
+|---|---|---|
+| `municipios` | `cod_ibge` (PK), `nome`, `nome_busca`, `uf`, `lat`, `lon`, `fonte_carga` | Base de referência do IBGE (`banco\referencia\municipios.csv`), carregada pela migração; só leitura para front e IA. Índice (`uf`, `nome_busca`). |
+| `planejamentos` | `id`, `codigo` (único, `PL-AAAA-NNN`), `controle`, `descricao`, `cod_municipio_base`, `raio_km`, `data_inicio`, `data_fim`, `responsavel`, `situacao` (`ABERTO`/`ENCERRADO`), `observacoes`, `versao`, `criado_em`, `alterado_em`, `alterado_por` | Código gerado na criação (`MAX(controle)+1` dentro da transação) e congelado. |
+| `visitas` | `id`, `id_oportunidade` (obrigatório), `id_planejamento`, `situacao` (`PENDENTE`/`REALIZADA`/`CANCELADA`), `data_agendada`, `hora_agendada`, `responsavel`, `tipo`, `observacoes`, `data_realizada`, `resultado`, `relato`, `motivo_cancelamento`, `versao`, `criado_em`, `alterado_em`, `alterado_por` | Situação exibida: `A AGENDAR` (pendente sem data), `AGENDADA` (pendente com data), `REALIZADA`, `CANCELADA`. |
+
+### `listas`: chave e papel das etapas
+
+- Colunas novas: `chave` (obrigatória; índice único `tipo` + `chave`), `encerra`, `resultado`
+  (`GANHO`/`PERDA`/nulo), `quadro` (`PROSPECCAO`/`FUNIL`/nulo), `exige_familia`. Sim/Não sempre
+  gravado explicitamente.
+- **Chave** = maiúsculas, sem acento, espaços aparados e colapsados (`modValidacao.ChaveLista` /
+  `Regras.ps1`): dois valores com a mesma chave no mesmo tipo são recusados (C02).
+- Listas novas: `TipoVisita` e `ResultadoVisita`.
+- O programa **não compara texto fixo de etapa**: encerrar, resultado (ganho/perda), quadro e
+  exigência de família vêm das colunas da etapa. Regras: resultado só em etapa que encerra (C04);
+  não se desativa a última etapa ativa GANHO ou PERDA (C03); UF só entre as 27 (C05). Papel inicial
+  gravado pela migração: Pedido Fechado (encerra, GANHO, FUNIL), Perdido (encerra, PERDA, FUNIL),
+  Descartado (encerra, PERDA, PROSPECCAO); Contato Inicial, Sem Retorno e Retorno Agendado
+  (PROSPECCAO); Elaboração da Proposta, Negociação, Proposta em Análise e Proposta em Stand By
+  (FUNIL, exige família); as demais, FUNIL.
+
+### Regras de gravação
+
+| Gravação | Regra |
+|---|---|
+| Visita | Atendimento encerrado não recebe visita (C08); com planejamento, a data agendada cai no período dele (C09); REALIZADA exige data e relato (C10) e grava, na mesma transação, a linha `VISITA dd/MM/aaaa HH:mm - ...` no histórico do atendimento e a `ultima_interacao` (V6/V7, com a versão do atendimento); CANCELADA exige motivo (C11); no máximo uma PENDENTE por atendimento (C13). |
+| Planejamento | Raio de 1 a 500 km (C14), cidade-base existente em `municipios`, período com início até o fim (C15); edição só enquanto ABERTO; encerrar com pendentes só cancelando-as (C16, motivo "planejamento encerrado"). |
+| Gerar visitas e lotes (conector) | Uma transação; C13 conferida de novo dentro dela; qualquer recusa desfaz tudo. Lotes de até 100 itens, `simular` = true por padrão. |
+| `visitas`, `planejamentos` | `WHERE id=? AND versao=?`; zero linhas = conflito. |
+| `listas` | `WHERE id=?` com os valores antigos de `ativo`, `ordem`, `encerra`, `resultado`, `quadro` e `exige_familia`. |
+
+Toda gravação dessas tabelas entra em `log_alteracoes` na mesma transação (tabelas `visitas`,
+`planejamentos`, `listas`): é o que faz as outras estações atualizarem as telas abertas e a aba
+Planejamentos (feed, até 25 s).
