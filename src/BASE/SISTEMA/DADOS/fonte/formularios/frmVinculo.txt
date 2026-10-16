@@ -14,6 +14,10 @@
 '                    atendimentos da mesma empresa, menos o
 '                    proprio; "Remover vinculo" devolve True com
 '                    IdEscolhido = 0.
+'   EscolherMunicipio - CIDADE-BASE do planejamento (frmPlanejamento,
+'                    botao Buscar): municipios do IBGE pela chave do
+'                    nome ("Nome" ou "Nome/UF"); IdEscolhido = cod_ibge.
+'                    Sem cadastro na hora (a base e de referencia).
 '
 ' Busca filtra enquanto se digita (a partir de 2 letras, ou
 ' vazia = primeiros por empresa); setas + Enter ou duplo clique
@@ -87,6 +91,30 @@ Public Function EscolherAtendimentoDe(ByVal idCliente As Long, ByVal excetoId As
     modTela.Encaixar Me
     Me.Show
     EscolherAtendimentoDe = mOk
+End Function
+
+'----------------------------------------------------------
+' Municipio (cidade-base do planejamento): a busca ja vem com o
+' texto digitado no frmPlanejamento. IdEscolhido = cod_ibge.
+'----------------------------------------------------------
+Public Function EscolherMunicipio(ByVal busca As String) As Boolean
+    mModo = "municipio"
+    mPasso = "municipio"
+    Me.Caption = "CRM Zapromaq  -  escolher o munic" & ChrW$(&HED) & "pio"
+    lblTitulo.Caption = "Cidade-base  " & ChrW$(&H203A) & "  escolha o munic" & ChrW$(&HED) & "pio"
+    lblSubtitulo.Caption = "Procure pelo nome, ou Nome/UF. Enter ou duplo clique escolhe."
+    mGrade.ColumnWidths = "90;470;102"
+    mGrade.Cabecalho Array("C" & ChrW$(&HF3) & "digo IBGE", "Munic" & ChrW$(&HED) & "pio", "UF")
+    Botao "cmdNovoCliente", "", 0, False
+    Botao "cmdNovoContato", "", 0, False
+    Botao "cmdSelecionar", "Selecionar", modTema.ICO_OK, True
+    mCarregando = True
+    txtProcura.Text = busca
+    mCarregando = False
+    Carregar
+    modTela.Encaixar Me
+    Me.Show
+    EscolherMunicipio = mOk
 End Function
 
 Public Property Get IdEscolhido() As Long
@@ -195,6 +223,7 @@ Private Sub Carregar()
     Select Case mPasso
         Case "cliente":     d = modCRM.ListarClientesParaVinculo(txtProcura.Text)
         Case "atendimento": d = modCRM.ListarAtendimentosDoCliente(mClienteID, mExceto, txtProcura.Text)
+        Case "municipio":   d = modPlanejamento.ListarMunicipios(txtProcura.Text)
         Case Else:          d = modCRM.ListarContatosParaVinculo(txtProcura.Text, mClienteID)
     End Select
     mDados = d
@@ -225,6 +254,15 @@ Private Sub Carregar()
             tela(i, 4) = modDB.Nz(d(i, 6))
             tela(i, 5) = modValidacao.FormatarCNPJ(d(i, 7))
         Next i
+    ElseIf mPasso = "municipio" Then
+        ' cod_ibge, nome, uf, nome_busca
+        ReDim tela(1 To n, 1 To 3)
+        For i = 1 To n
+            mIDs(i) = CLng(d(i, 1))
+            tela(i, 1) = CStr(d(i, 1))
+            tela(i, 2) = modDB.Nz(d(i, 2))
+            tela(i, 3) = modDB.Nz(d(i, 3))
+        Next i
     ElseIf mPasso = "atendimento" Then
         ' id, codigo, etapa, dt_entrada, motivo_desfecho, contato
         ReDim tela(1 To n, 1 To 5)
@@ -251,7 +289,7 @@ Private Sub Carregar()
     mGrade.Carregar tela
     mGrade.ListIndex = 0
     lblStatus.Caption = n & Switch(mPasso = "cliente", " empresa(s) ativa(s)", mPasso = "contato", " contato(s) ativo(s)", _
-                                   True, " atendimento(s)") & _
+                                   mPasso = "municipio", " munic" & ChrW$(&HED) & "pio(s)", True, " atendimento(s)") & _
                         IIf(n >= 300, "  -  mostrando os 300 primeiros: refine a busca", "")
     Me.MousePointer = fmMousePointerDefault
     Repintar

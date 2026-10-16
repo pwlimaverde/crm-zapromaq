@@ -219,28 +219,32 @@ Private Sub cmdSalvar_Click()
     Mostrar novoId
 End Sub
 
-' Cidade-base: 'Nome/UF'. Acha uma cidade; se nao achar ou achar mais de uma, avisa.
+' Cidade-base: 'Nome' ou 'Nome/UF', em qualquer parte do nome. Com UF e um so nome
+' exato, escolhe direto; senao abre a lista de municipios (frmVinculo modo municipio).
 Private Sub cmdCidade_Click()
-    Dim texto As String, partes As Variant, nome As String, uf As String, d As Variant
+    Dim texto As String, d As Variant, i As Long, f As frmVinculo, cod As Long
     texto = Trim$(txtCidade.Text)
-    partes = Split(texto, "/")
-    If UBound(partes) <> 1 Then
-        MsgBox "Informe a cidade e a UF, como Curitiba/PR.", vbExclamation, "CRM Zapromaq"
+    d = modPlanejamento.ListarMunicipios(texto)
+    If InStr(texto, "/") > 0 Then i = modPlanejamento.MunicipioExato(d, texto)
+    If i = 0 And Not IsEmpty(d) Then
+        If UBound(d, 1) = 1 Then i = 1
+    End If
+    If i > 0 Then
+        DefinirCidade CLng(d(i, 1)), CStr(d(i, 2)), CStr(d(i, 3))
         Exit Sub
     End If
-    nome = Trim$(partes(0))
-    uf = UCase$(Trim$(partes(1)))
-    d = modDB.Consultar("SELECT cod_ibge, nome, uf FROM municipios WHERE uf=? AND nome_busca=?", _
-                        Array(modDB.P(modDB.adVarWChar, uf), modDB.P(modDB.adVarWChar, modPlanejamento.NomeBusca(nome))))
-    If IsEmpty(d) Then
-        MsgBox "Cidade nao encontrada em " & uf & ". Confira o nome e a UF.", vbExclamation, "CRM Zapromaq"
-    ElseIf UBound(d, 1) > 1 Then
-        MsgBox "Ha mais de uma cidade com esse nome em " & uf & ".", vbExclamation, "CRM Zapromaq"
-    Else
-        mCodMun = CLng(d(1, 1))
-        txtCidade.Text = CStr(d(1, 2)) & "/" & CStr(d(1, 3))
-        lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
-    End If
+    Set f = New frmVinculo
+    If f.EscolherMunicipio(texto) Then cod = f.IdEscolhido
+    Unload f
+    If cod = 0 Then Exit Sub
+    d = modDB.Consultar("SELECT cod_ibge, nome, uf FROM municipios WHERE cod_ibge=?", Array(modDB.P(modDB.adInteger, cod)))
+    If Not IsEmpty(d) Then DefinirCidade CLng(d(1, 1)), CStr(d(1, 2)), CStr(d(1, 3))
+End Sub
+
+Private Sub DefinirCidade(ByVal cod As Long, ByVal nome As String, ByVal uf As String)
+    mCodMun = cod
+    txtCidade.Text = nome & "/" & uf
+    lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
 End Sub
 
 ' Encerrar (ou reabrir). C16: encerrar com visitas pendentes pede para cancela-las.

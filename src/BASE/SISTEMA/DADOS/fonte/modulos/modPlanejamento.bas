@@ -36,6 +36,42 @@ Public Function DistanciaKm(ByVal lat1 As Double, ByVal lon1 As Double, _
     End If
 End Function
 
+' Municipios para a busca da cidade-base (frmVinculo modo municipio, fatia 4.7d).
+' busca = "Nome" ou "Nome/UF"; compara pela chave (nome_busca), em qualquer parte
+' do nome. Devolve ate 300 linhas base 1: cod_ibge, nome, uf, nome_busca - ou Empty.
+Public Function ListarMunicipios(ByVal busca As String) As Variant
+    Dim partes As Variant, nome As String, uf As String, sql As String, params As Variant
+    busca = Trim$(busca)
+    If busca <> "" Then
+        partes = Split(busca, "/")
+        nome = Trim$(partes(0))
+        If UBound(partes) >= 1 Then uf = UCase$(Trim$(partes(1)))
+    End If
+    sql = "SELECT TOP 300 cod_ibge, nome, uf, nome_busca FROM municipios WHERE nome_busca LIKE ?"
+    If uf <> "" Then
+        sql = sql & " AND uf=?"
+        params = Array(modDB.P(modDB.adVarWChar, modCRM.PadraoLike(NomeBusca(nome))), modDB.P(modDB.adVarWChar, uf))
+    Else
+        params = Array(modDB.P(modDB.adVarWChar, modCRM.PadraoLike(NomeBusca(nome))))
+    End If
+    ListarMunicipios = modDB.Consultar(sql & " ORDER BY nome, uf", params)
+End Function
+
+' Linha (base 1) do municipio de nome exatamente igual a busca, ou 0. Com UF na
+' busca e uma linha exata so, a escolha e direta, sem abrir a lista.
+Public Function MunicipioExato(ByVal lista As Variant, ByVal busca As String) As Long
+    Dim i As Long, chave As String, achados As Long
+    If IsEmpty(lista) Then Exit Function
+    chave = NomeBusca(Trim$(Split(Trim$(busca) & "/", "/")(0)))
+    For i = 1 To UBound(lista, 1)
+        If CStr(lista(i, 4)) = chave Then
+            achados = achados + 1
+            MunicipioExato = i
+        End If
+    Next i
+    If achados <> 1 Then MunicipioExato = 0
+End Function
+
 ' P1 (C14): raio de 1 a 500 km.
 Public Function RaioValido(ByVal raio As Long) As String
     If raio < 1 Or raio > 500 Then RaioValido = "Raio deve ser de 1 a 500 km (C14)."
