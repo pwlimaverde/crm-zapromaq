@@ -107,6 +107,7 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
                                 ByVal motivo As String) As String
     Dim cn As Object, d As Variant, idOpo As Long, sitAnt As String, msg As String, n As Long, agora As Date
     Dim opObs As String, opVersao As Long, texto As String, pend As Variant
+    Dim idPl As Variant, dataAnt As Variant, per As Variant, mudou As Boolean
     situacao = UCase$(Trim$(situacao))
     If InStr(1, "|PENDENTE|REALIZADA|CANCELADA|", "|" & situacao & "|", vbBinaryCompare) = 0 Then
         AtualizarVisita = "situacao deve ser PENDENTE, REALIZADA ou CANCELADA."
@@ -114,7 +115,7 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
     End If
     Set cn = modDB.AbrirTransacao()
     On Error GoTo Falha
-    d = modDB.ConsultarEm(cn, "SELECT id_oportunidade, situacao, versao FROM visitas WHERE id=?", _
+    d = modDB.ConsultarEm(cn, "SELECT id_oportunidade, situacao, versao, id_planejamento, data_agendada FROM visitas WHERE id=?", _
                           Array(modDB.P(modDB.adInteger, idVisita)))
     If IsEmpty(d) Then
         modDB.Desfazer cn
@@ -122,6 +123,7 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
         Exit Function
     End If
     idOpo = CLng(d(1, 1)): sitAnt = CStr(d(1, 2))
+    idPl = d(1, 4): dataAnt = d(1, 5)
     If CLng(d(1, 3)) <> versaoLida Then
         modDB.Desfazer cn
         AtualizarVisita = "Conflito de versao: a visita foi alterada depois da leitura. Nada foi gravado; leia de novo."
@@ -129,6 +131,16 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
     End If
     If situacao = "REALIZADA" Then msg = RealizadaValida(relato, dataRealizada)
     If msg = "" And situacao = "CANCELADA" Then msg = CanceladaValida(motivo)
+    ' C09 (como no conector): data agendada nova de visita de planejamento cai no periodo dele
+    If msg = "" And Not IsNull(idPl) And Not IsNull(dataAgendada) And Not IsEmpty(dataAgendada) Then
+        mudou = True
+        If Not IsNull(dataAnt) Then mudou = (CDate(dataAnt) <> CDate(dataAgendada))
+        If mudou Then
+            per = modDB.ConsultarEm(cn, "SELECT data_inicio, data_fim FROM planejamentos WHERE id=?", _
+                                    Array(modDB.P(modDB.adInteger, CLng(idPl))))
+            If Not IsEmpty(per) Then msg = DataNoPeriodo(CDate(dataAgendada), CDate(per(1, 1)), CDate(per(1, 2)))
+        End If
+    End If
     If msg = "" And situacao = "PENDENTE" And sitAnt <> "PENDENTE" Then
         pend = modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE' AND id<>?", 0, _
                                       Array(modDB.P(modDB.adInteger, idOpo), modDB.P(modDB.adInteger, idVisita)))

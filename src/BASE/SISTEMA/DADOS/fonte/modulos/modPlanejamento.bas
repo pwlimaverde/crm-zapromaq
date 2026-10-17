@@ -105,7 +105,8 @@ End Function
 
 ' Cria um planejamento ABERTO. codMunicipio tem de existir em municipios (P1).
 Public Function CriarPlanejamento(ByVal descricao As String, ByVal codMunicipio As Long, ByVal raio As Long, _
-                                  ByVal inicio As Date, ByVal fim As Date, ByVal observacoes As String) As String
+                                  ByVal inicio As Date, ByVal fim As Date, ByVal observacoes As String, _
+                                  Optional ByVal responsavel As String = "") As String
     Dim cn As Object, msg As String, controle As Long, codigo As String, id As Long, agora As Date
     descricao = Trim$(descricao)
     If descricao = "" Then CriarPlanejamento = "Informe a descricao do planejamento.": Exit Function
@@ -125,13 +126,14 @@ Public Function CriarPlanejamento(ByVal descricao As String, ByVal codMunicipio 
     codigo = CodigoPlanejamento(Year(Now), controle)
     agora = Now
     id = modDB.InserirEm(cn, "INSERT INTO planejamentos (codigo, controle, descricao, cod_municipio_base, raio_km, " & _
-                             "data_inicio, data_fim, situacao, observacoes, versao, criado_em, alterado_em, alterado_por) " & _
-                             "VALUES (?,?,?,?,?,?,?,'ABERTO',?,1,?,?,?)", _
+                             "data_inicio, data_fim, situacao, responsavel, observacoes, versao, criado_em, alterado_em, alterado_por) " & _
+                             "VALUES (?,?,?,?,?,?,?,'ABERTO',?,?,1,?,?,?)", _
                          Array(modDB.P(modDB.adVarWChar, codigo), modDB.P(modDB.adInteger, controle), _
                                modDB.P(modDB.adVarWChar, descricao), modDB.P(modDB.adInteger, codMunicipio), _
                                modDB.P(modDB.adInteger, raio), modDB.P(modDB.adDate, inicio), modDB.P(modDB.adDate, fim), _
-                               modDB.P(modDB.adLongVarWChar, observacoes), modDB.P(modDB.adDate, agora), _
-                               modDB.P(modDB.adDate, agora), modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual())))
+                               modDB.P(modDB.adVarWChar, Trim$(responsavel)), modDB.P(modDB.adLongVarWChar, observacoes), _
+                               modDB.P(modDB.adDate, agora), modDB.P(modDB.adDate, agora), _
+                               modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual())))
     modDB.LogEm cn, "planejamentos", id, "codigo", "", codigo, "INSERIR"
     modDB.Confirmar cn
     CriarPlanejamento = ""
@@ -275,18 +277,27 @@ End Function
 ' Candidatos do planejamento (espelho de listar_candidatos): atendimentos em aberto a ate o raio
 ' da cidade-base, ordem qualificacao, dias parado (mais tempo primeiro), km (menor primeiro).
 ' Devolve uma matriz base 1: id, codigo, empresa, cidade, uf, qualificacao, km, dias, pendente.
-' Vazia quando nao ha candidatos.
+' Vazia quando nao ha candidatos. Uma conexao e leituras fixas (nenhuma consulta por atendimento):
+' o papel da etapa vem do cache de modCRM e as pendentes de um GROUP BY. Cidade, UF e
+' qualificacao sao opcionais no cliente: nulo nao quebra (sem cidade = fora; sem qualificacao = 999).
 Public Function Candidatos(ByVal idPlanejamento As Long) As Variant
-    Dim d As Variant, base As Variant, mapa As Object, ordens As Object, abertos As Variant
+    Dim d As Variant, base As Variant, mapa As Object, ordens As Object, pendentes As Object, abertos As Variant
     Dim i As Long, j As Long, k As Long, n As Long, chave As String, km As Double, m As Variant
-    Dim linhas() As Variant, ordQ As Long, pend As Long, dias As Variant, t As Variant
-    d = modDB.Consultar("SELECT cod_municipio_base, raio_km FROM planejamentos WHERE id=?", Array(modDB.P(modDB.adInteger, idPlanejamento)))
-    If IsEmpty(d) Then Exit Function
-    base = modDB.Consultar("SELECT lat, lon FROM municipios WHERE cod_ibge=?", Array(modDB.P(modDB.adInteger, CLng(d(1, 1)))))
-    If IsEmpty(base) Then Exit Function
+    Dim linhas() As Variant, ordQ As Long, pend As Long, dias As Variant, t As Variant, qual As String
+    Dim cn As Object
+    On Error GoTo Falha
+    Set cn = modDB.AbrirLeitura()
+    d = modDB.ConsultarEm(cn, "SELECT cod_municipio_base, raio_km FROM planejamentos WHERE id=?", Array(modDB.P(modDB.adInteger, idPlanejamento)))
+    If Not IsEmpty(d) Then
+        base = modDB.ConsultarEm(cn, "SELECT lat, lon FROM municipios WHERE cod_ibge=?", Array(modDB.P(modDB.adInteger, CLng(d(1, 1)))))
+    End If
+    If IsEmpty(d) Or IsEmpty(base) Then
+        modDB.FecharLeitura cn
+        Exit Function
+    End If
     Set mapa = CreateObject("Scripting.Dictionary")
     mapa.CompareMode = 1
-    m = modDB.Consultar("SELECT nome_busca, uf, lat, lon FROM municipios")
+    m = modDB.ConsultarEm(cn, "SELECT nome_busca, uf, lat, lon FROM municipios")
     If Not IsEmpty(m) Then
         For i = 1 To UBound(m, 1)
             mapa(CStr(m(i, 2)) & "|" & CStr(m(i, 1))) = Array(m(i, 3), m(i, 4))
@@ -294,32 +305,42 @@ Public Function Candidatos(ByVal idPlanejamento As Long) As Variant
     End If
     Set ordens = CreateObject("Scripting.Dictionary")
     ordens.CompareMode = 1
-    m = modDB.Consultar("SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'")
+    m = modDB.ConsultarEm(cn, "SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'")
     If Not IsEmpty(m) Then
         For i = 1 To UBound(m, 1)
-            ordens(CStr(m(i, 1))) = CLng(m(i, 2))
+            If Not IsNull(m(i, 2)) Then ordens(CStr(m(i, 1))) = CLng(m(i, 2))
         Next i
     End If
-    abertos = modDB.Consultar("SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao " & _
-                              "FROM oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id")
+    Set pendentes = CreateObject("Scripting.Dictionary")
+    m = modDB.ConsultarEm(cn, "SELECT id_oportunidade, COUNT(*) FROM visitas WHERE situacao='PENDENTE' GROUP BY id_oportunidade")
+    If Not IsEmpty(m) Then
+        For i = 1 To UBound(m, 1)
+            pendentes(CLng(m(i, 1))) = CLng(m(i, 2))
+        Next i
+    End If
+    abertos = modDB.ConsultarEm(cn, "SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao " & _
+                                    "FROM oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id")
+    modDB.FecharLeitura cn
+    Set cn = Nothing
     If IsEmpty(abertos) Then Exit Function
     ReDim linhas(1 To UBound(abertos, 1))
     n = 0
     For i = 1 To UBound(abertos, 1)
-        If Not EtapaEncerra(CStr(abertos(i, 3))) Then
-            chave = CStr(abertos(i, 7)) & "|" & NomeBusca(CStr(abertos(i, 6)))
+        If Not modCRM.EtapaEncerra(modDB.Nz(abertos(i, 3))) Then
+            chave = modDB.Nz(abertos(i, 7)) & "|" & NomeBusca(modDB.Nz(abertos(i, 6)))
             If mapa.Exists(chave) Then
                 km = DistanciaKm(CDbl(base(1, 1)), CDbl(base(1, 2)), CDbl(mapa(chave)(0)), CDbl(mapa(chave)(1)))
                 If km <= CDbl(d(1, 2)) Then
                     n = n + 1
+                    qual = modDB.Nz(abertos(i, 8))
                     ordQ = 999
-                    If ordens.Exists(CStr(abertos(i, 8))) Then ordQ = ordens(CStr(abertos(i, 8)))
-                    pend = modDB.ConsultarValor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", 0, _
-                                                Array(modDB.P(modDB.adInteger, CLng(abertos(i, 1)))))
+                    If ordens.Exists(qual) Then ordQ = ordens(qual)
+                    pend = 0
+                    If pendentes.Exists(CLng(abertos(i, 1))) Then pend = pendentes(CLng(abertos(i, 1)))
                     dias = Null
                     If Not IsNull(abertos(i, 4)) Then dias = DateDiff("d", CDate(abertos(i, 4)), Date)
-                    linhas(n) = Array(CLng(abertos(i, 1)), CStr(abertos(i, 2)), CStr(abertos(i, 5)), CStr(abertos(i, 6)), _
-                                      CStr(abertos(i, 7)), CStr(abertos(i, 8)), Round(km, 1), dias, pend, ordQ)
+                    linhas(n) = Array(CLng(abertos(i, 1)), CStr(abertos(i, 2)), modDB.Nz(abertos(i, 5)), modDB.Nz(abertos(i, 6)), _
+                                      modDB.Nz(abertos(i, 7)), qual, Round(km, 1), dias, pend, ordQ)
                 End If
             End If
         End If
@@ -341,29 +362,27 @@ Public Function Candidatos(ByVal idPlanejamento As Long) As Variant
         Next k
     Next i
     Candidatos = saida
+    Exit Function
+Falha:
+    Dim numErro As Long, descErro As String
+    numErro = Err.Number: descErro = Err.Description
+    If Not cn Is Nothing Then modDB.FecharLeitura cn
+    Err.Raise numErro, "modPlanejamento.Candidatos", descErro
 End Function
 
-' Ordem de visita: qualificacao (ordem da lista), dias parado (mais tempo primeiro), km (menor primeiro).
+' Ordem de visita: qualificacao (ordem da lista), dias parado (mais tempo primeiro; sem data = 0,
+' como no conector), km (menor primeiro).
 Private Function CandidatoAntesQue(ByVal a As Variant, ByVal b As Variant) As Boolean
+    Dim da As Long, db As Long
+    If Not IsNull(a(7)) Then da = a(7)
+    If Not IsNull(b(7)) Then db = b(7)
     If a(9) <> b(9) Then
         CandidatoAntesQue = (a(9) < b(9))
-    ElseIf IsNull(a(7)) <> IsNull(b(7)) Or (Not IsNull(a(7)) And a(7) <> b(7)) Then
-        Dim da As Long, db As Long
-        da = 0: db = 0
-        If Not IsNull(a(7)) Then da = a(7)
-        If Not IsNull(b(7)) Then db = b(7)
+    ElseIf da <> db Then
         CandidatoAntesQue = (da > db)
     Else
         CandidatoAntesQue = (a(6) < b(6))
     End If
-End Function
-
-' Etapa encerra o atendimento? (papel da lista; etapa sem linha nao encerra)
-Private Function EtapaEncerra(ByVal etapa As String) As Boolean
-    Dim v As Variant
-    v = modDB.ConsultarValor("SELECT encerra FROM listas WHERE tipo='Etapa' AND valor=?", False, _
-                             Array(modDB.P(modDB.adVarWChar, etapa)))
-    EtapaEncerra = CBool(v)
 End Function
 
 ' Gera uma visita PENDENTE por atendimento escolhido, no planejamento, numa transacao.
@@ -373,6 +392,18 @@ Public Function GerarVisitas(ByVal idPlanejamento As Long, ByVal idsOportunidade
     If IsEmpty(idsOportunidade) Then GerarVisitas = "Marque ao menos um atendimento.": Exit Function
     Set cn = modDB.AbrirTransacao()
     On Error GoTo Falha
+    ' como no conector: planejamento encerrado nao recebe visitas novas (e tem de existir)
+    msg = CStr(modDB.ConsultarValorEm(cn, "SELECT situacao FROM planejamentos WHERE id=?", "", _
+                                      Array(modDB.P(modDB.adInteger, idPlanejamento))))
+    If msg = "" Then
+        modDB.Desfazer cn
+        GerarVisitas = "Planejamento nao encontrado."
+        Exit Function
+    ElseIf msg <> "ABERTO" Then
+        modDB.Desfazer cn
+        GerarVisitas = "Planejamento encerrado: reabra antes de gerar visitas."
+        Exit Function
+    End If
     For i = LBound(idsOportunidade) To UBound(idsOportunidade)
         etapa = modDB.ConsultarValorEm(cn, "SELECT etapa FROM oportunidades WHERE id=?", "", _
                                        Array(modDB.P(modDB.adInteger, CLng(idsOportunidade(i)))))
@@ -413,7 +444,7 @@ End Function
 Public Function ExportarRoteiro(ByVal idPlanejamento As Long, ByVal pasta As String, ByRef caminho As String) As String
     Dim pl As Variant, base As Variant, vis As Variant, m As Variant, linhas As String, i As Long
     Dim mapa As Object, chave As String, lat As Variant, lon As Variant, km As Variant, dt As String
-    Dim stream As Object, arq As String, hr As String
+    Dim stream As Object, arq As String, hr As String, msg As String
     pl = modDB.Consultar("SELECT codigo, data_inicio, data_fim, cod_municipio_base FROM planejamentos WHERE id=?", _
                          Array(modDB.P(modDB.adInteger, idPlanejamento)))
     If IsEmpty(pl) Then ExportarRoteiro = "Planejamento nao encontrado.": Exit Function
@@ -447,17 +478,18 @@ Public Function ExportarRoteiro(ByVal idPlanejamento As Long, ByVal pasta As Str
             dt = "": hr = ""
             If Not IsNull(vis(i, 2)) Then dt = Format$(vis(i, 2), "yyyy-mm-dd")
             If Not IsNull(vis(i, 3)) Then hr = Format$(vis(i, 3), "hh:nn")
-            linhas = linhas & """VISITA"";" & CStr(vis(i, 1)) & ";""" & CStr(vis(i, 6)) & """;""" & CStr(vis(i, 7)) & """;""" & _
-                     Nz(vis(i, 10)) & """;""" & Nz(vis(i, 11)) & """;""" & CStr(vis(i, 8)) & """;""" & CStr(vis(i, 9)) & """;" & _
+            linhas = linhas & """VISITA"";" & CStr(vis(i, 1)) & ";""" & Aspas(CStr(vis(i, 6))) & """;""" & Aspas(CStr(vis(i, 7))) & """;""" & _
+                     Aspas(Nz(vis(i, 10))) & """;""" & Aspas(Nz(vis(i, 11))) & """;""" & Aspas(CStr(vis(i, 8))) & """;""" & _
+                     Aspas(CStr(vis(i, 9))) & """;" & _
                      IIf(IsEmpty(lat), "", Trim$(Str$(CDbl(lat)))) & ";" & IIf(IsEmpty(lon), "", Trim$(Str$(CDbl(lon)))) & ";" & _
                      IIf(IsEmpty(km), "", Trim$(Str$(CDbl(km)))) & ";""" & dt & """;""" & hr & """;""" & _
-                     Nz(vis(i, 4)) & """;""" & Nz(vis(i, 5)) & """;""PENDENTE""" & vbCrLf
+                     Aspas(Nz(vis(i, 4))) & """;""" & Aspas(Nz(vis(i, 5))) & """;""PENDENTE""" & vbCrLf
         Next i
     End If
-    On Error Resume Next
-    If Dir(pasta, vbDirectory) = "" Then MkDir pasta
-    On Error GoTo 0
+    msg = GarantirPasta(pasta)
+    If msg <> "" Then ExportarRoteiro = msg: Exit Function
     arq = pasta & "\" & CStr(pl(1, 1)) & "_" & Format$(pl(1, 2), "yyyy-mm-dd") & "_a_" & Format$(pl(1, 3), "yyyy-mm-dd") & ".csv"
+    On Error GoTo FalhaGravar
     Set stream = CreateObject("ADODB.Stream")
     stream.Type = 2
     stream.Charset = "utf-8"
@@ -467,6 +499,32 @@ Public Function ExportarRoteiro(ByVal idPlanejamento As Long, ByVal pasta As Str
     stream.Close
     caminho = arq
     ExportarRoteiro = ""
+    Exit Function
+FalhaGravar:
+    ExportarRoteiro = "Nao foi possivel gravar o roteiro (" & arq & "): " & Err.Description
+End Function
+
+' Aspas dobradas dentro de um campo entre aspas do CSV (mesmo formato do conector).
+Private Function Aspas(ByVal texto As String) As String
+    Aspas = Replace(texto, """", """""")
+End Function
+
+' Cria a pasta e as que faltam acima dela. "" = existe; senao, a mensagem.
+Private Function GarantirPasta(ByVal pasta As String) As String
+    Dim fso As Object, pai As String
+    On Error GoTo Falha
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FolderExists(pasta) Then
+        pai = fso.GetParentFolderName(pasta)
+        If pai <> "" Then
+            GarantirPasta = GarantirPasta(pai)
+            If GarantirPasta <> "" Then Exit Function
+        End If
+        fso.CreateFolder pasta
+    End If
+    Exit Function
+Falha:
+    GarantirPasta = "Nao foi possivel criar a pasta do roteiro (" & pasta & "): " & Err.Description
 End Function
 
 Private Function Nz(ByVal v As Variant) As String

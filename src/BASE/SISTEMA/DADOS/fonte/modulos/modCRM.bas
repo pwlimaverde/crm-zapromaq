@@ -86,7 +86,9 @@ End Function
 ' Valor de lista na ficha (D-j): o valor ativo aparece na lista; um valor INATIVO ja gravado no registro
 ' aparece marcado "(inativo)". A marca nao vai para o banco: ValorDaLista tira o sufixo ao salvar.
 Public Sub LimparCacheListas()
+    ' o papel das etapas vem da mesma tabela: zera junto, senao Encerra/Quadro ficam velhos por ate 10 min
     Set mListas = Nothing
+    Set mPapel = Nothing
 End Sub
 
 Public Sub MostrarValorDeLista(ByVal cbo As Object, ByVal valor As String)

@@ -1815,6 +1815,9 @@ function Get-CandidatosPlanejamento($ctx, $pl) {
     $mapa = Get-MapaMunicipios $ctx
     $ordens = @{}
     foreach ($q in $ctx.Consultar("SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'", @())) { $ordens[[string]$q.valor] = [int]$q.ordem }
+    # pendentes de todos os atendimentos numa leitura só (nada de consulta por candidato)
+    $pendPorAt = @{}
+    foreach ($pv in $ctx.Consultar("SELECT id_oportunidade, COUNT(*) AS n FROM visitas WHERE situacao='PENDENTE' GROUP BY id_oportunidade", @())) { $pendPorAt[[int]$pv.id_oportunidade] = [int]$pv.n }
     $candidatos = New-Object System.Collections.ArrayList
     $naoReconhecidas = New-Object System.Collections.ArrayList
     $abertos = $ctx.Consultar('SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao, ct.nome AS contato, ct.telefone AS contato_telefone FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id', @())
@@ -1830,7 +1833,7 @@ function Get-CandidatosPlanejamento($ctx, $pl) {
         if ($km -gt [double]$pl.raio_km) { continue }
         $qual = [string]$o.qualificacao
         $ordemQ = 999; if ($ordens.ContainsKey($qual)) { $ordemQ = $ordens[$qual] }
-        $pendentes = [int]$ctx.Valor("SELECT COUNT(*) FROM visitas WHERE id_oportunidade=? AND situacao='PENDENTE'", @((P 'inteiro' ([int]$o.id))))
+        $pendentes = 0; if ($pendPorAt.ContainsKey([int]$o.id)) { $pendentes = $pendPorAt[[int]$o.id] }
         [void]$candidatos.Add([pscustomobject]@{
             codigo = [string]$o.codigo; empresa = [string]$o.empresa; cidade = [string]$o.cidade; uf = [string]$o.uf
             qualificacao = $qual; km = [math]::Round($km, 1); dias_parado = (Get-DiasParado $o.ultima_interacao)

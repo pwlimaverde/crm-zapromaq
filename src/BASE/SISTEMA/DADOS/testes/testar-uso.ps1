@@ -239,8 +239,12 @@ End Sub
     Conferir 'papel C04: resultado com encerra Nao e recusado' ($rp2 -match 'C04') $rp2
     $rp3 = [string]$xl.Run($tp + 'DefinirPapel', 'Pedido Fechado', $true, '', 'FUNIL', $false, $false)
     Conferir 'papel C03: tirar o resultado da unica etapa GANHO e recusado' ($rp3 -match 'C03') $rp3
+    # revisão 003: o cache do papel é lido antes e tem de refletir a gravação na hora (não em 10 min)
+    $quadAntes = [string]$xl.Run("'" + $n + "'!modCRM.EtapaQuadro", 'Negociação')
     $rp4 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'PROSPECCAO', $true, $false)
     Conferir 'papel: mudar quadro grava (vazio = ok)' ($rp4 -eq '') $rp4
+    $quadDepois = [string]$xl.Run("'" + $n + "'!modCRM.EtapaQuadro", 'Negociação')
+    Conferir 'papel: o cache de papel reflete a gravação na hora' ($quadAntes -eq 'FUNIL' -and $quadDepois -eq 'PROSPECCAO') ($quadAntes + ' -> ' + $quadDepois)
     $rp5 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'FUNIL', $true, $false)
     Conferir 'papel: volta o quadro para FUNIL' ($rp5 -eq '') $rp5
     $nLog = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes, 0)
@@ -445,7 +449,28 @@ End Function
     $idOpQ = 0
     for ($i = 1; $i -le $qtdC; $i++) { if ([int]$cand.GetValue($i, 9) -eq 0) { $idOpQ = [int]$cand.GetValue($i, 1); break } }
     Conferir 'candidatos do front: há ao menos um sem visita pendente' ($idOpQ -gt 0) ''
-    $ger = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    # revisão 003: cliente sem qualificação ou sem cidade (campos opcionais) não pode quebrar a lista
+    $cliQ = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT id_cliente FROM oportunidades WHERE id=" + $idOpQ, 0)
+    $cliAnt = $xl.Run($tq + 'modDB.Consultar', "SELECT qualificacao, cidade, empresa FROM clientes WHERE id=" + $cliQ)
+    $qualAnt = $cliAnt.GetValue(1, 1); $cidAnt = $cliAnt.GetValue(1, 2); $empAnt = $cliAnt.GetValue(1, 3)
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET qualificacao=NULL WHERE id=" + $cliQ)
+    $ordNula = -1; $errN = ''
+    try {
+        $candN = $xl.Run($tq + 'modPlanejamento.Candidatos', $idQ)
+        if ($candN -is [array]) { for ($i = 1; $i -le $candN.GetLength(0); $i++) { if ([int]$candN.GetValue($i, 1) -eq $idOpQ) { $ordNula = [int]$candN.GetValue($i, 10) } } }
+    } catch { $errN = $_.Exception.Message }
+    Conferir 'candidatos do front: cliente sem qualificação entra no fim da ordem (999), sem erro' ($ordNula -eq 999) ('ordem=' + $ordNula + ' ' + $errN)
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET cidade=NULL WHERE id=" + $cliQ)
+    $achouSemCidade = $true; $errC = ''
+    try {
+        $candC = $xl.Run($tq + 'modPlanejamento.Candidatos', $idQ)
+        $achouSemCidade = $false
+        if ($candC -is [array]) { for ($i = 1; $i -le $candC.GetLength(0); $i++) { if ([int]$candC.GetValue($i, 1) -eq $idOpQ) { $achouSemCidade = $true } } }
+    } catch { $errC = $_.Exception.Message }
+    Conferir 'candidatos do front: cliente sem cidade fica de fora, sem erro' (-not $achouSemCidade -and $errC -eq '') $errC
+    $pCli = [object[]]@( [object[]]@(202, $qualAnt), [object[]]@(202, $cidAnt), [object[]]@(3, $cliQ) )
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET qualificacao=?, cidade=? WHERE id=?", $pCli)
+    $ger =[string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
     Conferir 'gerar visitas pelo front grava (vazio = ok)' ($ger -eq '') $ger
     $ger2 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
     Conferir 'gerar visitas: segunda pendente é recusada e nada é gravado (C13)' ($ger2 -match 'C13') $ger2
@@ -473,29 +498,74 @@ End Function
     $nPl2 = if ($wsPl.ListObjects.Count -gt 0 -and $wsPl.ListObjects.Item(1).DataBodyRange) { $wsPl.ListObjects.Item(1).DataBodyRange.Rows.Count } else { 0 }
     Conferir 'aba Planejamentos: o feed mostra a visita gravada em outra estacao' ($idOutraV -gt 0 -and $nPl2 -eq 2) ('id=' + $idOutraV + ' linhas=' + $nPl2)
     Conferir 'aba Planejamentos: depois do feed a aba continua protegida' ([bool]$wsPl.ProtectContents)
+    # revisão 003: descrição mudou (texto do seletor não casa mais): continua o MESMO planejamento, não o primeiro aberto
+    # outro planejamento ABERTO e mais novo: seria o escolhido pela regra 'primeiro aberto'
+    $outroPl = [string]$xl.Run($tq + 'modPlanejamento.CriarPlanejamento', 'TESTE SELETOR OUTRO', $cidQ, 50, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE planejamentos SET descricao='TESTE SELETOR RENOMEADO' WHERE id=" + $idQ)
+    [void]$xl.Run($tq + 'modAbaPlanejamentos.PlanejamentosAtualizar')
+    $xl.EnableEvents = $false
+    $nPl3 = if ($wsPl.ListObjects.Count -gt 0 -and $wsPl.ListObjects.Item(1).DataBodyRange) { $wsPl.ListObjects.Item(1).DataBodyRange.Rows.Count } else { 0 }
+    Conferir 'aba Planejamentos: renomear o planejamento escolhido não troca a seleção' (([string]$wsPl.Range('C4').Value2 -match 'TESTE SELETOR RENOMEADO') -and $nPl3 -eq 2) ('C4=[' + [string]$wsPl.Range('C4').Value2 + '] linhas=' + $nPl3)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE descricao='TESTE SELETOR OUTRO'")
     $wsPl.ExportAsFixedFormat(0, (Join-Path $pasta 'uso-Planejamentos.pdf'))
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id=" + $idOutraV)
     # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como
     # IDispatch; o Excel chama de volta este processo para ler o valor e os dois travam (o Run não volta).
     # Nome próprio: $pasta (execucao\teste) ainda recebe o PDF do Painel no fim do teste.
-    $pastaR = [string](Join-Path $env:TEMP ('crm-uso-roteiro-' + $PID))
+    $pastaRaizR = [string](Join-Path $env:TEMP ('crm-uso-roteiro-' + $PID))
+    # revisão 003: dois níveis que ainda não existem (como Documentos\CRM Zapromaq\Roteiros numa estação nova)
+    $pastaR = [string](Join-Path $pastaRaizR 'CRM Zapromaq\Roteiros')
+    # revisão 003: aspas no nome da empresa têm de sair dobradas (o CSV não pode quebrar)
+    $pEmp = [object[]]@( [object[]]@(202, 'TESTE "ASPAS" LTDA'), [object[]]@(3, $cliQ) )
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET empresa=? WHERE id=?", $pEmp)
     # o caminho sai por ByRef (não volta pelo Run via COM): o arquivo é achado na pasta indicada
-    $msgR = [string]$xl.Run($tq + 'modPlanejamento.ExportarRoteiro', $idQ, $pastaR, '')
+    $msgR = ''
+    try { $msgR = [string]$xl.Run($tq + 'modPlanejamento.ExportarRoteiro', $idQ, $pastaR, '') } catch { $msgR = 'ERRO ' + $_.Exception.Message }
+    $pEmp = [object[]]@( [object[]]@(202, $empAnt), [object[]]@(3, $cliQ) )
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET empresa=? WHERE id=?", $pEmp)
     $arqR = $null
     if (Test-Path -LiteralPath $pastaR) { $arqR = Get-ChildItem -LiteralPath $pastaR -Filter '*.csv' | Select-Object -First 1 }
     $caminho = ''; if ($arqR) { $caminho = $arqR.FullName }
-    Conferir 'roteiro do front: arquivo gravado na pasta indicada (retorno vazio = ok)' ($msgR -eq '' -and $caminho -ne '') ($msgR + ' ' + $caminho)
+    Conferir 'roteiro do front: arquivo gravado criando as pastas que faltam (retorno vazio = ok)' ($msgR -eq '' -and $caminho -ne '') ($msgR + ' ' + $caminho)
     if ($caminho -ne '') {
         $bytesQ = [System.IO.File]::ReadAllBytes($caminho)
         Conferir 'roteiro do front: BOM UTF-8' ($bytesQ[0] -eq 0xEF -and $bytesQ[1] -eq 0xBB -and $bytesQ[2] -eq 0xBF) ''
         $lq = @([System.IO.File]::ReadAllLines($caminho, [System.Text.Encoding]::UTF8))
         Conferir 'roteiro do front: BASE e uma visita pendente' ($lq.Count -eq 3 -and $lq[1].StartsWith('"BASE"') -and $lq[2].StartsWith('"VISITA"')) ($lq -join ' | ')
-        Remove-Item -LiteralPath $pastaR -Recurse -Force -ErrorAction SilentlyContinue
+        # leitura como CSV de verdade: 16 campos por linha e a empresa com as aspas de volta
+        Add-Type -AssemblyName Microsoft.VisualBasic
+        $campos = @(); $errCsv = ''
+        $leitor = New-Object Microsoft.VisualBasic.FileIO.TextFieldParser($caminho, [System.Text.Encoding]::UTF8)
+        try {
+            $leitor.SetDelimiters(';'); $leitor.HasFieldsEnclosedInQuotes = $true
+            while (-not $leitor.EndOfData) { $campos += , $leitor.ReadFields() }
+        } catch { $errCsv = $_.Exception.Message } finally { $leitor.Close() }
+        $empCsv = ''; if ($campos.Count -eq 3) { $empCsv = [string]$campos[2][3] }
+        Conferir 'roteiro do front: aspas dobradas, a linha tem 16 campos e a empresa volta igual' ($errCsv -eq '' -and $campos.Count -eq 3 -and $campos[2].Count -eq 16 -and $empCsv -eq 'TESTE "ASPAS" LTDA') ($errCsv + ' empresa=[' + $empCsv + '] ' + $lq[2])
     }
+    Remove-Item -LiteralPath $pastaRaizR -Recurse -Force -ErrorAction SilentlyContinue
+    # revisão 003, C09 (V3): visita de planejamento só aceita data agendada dentro do período
+    $r9 = [string]$xl.Run($tq + 'modVisita.AtualizarVisita', $idVisQ, 1, 'PENDENTE', [datetime]'2026-11-15', '', '', '', '', $null, '', '', '')
+    Conferir 'visita C09: data agendada fora do período do planejamento é recusada' ($r9 -match 'C09') $r9
+    $r9b = [string]$xl.Run($tq + 'modVisita.AtualizarVisita', $idVisQ, 1, 'PENDENTE', [datetime]'2026-10-25', '09:00', '', '', '', $null, '', '', '')
+    Conferir 'visita C09: data agendada dentro do período grava (vazio = ok)' ($r9b -eq '') $r9b
     $ua = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'TESTE FRONT CAND 2', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
     Conferir 'atualizar planejamento: grava com versão lida (vazio = ok)' ($ua -eq '') $ua
     $ua2 = [string]$xl.Run($tq + 'modPlanejamento.AtualizarPlanejamento', $idQ, 1, 'X', $cidQ, 80, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
     Conferir 'atualizar planejamento: versão antiga é conflito' ($ua2 -match 'Conflito') $ua2
+    # revisão 003: planejamento encerrado não recebe visitas novas (mesma regra do conector)
+    $reQ = [string]$xl.Run($tq + 'modPlanejamento.AlterarSituacaoPlanejamento', $idQ, 2, 'ENCERRADO', $true)
+    Conferir 'planejamento: encerrar para o teste de gerar visitas (vazio = ok)' ($reQ -eq '') $reQ
+    $nVisAntes = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT COUNT(*) FROM visitas WHERE id_planejamento=" + $idQ, 0)
+    $gerEnc = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
+    $nVisDepois = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT COUNT(*) FROM visitas WHERE id_planejamento=" + $idQ, 0)
+    Conferir 'gerar visitas: planejamento encerrado é recusado e nada é gravado' ($gerEnc -match 'encerrado' -and $nVisDepois -eq $nVisAntes) ($gerEnc + ' antes=' + $nVisAntes + ' depois=' + $nVisDepois)
+    # revisão 003: o responsável escolhido ao criar o planejamento é gravado
+    $rpR = ''
+    try { $rpR = [string]$xl.Run($tq + 'modPlanejamento.CriarPlanejamento', 'TESTE FRONT RESP', $cidQ, 50, [datetime]'2026-10-20', [datetime]'2026-10-30', '', 'Vendedor A') } catch { $rpR = 'ERRO ' + $_.Exception.Message }
+    $respR = [string]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT responsavel FROM planejamentos WHERE descricao='TESTE FRONT RESP'", '')
+    Conferir 'planejamento: criar grava o responsável escolhido' ($rpR -eq '' -and $respR -eq 'Vendedor A') ($rpR + ' responsavel=[' + $respR + ']')
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE descricao='TESTE FRONT RESP'")
     # volta: visitas e planejamento de teste, e o log criado pelo teste
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)
