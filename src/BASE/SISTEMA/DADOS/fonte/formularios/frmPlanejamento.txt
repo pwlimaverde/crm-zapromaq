@@ -235,7 +235,7 @@ Private Sub cmdSalvar_Click()
         Exit Sub
     End If
     If mIdPl = 0 Then
-        msg = modPlanejamento.CriarPlanejamento(txtDescricao.Text, mCodMun, raio, CDate(ini), CDate(fim), txtObs.Text)
+        msg = modPlanejamento.CriarPlanejamento(txtDescricao.Text, mCodMun, raio, CDate(ini), CDate(fim), txtObs.Text, cboResp.Text)
     Else
         msg = modPlanejamento.AtualizarPlanejamento(mIdPl, mVersao, txtDescricao.Text, mCodMun, raio, CDate(ini), CDate(fim), _
                                                     cboResp.Text, txtObs.Text)
