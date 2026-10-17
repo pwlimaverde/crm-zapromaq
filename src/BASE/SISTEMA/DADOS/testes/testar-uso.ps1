@@ -226,9 +226,27 @@ End Sub
     Conferir 'listas C03: desativar a unica etapa GANHO e recusado' ($rc -match 'C03') $rc
     $nAtivo = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM listas WHERE tipo='Etapa' AND valor='Pedido Fechado' AND ativo=True")
     Conferir 'listas C03: a etapa recusada continua ativa' ($nAtivo -eq 1) ([string]$nAtivo)
-    # volta: apaga o valor de teste e o log dele (o banco de demonstracao volta como estava)
-    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id_registro IN (SELECT id FROM listas WHERE valor='TESTE FASE 2')")
-    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM listas WHERE valor='TESTE FASE 2'")
+    # revisão final 003: incluir grava a chave (o papel é lido pela chave; a montagem recusa lista sem chave)
+    $chF = [string]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT chave FROM listas WHERE tipo='Familia' AND valor='TESTE FASE 2'", '')
+    Conferir 'listas: incluir grava a chave' ($chF -eq 'TESTE FASE 2') $chF
+    $reE = [string]$xl.Run($tl + 'IncluirValor', 'Etapa', 'TESTE ETAPA USO')
+    $rpE = [string]$xl.Run($tl + 'DefinirPapel', 'TESTE ETAPA USO', $true, 'PERDA', 'FUNIL', $false, $false)
+    $encE = [string]$xl.Run("'" + $n + "'!modCRM.EtapaEncerra", 'TESTE ETAPA USO')
+    Conferir 'listas C07: etapa incluída e marcada encerra é lida como encerrada' ($reE -eq '' -and $rpE -eq '' -and $encE -match 'True|Verdadeiro') ($reE + ' | ' + $rpE + ' | ' + $encE)
+    # erro do banco chega com a descrição (capturada antes do Desfazer, que limpa o Err)
+    $rErr = [string]$xl.Run($tl + 'IncluirValor', ('Z' * 40), 'TESTE ERRO')
+    Conferir 'listas: erro do banco mostra a descrição' ($rErr -match '^Nao gravou: \S') $rErr
+    # uso de cada valor (frmListas) numa leitura por coluna, igual à contagem valor a valor
+    try {
+        $usoR = $xl.Run($tl + 'UsoDaLista', 'Responsavel')
+        $vR = [string]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT TOP 1 responsavel FROM oportunidades WHERE responsavel IS NOT NULL", '')
+        $refR = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM clientes WHERE responsavel='" + $vR.Replace("'", "''") + "'", 0) + [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM oportunidades WHERE responsavel='" + $vR.Replace("'", "''") + "'", 0)
+        Conferir ('listas: uso de ' + $vR + ' numa leitura (' + $refR + ')') ($refR -gt 0 -and [int]$usoR.Item($vR) -eq $refR) ([string]$usoR.Item($vR))
+    } catch { Conferir 'listas: uso numa leitura (modListas.UsoDaLista)' $false $_.Exception.Message }
+    # volta: apaga os valores de teste e o log deles (o banco de demonstracao volta como estava)
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM log_alteracoes WHERE tabela='listas' AND id_registro IN (SELECT id FROM listas WHERE valor IN ('TESTE FASE 2', 'TESTE ETAPA USO'))")
+    [void]$xl.Run("'" + $n + "'!modDB.Executar", "DELETE FROM listas WHERE valor IN ('TESTE FASE 2', 'TESTE ETAPA USO')")
+    [void]$xl.Run("'" + $n + "'!modCRM.LimparCacheListas")
 
     # Fase 2.2b: papel da etapa pelo front (C03, C04 e confirmacao de 'encerra'), com volta ao estado original
     $tp = "'" + $n + "'!modListas."

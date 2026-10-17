@@ -78,9 +78,18 @@ Public Function IncluirValor(ByVal tipo As String, ByVal valor As String) As Str
             If CLng(d(i, 3)) >= ordem Then ordem = CLng(d(i, 3))
         Next i
     End If
-    id = modDB.InserirEm(cn, "INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)", _
-                         Array(modDB.P(modDB.adVarWChar, tipo), modDB.P(modDB.adVarWChar, valor), _
-                               modDB.P(modDB.adInteger, ordem + 1)))
+    ' a chave vai junto: o papel da etapa e lido pela chave e a montagem recusa lista sem chave.
+    ' Etapa nova nasce aberta, no funil, sem familia (como no conector), com YESNO explicito.
+    If tipo = "Etapa" Then
+        id = modDB.InserirEm(cn, "INSERT INTO listas (tipo, valor, chave, ordem, ativo, encerra, quadro, exige_familia) " & _
+                                 "VALUES (?,?,?,?,True,False,'FUNIL',False)", _
+                             Array(modDB.P(modDB.adVarWChar, tipo), modDB.P(modDB.adVarWChar, valor), _
+                                   modDB.P(modDB.adVarWChar, chave), modDB.P(modDB.adInteger, ordem + 1)))
+    Else
+        id = modDB.InserirEm(cn, "INSERT INTO listas (tipo, valor, chave, ordem, ativo) VALUES (?,?,?,?,True)", _
+                             Array(modDB.P(modDB.adVarWChar, tipo), modDB.P(modDB.adVarWChar, valor), _
+                                   modDB.P(modDB.adVarWChar, chave), modDB.P(modDB.adInteger, ordem + 1)))
+    End If
     modDB.LogEm cn, "listas", id, "valor", "", tipo & ": " & valor, "INSERIR"
     modDB.Confirmar cn
     modCRM.LimparCacheListas
