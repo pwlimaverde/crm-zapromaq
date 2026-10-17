@@ -1432,7 +1432,10 @@ function Invoke-GerenciarLista($a) {
         $tipoOk = $tipos | Where-Object { $_ -ieq $tipo } | Select-Object -First 1
         if (-not $tipoOk) { throw ("Lista '" + $tipo + "' não existe. Listas: " + ($tipos -join ' | ')) }
         $ehEtapa = ($tipoOk -eq 'Etapa')
-        $ex = $ctx.Consultar('SELECT * FROM listas WHERE tipo=? AND valor=?', @((P 'texto' $tipoOk), (P 'texto' $valor)))
+        # pela chave (C01/C02): "Pedído Fechado" é o mesmo valor que "Pedido Fechado"
+        $chave = ConvertTo-ChaveLista $valor
+        $ex = @($ctx.Consultar('SELECT * FROM listas WHERE tipo=?', @((P 'texto' $tipoOk))) | Where-Object { (ConvertTo-ChaveLista ([string]$_.valor)) -eq $chave })
+        if ($ex.Count -gt 0 -and $acao -ne 'incluir') { $valor = [string]$ex[0].valor }
         $ordem = $null; if (Test-TemArg $a 'ordem') { $ordem = [int]$a.ordem }
         # C05: UF só entra se for uma das 27
         if ($tipoOk -eq 'UF' -and $acao -eq 'incluir' -and -not (Test-UFValida $valor)) { throw ("'" + $valor + "' não é uma UF do Brasil (C05).") }
@@ -1452,9 +1455,9 @@ function Invoke-GerenciarLista($a) {
                     if ($quad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
                     $fam = (Test-TemArg $a 'exige_familia') -and [bool]$a.exige_familia
                     $resP = $null; if ($res -ne '') { $resP = $res }
-                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, chave, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'texto' $chave), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
                 } else {
-                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, chave, ordem, ativo) VALUES (?,?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'texto' $chave), (P 'inteiro' $ordem)))
                 }
                 $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
                 $ctx.Log('listas', $id, 'valor', '', ($tipoOk + ': ' + $valor), 'INSERIR')
