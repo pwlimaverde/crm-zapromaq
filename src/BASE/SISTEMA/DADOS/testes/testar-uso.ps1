@@ -239,8 +239,12 @@ End Sub
     Conferir 'papel C04: resultado com encerra Nao e recusado' ($rp2 -match 'C04') $rp2
     $rp3 = [string]$xl.Run($tp + 'DefinirPapel', 'Pedido Fechado', $true, '', 'FUNIL', $false, $false)
     Conferir 'papel C03: tirar o resultado da unica etapa GANHO e recusado' ($rp3 -match 'C03') $rp3
+    # revisão 003: o cache do papel é lido antes e tem de refletir a gravação na hora (não em 10 min)
+    $quadAntes = [string]$xl.Run("'" + $n + "'!modCRM.EtapaQuadro", 'Negociação')
     $rp4 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'PROSPECCAO', $true, $false)
     Conferir 'papel: mudar quadro grava (vazio = ok)' ($rp4 -eq '') $rp4
+    $quadDepois = [string]$xl.Run("'" + $n + "'!modCRM.EtapaQuadro", 'Negociação')
+    Conferir 'papel: o cache de papel reflete a gravação na hora' ($quadAntes -eq 'FUNIL' -and $quadDepois -eq 'PROSPECCAO') ($quadAntes + ' -> ' + $quadDepois)
     $rp5 = [string]$xl.Run($tp + 'DefinirPapel', 'Negociação', $false, '', 'FUNIL', $true, $false)
     Conferir 'papel: volta o quadro para FUNIL' ($rp5 -eq '') $rp5
     $nLog = [int]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT COUNT(*) FROM log_alteracoes WHERE tabela='listas' AND id > " + $maxLogAntes, 0)
@@ -494,6 +498,15 @@ End Function
     $nPl2 = if ($wsPl.ListObjects.Count -gt 0 -and $wsPl.ListObjects.Item(1).DataBodyRange) { $wsPl.ListObjects.Item(1).DataBodyRange.Rows.Count } else { 0 }
     Conferir 'aba Planejamentos: o feed mostra a visita gravada em outra estacao' ($idOutraV -gt 0 -and $nPl2 -eq 2) ('id=' + $idOutraV + ' linhas=' + $nPl2)
     Conferir 'aba Planejamentos: depois do feed a aba continua protegida' ([bool]$wsPl.ProtectContents)
+    # revisão 003: descrição mudou (texto do seletor não casa mais): continua o MESMO planejamento, não o primeiro aberto
+    # outro planejamento ABERTO e mais novo: seria o escolhido pela regra 'primeiro aberto'
+    $outroPl = [string]$xl.Run($tq + 'modPlanejamento.CriarPlanejamento', 'TESTE SELETOR OUTRO', $cidQ, 50, [datetime]'2026-10-20', [datetime]'2026-10-30', '', '')
+    [void]$xl.Run($tq + 'modDB.Executar', "UPDATE planejamentos SET descricao='TESTE SELETOR RENOMEADO' WHERE id=" + $idQ)
+    [void]$xl.Run($tq + 'modAbaPlanejamentos.PlanejamentosAtualizar')
+    $xl.EnableEvents = $false
+    $nPl3 = if ($wsPl.ListObjects.Count -gt 0 -and $wsPl.ListObjects.Item(1).DataBodyRange) { $wsPl.ListObjects.Item(1).DataBodyRange.Rows.Count } else { 0 }
+    Conferir 'aba Planejamentos: renomear o planejamento escolhido não troca a seleção' (([string]$wsPl.Range('C4').Value2 -match 'TESTE SELETOR RENOMEADO') -and $nPl3 -eq 2) ('C4=[' + [string]$wsPl.Range('C4').Value2 + '] linhas=' + $nPl3)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE descricao='TESTE SELETOR OUTRO'")
     $wsPl.ExportAsFixedFormat(0, (Join-Path $pasta 'uso-Planejamentos.pdf'))
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id=" + $idOutraV)
     # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como

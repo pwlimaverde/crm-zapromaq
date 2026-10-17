@@ -137,13 +137,14 @@ Public Sub Montar(ByVal ws As Worksheet, ByVal silencioso As Boolean)
     Dim cn As Object, pl As Variant, d As Variant, escolhido As String
     Dim i As Long, np As Long, nl As Long, pos As Long, idPl As Long, pend As Long
     Dim arr() As Variant, ops() As Variant, rng As Range, lo As ListObject
-    Dim eventos As Boolean
+    Dim eventos As Boolean, idAnterior As Long
 
     eventos = Application.EnableEvents
     On Error GoTo trata
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     escolhido = CStr(modDB.Nz(ws.Cells(LIN_SELETOR, COL_SELETOR).Value2))
+    If IsNumeric(ws.Cells(1, COL_OPCOES + 2).Value2) Then idAnterior = CLng(ws.Cells(1, COL_OPCOES + 2).Value2)
 
     ' uma conexao para as duas leituras
     Set cn = modDB.AbrirLeitura()
@@ -154,6 +155,13 @@ Public Sub Montar(ByVal ws As Worksheet, ByVal silencioso As Boolean)
     For i = 1 To np
         If TextoDoSeletor(CStr(pl(i, 2)), modDB.Nz(pl(i, 3)), CStr(pl(i, 4))) = escolhido Then pos = i
     Next i
+    ' o texto do seletor leva a situacao e a descricao: se mudaram (encerrou, renomeou), o texto da celula
+    ' nao casa mais; o id guardado na faixa oculta mantem o mesmo planejamento escolhido
+    If pos = 0 And idAnterior > 0 Then
+        For i = 1 To np
+            If CLng(pl(i, 1)) = idAnterior Then pos = i
+        Next i
+    End If
     If pos = 0 Then
         For i = np To 1 Step -1
             If CStr(pl(i, 4)) = "ABERTO" Then pos = i
@@ -186,6 +194,7 @@ Public Sub Montar(ByVal ws As Worksheet, ByVal silencioso As Boolean)
         Next i
         ws.Range(ws.Cells(1, COL_OPCOES), ws.Cells(np, COL_OPCOES + 1)).Value2 = ops
         ws.Cells(LIN_SELETOR, COL_SELETOR).Value2 = ops(pos, 1)
+        ws.Cells(1, COL_OPCOES + 2).Value2 = idPl
         With ws.Cells(LIN_SELETOR, COL_SELETOR).Validation
             .Delete
             ' xlValidateList = 3, xlValidAlertStop = 1, xlBetween = 1
@@ -198,6 +207,7 @@ Public Sub Montar(ByVal ws As Worksheet, ByVal silencioso As Boolean)
     End If
     ws.Columns(COL_OPCOES).Hidden = True
     ws.Columns(COL_OPCOES + 1).Hidden = True
+    ws.Columns(COL_OPCOES + 2).Hidden = True
 
     ' grade das visitas
     ReDim arr(1 To nl + 1, 1 To NCOLS)
