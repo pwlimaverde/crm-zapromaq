@@ -37,8 +37,8 @@ End Property
 Private Sub UserForm_Initialize()
     Set mUI = New clsUI
     mUI.Preparar Me
-    Me.Caption = "CRM Zapromaq  -  lancamento da visita"
-    lblTitulo.Caption = "Lancamento da visita"
+    Me.Caption = "CRM Zapromaq  -  lan" & ChrW$(&HE7) & "amento da visita"
+    lblTitulo.Caption = "Lan" & ChrW$(&HE7) & "amento da visita"
     cboLSit.AddItem "PENDENTE"
     cboLSit.AddItem "REALIZADA"
     cboLSit.AddItem "CANCELADA"
@@ -86,7 +86,7 @@ Private Function Carregar() As Boolean
                         "INNER JOIN clientes c ON o.id_cliente = c.id) WHERE v.id=?", _
                         Array(modDB.P(modDB.adInteger, mVisita)))
     If IsEmpty(d) Then
-        MsgBox "Visita nao encontrada.", vbExclamation, "CRM Zapromaq"
+        MsgBox "Visita n" & ChrW$(&HE3) & "o encontrada.", vbExclamation, "CRM Zapromaq"
         Exit Function
     End If
     sit = CStr(d(1, 1))
@@ -107,7 +107,7 @@ Private Function Carregar() As Boolean
     modTela.DefinirCombo cboLTipo, modDB.Nz(d(1, 4))
     modTela.DefinirCombo cboLRes, modDB.Nz(d(1, 5))
     If sit = "CANCELADA" Then txtLRelato.Text = modDB.Nz(d(1, 9)) Else txtLRelato.Text = modDB.Nz(d(1, 8))
-    lblStatus.Caption = "Versao " & mVersao & "."
+    lblStatus.Caption = "Vers" & ChrW$(&HE3) & "o " & mVersao & "."
     Repintar
     Carregar = True
 End Function
@@ -128,7 +128,7 @@ Private Function LerDataHora(ByVal data As String, ByVal hora As String, ByRef e
     End If
     Exit Function
 Ruim:
-    erro = "Data ou hora invalida. Use AAAA-MM-DD e HH:mm."
+    erro = "Data ou hora inv" & ChrW$(&HE1) & "lida. Use AAAA-MM-DD e HH:mm."
     LerDataHora = Null
 End Function
 
