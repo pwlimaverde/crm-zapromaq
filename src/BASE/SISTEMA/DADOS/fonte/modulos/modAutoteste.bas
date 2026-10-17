@@ -89,6 +89,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
     Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
     Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
+    ' data digitada nas telas: dia que nao existe e recusado (como o ParseExact do conector)
+    Confere "data 2026-02-30 nao existe", modValidacao.DataExiste(2026, 2, 30), False
+    Confere "data 2026-10-32 nao existe", modValidacao.DataExiste(2026, 10, 32), False
+    Confere "data 2026-13-01 nao existe", modValidacao.DataExiste(2026, 13, 1), False
+    Confere "data 2028-02-29 existe", modValidacao.DataExiste(2028, 2, 29), True
     ' lancamento: pendente com data = agendar (data e hora agendadas); realizada = data realizada
     Dim lc As Variant
     lc = modVisita.CamposLancamento("PENDENTE", DateSerial(2026, 10, 25) + TimeSerial(9, 0, 0), "09:00", Null, "")

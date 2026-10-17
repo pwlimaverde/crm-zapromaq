@@ -120,6 +120,7 @@ Private Function LerDataHora(ByVal data As String, ByVal hora As String, ByRef e
     On Error GoTo Ruim
     dt = Split(s, "-")
     If UBound(dt) <> 2 Then GoTo Ruim
+    If Not modValidacao.DataExiste(CLng(dt(0)), CLng(dt(1)), CLng(dt(2))) Then GoTo Ruim
     LerDataHora = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2)))
     If Trim$(hora) <> "" Then
         hr = Split(Trim$(hora), ":")

@@ -144,6 +144,15 @@ Public Function ComoData(ByVal texto As String) As Variant
     ComoData = CDate(s)
 End Function
 
+' Data digitada como AAAA-MM-DD existe no calendario? DateSerial "corrige" 2026-02-30 para
+' 02/03/2026 sem avisar; o conector (ParseExact) recusa. Mesma regra nas telas.
+Public Function DataExiste(ByVal ano As Long, ByVal mes As Long, ByVal dia As Long) As Boolean
+    Dim d As Date
+    If ano < 1900 Or ano > 9999 Or mes < 1 Or mes > 12 Or dia < 1 Or dia > 31 Then Exit Function
+    d = DateSerial(ano, mes, dia)
+    DataExiste = (Year(d) = ano And Month(d) = mes And Day(d) = dia)
+End Function
+
 Public Function ComoInteiro(ByVal texto As String) As Variant
     Dim s As String
     s = Trim$(texto)

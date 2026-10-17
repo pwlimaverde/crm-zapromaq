@@ -233,6 +233,7 @@ Private Function LerData(ByVal txt As String, ByVal comHora As Boolean, ByRef er
     Dim dt As Variant
     dt = Split(partes(0), "-")
     If UBound(dt) <> 2 Then GoTo Ruim
+    If Not modValidacao.DataExiste(CLng(dt(0)), CLng(dt(1)), CLng(dt(2))) Then GoTo Ruim
     If UBound(partes) >= 1 Then
         hora = Split(partes(1), ":")
         LerData = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2))) + TimeSerial(CLng(hora(0)), CLng(hora(1)), 0)

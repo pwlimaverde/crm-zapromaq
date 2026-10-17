@@ -210,7 +210,8 @@ Private Function LerIso(ByVal texto As String, ByRef erro As String) As Variant
     On Error GoTo Ruim
     p = Split(Trim$(texto), "-")
     If UBound(p) <> 2 Then GoTo Ruim
-    LerIso = DateSerial(CLng(p(0)), CLng(p(1)), CLng(p(2)))
+    If Not modValidacao.DataExiste(CLng(p(0)), CLng(p(1)), CLng(p(2))) Then GoTo Ruim
+    LerIso =DateSerial(CLng(p(0)), CLng(p(1)), CLng(p(2)))
     Exit Function
 Ruim:
     erro = "Data invalida: '" & texto & "'. Use AAAA-MM-DD."
