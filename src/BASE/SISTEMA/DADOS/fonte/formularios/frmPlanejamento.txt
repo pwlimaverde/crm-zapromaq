@@ -33,8 +33,8 @@ Private Sub UserForm_Initialize()
     Set mUI = New clsUI
     mUI.Preparar Me
     Set mGrade = mUI.Grade("grdPagina")
-    Me.Caption = "CRM Zapromaq  -  planejamento por regiao"
-    lblTitulo.Caption = "Planejamento por regiao"
+    Me.Caption = "CRM Zapromaq  -  planejamento por regi" & ChrW$(&HE3) & "o"
+    lblTitulo.Caption = "Planejamento por regi" & ChrW$(&HE3) & "o"
     Set mMarcados = CreateObject("Scripting.Dictionary")
     mPagina = "VISITAS"
     PreencherResponsaveis
@@ -175,7 +175,7 @@ Private Sub Mostrar(ByVal id As Long)
     txtCidade.Text = modDB.Nz(d(1, 12)) & "/" & modDB.Nz(d(1, 13))
     lblSituacao.Caption = mSit
     If mSit = "ABERTO" Then cmdEncerrar.Caption = "Encerrar" Else cmdEncerrar.Caption = "Reabrir"
-    lblPagina.Caption = d(1, 2) & "  -  versao " & mVersao
+    lblPagina.Caption = d(1, 2) & "  -  vers" & ChrW$(&HE3) & "o " & mVersao
     RecarregarPagina
 End Sub
 
@@ -214,14 +214,14 @@ Private Function LerIso(ByVal texto As String, ByRef erro As String) As Variant
     LerIso =DateSerial(CLng(p(0)), CLng(p(1)), CLng(p(2)))
     Exit Function
 Ruim:
-    erro = "Data invalida: '" & texto & "'. Use AAAA-MM-DD."
+    erro = "Data inv" & ChrW$(&HE1) & "lida: '" & texto & "'. Use AAAA-MM-DD."
     LerIso = Null
 End Function
 
 Private Sub cmdSalvar_Click()
     Dim erro As String, ini As Variant, fim As Variant, raio As Long, msg As String
     If Not IsNumeric(txtRaio.Text) Then
-        MsgBox "Raio invalido: informe um numero de 1 a 500 km.", vbExclamation, "CRM Zapromaq"
+        MsgBox "Raio inv" & ChrW$(&HE1) & "lido: informe um n" & ChrW$(&HFA) & "mero de 1 a 500 km.", vbExclamation, "CRM Zapromaq"
         Exit Sub
     End If
     raio = CLng(txtRaio.Text)
@@ -232,7 +232,7 @@ Private Sub cmdSalvar_Click()
         Exit Sub
     End If
     If mCodMun = 0 Then
-        MsgBox "Escolha a cidade-base (botao Buscar).", vbExclamation, "CRM Zapromaq"
+        MsgBox "Escolha a cidade-base (bot" & ChrW$(&HE3) & "o Buscar).", vbExclamation, "CRM Zapromaq"
         Exit Sub
     End If
     If mIdPl = 0 Then
@@ -277,7 +277,7 @@ End Sub
 Private Sub DefinirCidade(ByVal cod As Long, ByVal nome As String, ByVal uf As String)
     mCodMun = cod
     txtCidade.Text = nome & "/" & uf
-    lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (codigo " & mCodMun & ")."
+    lblPagina.Caption = "Cidade-base: " & txtCidade.Text & " (c" & ChrW$(&HF3) & "digo " & mCodMun & ")."
 End Sub
 
 ' Encerrar (ou reabrir). C16: encerrar com visitas pendentes pede para cancela-las.
@@ -352,7 +352,7 @@ End Sub
 Private Sub CarregarVisitas()
     Dim d As Variant, n As Long, m() As Variant, i As Long, pend As Long
     mGrade.ColumnWidths = "100;90;60;120;220;132"
-    mGrade.Cabecalho Array("Situacao", "Data", "Hora", "Atendimento", "Empresa", "Contato")
+    mGrade.Cabecalho Array("Situa" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Data", "Hora", "Atendimento", "Empresa", "Contato")
     d = modDB.Consultar("SELECT v.id, v.situacao, v.data_agendada, v.hora_agendada, o.codigo, c.empresa, ct.nome " & _
                         "FROM ((visitas v INNER JOIN oportunidades o ON v.id_oportunidade = o.id) " & _
                         "INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id " & _
@@ -373,7 +373,7 @@ Private Sub CarregarVisitas()
         If CStr(d(i, 2)) = "PENDENTE" Then pend = pend + 1
     Next i
     If n = 0 Then mGrade.Clear Else mGrade.Carregar m
-    lblPagina.Caption = n & " visita(s), " & pend & " pendente(s). Duplo clique ou Lancar visita para registrar."
+    lblPagina.Caption = n & " visita(s), " & pend & " pendente(s). Duplo clique ou Lan" & ChrW$(&HE7) & "ar visita para registrar."
 End Sub
 
 Private Sub CarregarCandidatos()
@@ -399,7 +399,7 @@ Private Sub CarregarCandidatos()
         m(i, 6) = modDB.Nz(c(i, 8))
     Next i
     If n = 0 Then mGrade.Clear Else mGrade.Carregar m
-    lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * ja tem visita pendente."
+    lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * j" & ChrW$(&HE1) & " tem visita pendente."
 End Sub
 
 '----------------------------------------------------------

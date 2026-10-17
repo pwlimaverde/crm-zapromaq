@@ -210,7 +210,7 @@ Private Sub Mostrar(ByVal posicao As Long)
     Else
         txtRelato.Text = modDB.Nz(d(1, 5))
     End If
-    lblStatus.Caption = "Visita " & mVisAtual & " (versao " & mVersaoAtual & ")."
+    lblStatus.Caption = "Visita " & mVisAtual & " (vers" & ChrW$(&HE3) & "o " & mVersaoAtual & ")."
 End Sub
 
 ' Data como texto da ficha: AAAA-MM-DD, ou com hora quando ela importa.
@@ -243,7 +243,7 @@ Private Function LerData(ByVal txt As String, ByVal comHora As Boolean, ByRef er
     End If
     Exit Function
 Ruim:
-    erroTexto = "Data invalida: '" & txt & "'. Use AAAA-MM-DD" & IIf(comHora, " HH:mm.", ".")
+    erroTexto = "Data inv" & ChrW$(&HE1) & "lida: '" & txt & "'. Use AAAA-MM-DD" & IIf(comHora, " HH:mm.", ".")
     LerData = Null
 End Function
 
