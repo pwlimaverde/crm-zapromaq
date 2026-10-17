@@ -278,9 +278,14 @@ Public Function LinhasDaLista(ByVal tipo As String) As Variant
                                     Array(modDB.P(modDB.adVarWChar, tipo)))
 End Function
 
-' Quantos registros usam o valor (mesmo mapa de Get-ColunasDaLista do build).
-Public Function UsoDoValor(ByVal tipo As String, ByVal valor As String) As Long
-    Dim alvos As String, a As Variant, partes As Variant
+' Quantos registros usam cada valor da lista (mesmo mapa de Get-ColunasDaLista do build):
+' dicionario valor -> contagem (sem diferenca de caixa, como o "=" do Access). Uma conexao e
+' uma leitura agrupada por coluna - nunca uma consulta por valor (a grade de frmListas).
+Public Function UsoDaLista(ByVal tipo As String) As Object
+    Dim alvos As String, a As Variant, partes As Variant, uso As Object, cn As Object, d As Variant, i As Long
+    Set uso = CreateObject("Scripting.Dictionary")
+    uso.CompareMode = 1
+    Set UsoDaLista = uso
     Select Case tipo
         Case "UF": alvos = "clientes.uf"
         Case "Segmento": alvos = "clientes.segmento"
@@ -294,11 +299,26 @@ Public Function UsoDoValor(ByVal tipo As String, ByVal valor As String) As Long
         Case "Motivo": alvos = "oportunidades.motivo_desfecho"
     End Select
     If alvos = "" Then Exit Function
+    On Error GoTo Falha
+    Set cn = modDB.AbrirLeitura()
+    ' tabela e coluna vem do mapa fixo acima, nunca do usuario
     For Each a In Split(alvos, "|")
         partes = Split(a, ".")
-        UsoDoValor = UsoDoValor + modDB.ConsultarValor("SELECT COUNT(*) FROM " & partes(0) & " WHERE " & partes(1) & "=?", 0, _
-                                                       Array(modDB.P(modDB.adVarWChar, valor)))
+        d = modDB.ConsultarEm(cn, "SELECT " & partes(1) & ", COUNT(*) FROM " & partes(0) & _
+                                  " WHERE " & partes(1) & " IS NOT NULL GROUP BY " & partes(1))
+        If Not IsEmpty(d) Then
+            For i = 1 To UBound(d, 1)
+                uso(CStr(d(i, 1))) = uso(CStr(d(i, 1))) + CLng(d(i, 2))
+            Next i
+        End If
     Next a
+    modDB.FecharLeitura cn
+    Exit Function
+Falha:
+    Dim numErro As Long, descErro As String
+    numErro = Err.Number: descErro = Err.Description
+    modDB.FecharLeitura cn
+    Err.Raise numErro, "modListas.UsoDaLista", descErro
 End Function
 
 ' Sobe ou desce um valor na ordem de exibicao. Caso comum (ordens diferentes): troca

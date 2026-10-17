@@ -97,8 +97,9 @@ End Sub
 
 ' Carrega a lista atual e deixa selecionada a linha de posicao (0 = primeira).
 Private Sub RecarregarEm(ByVal posicao As Long)
-    Dim n As Long, m() As Variant, i As Long, ativos As Long
+    Dim n As Long, m() As Variant, i As Long, ativos As Long, uso As Object
     mLinhas = modListas.LinhasDaLista(mTipo)
+    Set uso = modListas.UsoDaLista(mTipo)
     If IsEmpty(mLinhas) Then n = 0 Else n = UBound(mLinhas, 1)
     ReDim m(1 To n, 1 To 4)
     For i = 1 To n
@@ -109,7 +110,7 @@ Private Sub RecarregarEm(ByVal posicao As Long)
         Else
             m(i, 3) = "Inativo"
         End If
-        m(i, 4) = CStr(modListas.UsoDoValor(mTipo, CStr(mLinhas(i, 2))))
+        If uso.Exists(CStr(mLinhas(i, 2))) Then m(i, 4) = CStr(uso(CStr(mLinhas(i, 2)))) Else m(i, 4) = "0"
     Next i
     mGrade.Carregar m
     lblResumo.Caption = n & " valor(es)  -  " & ativos & " ativo(s)"
