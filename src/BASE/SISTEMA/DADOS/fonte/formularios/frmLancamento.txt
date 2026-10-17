@@ -120,6 +120,7 @@ Private Function LerDataHora(ByVal data As String, ByVal hora As String, ByRef e
     On Error GoTo Ruim
     dt = Split(s, "-")
     If UBound(dt) <> 2 Then GoTo Ruim
+    If Not modValidacao.DataExiste(CLng(dt(0)), CLng(dt(1)), CLng(dt(2))) Then GoTo Ruim
     LerDataHora = DateSerial(CLng(dt(0)), CLng(dt(1)), CLng(dt(2)))
     If Trim$(hora) <> "" Then
         hr = Split(Trim$(hora), ":")
@@ -133,16 +134,18 @@ End Function
 
 '----------------------------------------------------------
 Private Sub cmdLSalvar_Click()
-    Dim sit As String, dataReal As Variant, erro As String, msg As String, relato As String, motivo As String
+    Dim sit As String, quando As Variant, erro As String, msg As String, relato As String, motivo As String, c As Variant
     sit = UCase$(Trim$(cboLSit.Text))
-    dataReal = LerDataHora(txtLData.Text, txtLHora.Text, erro)
+    quando = LerDataHora(txtLData.Text, txtLHora.Text, erro)
     If erro <> "" Then
         MsgBox erro, vbExclamation, "CRM Zapromaq"
         Exit Sub
     End If
     If sit = "CANCELADA" Then motivo = txtLRelato.Text Else relato = txtLRelato.Text
-    msg = modVisita.AtualizarVisita(mVisita, mVersao, sit, mDataAg, mHora, cboLTipo.Text, mResp, mObs, _
-                                    dataReal, cboLRes.Text, relato, motivo)
+    ' pendente: a data digitada e o agendamento; realizada/cancelada: a data realizada
+    c = modVisita.CamposLancamento(sit, quando, txtLHora.Text, mDataAg, mHora)
+    msg = modVisita.AtualizarVisita(mVisita, mVersao, sit, c(0), CStr(c(1)), cboLTipo.Text, mResp, mObs, _
+                                    c(2), cboLRes.Text, relato, motivo)
     If msg <> "" Then
         MsgBox msg, vbExclamation, "CRM Zapromaq"
         Exit Sub

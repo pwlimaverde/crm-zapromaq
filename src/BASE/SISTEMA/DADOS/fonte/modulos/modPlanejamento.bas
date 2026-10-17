@@ -139,8 +139,11 @@ Public Function CriarPlanejamento(ByVal descricao As String, ByVal codMunicipio 
     CriarPlanejamento = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    CriarPlanejamento = "Nao gravou: " & Err.Description
+    CriarPlanejamento = "Nao gravou: " & descErro
 End Function
 
 ' Encerra (ENCERRADO) ou reabre (ABERTO). C16: encerrar com visitas pendentes so com
@@ -211,8 +214,11 @@ Public Function AlterarSituacaoPlanejamento(ByVal id As Long, ByVal versaoLida A
     AlterarSituacaoPlanejamento = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    AlterarSituacaoPlanejamento = "Nao gravou: " & Err.Description
+    AlterarSituacaoPlanejamento = "Nao gravou: " & descErro
 End Function
 
 ' Altera um planejamento ABERTO (descricao, cidade-base, raio, periodo, responsavel, observacoes).
@@ -270,8 +276,11 @@ Public Function AtualizarPlanejamento(ByVal id As Long, ByVal versaoLida As Long
     AtualizarPlanejamento = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    AtualizarPlanejamento = "Nao gravou: " & Err.Description
+    AtualizarPlanejamento = "Nao gravou: " & descErro
 End Function
 
 ' Candidatos do planejamento (espelho de listar_candidatos): atendimentos em aberto a ate o raio
@@ -434,8 +443,11 @@ Public Function GerarVisitas(ByVal idPlanejamento As Long, ByVal idsOportunidade
     GerarVisitas = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    GerarVisitas = "Nao gravou: " & Err.Description
+    GerarVisitas = "Nao gravou: " & descErro
 End Function
 
 ' Grava o roteiro do planejamento (mesmo formato do conector): UTF-8 com BOM, ';', texto

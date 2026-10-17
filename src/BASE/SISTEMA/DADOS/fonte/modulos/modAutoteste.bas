@@ -89,6 +89,23 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
     Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
     Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
+    ' C02 compara pela chave: variante com acento e o mesmo valor; C07 etapa que encerra = Encerrado
+    Confere "C02 variante com acento tem a mesma chave", modValidacao.ChaveLista("Ped" & ChrW(237) & "do Fechado") = modValidacao.ChaveLista("Pedido Fechado"), True
+    Confere "C07 etapa que encerra fica Encerrado", modCalc.SituacaoDaEtapa(True, DateSerial(2099, 1, 1), Null), "Encerrado"
+    ' data digitada nas telas: dia que nao existe e recusado (como o ParseExact do conector)
+    Confere "data 2026-02-30 nao existe", modValidacao.DataExiste(2026, 2, 30), False
+    Confere "data 2026-10-32 nao existe", modValidacao.DataExiste(2026, 10, 32), False
+    Confere "data 2026-13-01 nao existe", modValidacao.DataExiste(2026, 13, 1), False
+    Confere "data 2028-02-29 existe", modValidacao.DataExiste(2028, 2, 29), True
+    ' lancamento: pendente com data = agendar (data e hora agendadas); realizada = data realizada
+    Dim lc As Variant
+    lc = modVisita.CamposLancamento("PENDENTE", DateSerial(2026, 10, 25) + TimeSerial(9, 0, 0), "09:00", Null, "")
+    Confere "lancamento PENDENTE: a data vai para a agendada", lc(0), DateSerial(2026, 10, 25)
+    Confere "lancamento PENDENTE: a hora vai para a agendada", lc(1), "09:00"
+    Confere "lancamento PENDENTE: sem data realizada", IsNull(lc(2)), True
+    lc = modVisita.CamposLancamento("REALIZADA", DateSerial(2026, 10, 25) + TimeSerial(9, 30, 0), "09:30", DateSerial(2026, 10, 24), "08:00")
+    Confere "lancamento REALIZADA: a data vai para a realizada", lc(2), DateSerial(2026, 10, 25) + TimeSerial(9, 30, 0)
+    Confere "lancamento REALIZADA: a agendada fica como estava", lc(0), DateSerial(2026, 10, 24)
     ' ---- planejamento (Fase 4): mesma regra do conector (modPlanejamento)
     Confere "nome_busca sem acento e maiusculas", modPlanejamento.NomeBusca("S" & ChrW(227) & "o Lu" & ChrW(237) & "s"), "SAO LUIS"
     Confere "distancia mesma cidade e zero", modPlanejamento.DistanciaKm(-23.5505, -46.6333, -23.5505, -46.6333), 0

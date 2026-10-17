@@ -48,6 +48,23 @@ Public Function SegundaPendente(ByVal pendentesExistentes As Long) As String
     If pendentesExistentes > 0 Then SegundaPendente = "Ja ha visita pendente neste atendimento: realize ou cancele antes (C13)."
 End Function
 
+' Lancamento (frmLancamento): para onde vai a data/hora digitada. Visita PENDENTE e
+' agendamento (data e hora agendadas, sem data realizada - como lancar_datas no conector);
+' REALIZADA/CANCELADA guardam a data em data_realizada e mantem o agendamento.
+' Devolve Array(data_agendada, hora_agendada, data_realizada).
+Public Function CamposLancamento(ByVal situacao As String, ByVal quando As Variant, ByVal hora As String, _
+                                 ByVal dataAgAtual As Variant, ByVal horaAtual As String) As Variant
+    If UCase$(Trim$(situacao)) = "PENDENTE" Then
+        If IsNull(quando) Or IsEmpty(quando) Then
+            CamposLancamento = Array(Null, Trim$(hora), Null)
+        Else
+            CamposLancamento = Array(DateValue(quando), Trim$(hora), Null)
+        End If
+    Else
+        CamposLancamento = Array(dataAgAtual, horaAtual, quando)
+    End If
+End Function
+
 '----------------------------------------------------------
 ' Gravacoes (fatia 3.2b). Mesmas regras do conector (C08 a C13), numa
 ' transacao cada. Devolvem "" quando gravam, ou a mensagem da recusa.
@@ -93,8 +110,11 @@ Public Function CriarVisita(ByVal idOportunidade As Long, ByVal dataAgendada As 
     CriarVisita = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    CriarVisita = "Nao gravou: " & Err.Description
+    CriarVisita = "Nao gravou: " & descErro
 End Function
 
 ' Muda a situacao e os dados da visita. V4 e V5 (C10, C11); C13 ao voltar a PENDENTE.
@@ -191,8 +211,11 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
     AtualizarVisita = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    AtualizarVisita = "Nao gravou: " & Err.Description
+    AtualizarVisita = "Nao gravou: " & descErro
 End Function
 
 ' Quantas visitas o atendimento tem, em qualquer situacao (V9): o rotulo Visitas (n).

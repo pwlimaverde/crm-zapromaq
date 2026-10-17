@@ -142,6 +142,38 @@ $pf = @($det.itens | Where-Object { $_.valor -eq 'Pedido Fechado' }) | Select-Ob
 Conferir 'listar_opcoes detalhar traz o papel da etapa (Pedido Fechado = GANHO, encerra)' ($null -ne $pf -and $pf.resultado -eq 'GANHO' -and $pf.encerra -eq $true)
 Conferir 'listar_opcoes detalhar traz o uso de cada valor' ($null -ne $pf -and $pf.uso -ge 0 -and $null -ne $pf.ativo)
 Conferir 'listar_opcoes sem detalhar continua só com a lista de valores' (-not ((Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'Etapa' })).PSObject.Properties.Name -contains 'itens'))
+# revisão final 003: o uso de cada valor sai de uma leitura por coluna, não de uma conexão por valor
+$script:aberturas = 0
+$abrirOriginal = ${function:Open-Conexao}
+function Open-Conexao { $script:aberturas++; & $abrirOriginal }
+try {
+    $detR = Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'Responsavel'; detalhar = $true })
+    $detU = Invoke-ListarOpcoes ([pscustomobject]@{ tipo = 'UF'; detalhar = $true })
+} finally { ${function:Open-Conexao} = $abrirOriginal }
+$nItens = @($detR.itens).Count + @($detU.itens).Count
+Conferir ('listar_opcoes detalhar sem conexão por valor (' + $script:aberturas + ' conexões para ' + $nItens + ' valores)') ($script:aberturas -le 6 -and $nItens -gt 6) ''
+$usoRef = [int](Invoke-Valor 'SELECT COUNT(*) FROM clientes WHERE responsavel=?' @((P 'texto' ([string]@($detR.itens)[0].valor)))) + [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades WHERE responsavel=?' @((P 'texto' ([string]@($detR.itens)[0].valor))))
+Conferir 'listar_opcoes detalhar: uso do responsável soma clientes e atendimentos' ([int]@($detR.itens)[0].uso -eq $usoRef) ([string]@($detR.itens)[0].uso + ' x ' + $usoRef)
+# revisão final 003: valor incluído grava a chave (o papel é lido pela chave; a montagem recusa lista sem chave)
+$maxLogChave = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+try {
+    Conferir 'C02 incluir variante com acento de valor existente (Pedído Fechado) é recusado' ((Mensagem { Lista 'incluir' 'Etapa' 'Pedído Fechado' }) -match 'já existe')
+    $inc = Lista 'incluir' 'Etapa' 'Teste Revisão Final'
+    Conferir 'incluir etapa grava' ($inc.gravado -eq $true)
+    $chaveInc = [string](Invoke-Valor "SELECT chave FROM listas WHERE tipo='Etapa' AND valor=?" @((P 'texto' 'Teste Revisão Final')))
+    Conferir 'incluir grava a chave da lista (TESTE REVISAO FINAL)' ($chaveInc -eq 'TESTE REVISAO FINAL') $chaveInc
+    $pap = Lista 'definir_papel' 'Etapa' 'Teste Revisão Final' @{ encerra = $true; resultado = 'PERDA' }
+    Limpar-PapelEtapas
+    Conferir 'C07 etapa incluída e marcada encerra é lida como encerrada' ($pap.gravado -eq $true -and (Get-PapelEtapa 'Teste Revisão Final').encerra -eq $true) ($pap | ConvertTo-Json -Compress -Depth 4)
+} finally {
+    $cnL = Open-Conexao
+    try {
+        foreach ($sqlL in @("DELETE FROM listas WHERE tipo='Etapa' AND valor='Teste Revisão Final'", ('DELETE FROM log_alteracoes WHERE id > ' + $maxLogChave))) {
+            $c = New-Comando $cnL $sqlL @() $null; [void]$c.ExecuteNonQuery(); $c.Dispose()
+        }
+    } finally { $cnL.Close(); $cnL.Dispose() }
+    Limpar-PapelEtapas
+}
 Write-Host '--- regras de visita (C08 a C13): puras'
 Conferir 'C08 visita em atendimento encerrado e recusada' ((Test-VisitaPodeCriar $true) -match 'C08')
 Conferir 'C08 visita em atendimento aberto passa' ($null -eq (Test-VisitaPodeCriar $false))

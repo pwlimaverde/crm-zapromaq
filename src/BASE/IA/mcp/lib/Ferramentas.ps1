@@ -175,14 +175,18 @@ function Invoke-ListarOpcoes($a) {
     }
     # detalhar: inativos também, com o uso (atendimentos e clientes) e, na etapa, o papel
     $linhas = Invoke-Consulta 'SELECT valor, ordem, ativo, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo=? ORDER BY ordem, valor' @((P 'texto' $tipo))
-    $colunas = @($script:ColunasDaLista[$tipo])
+    # uso: uma leitura agrupada por coluna (nunca uma conexão por valor). Tabela e coluna vêm do mapa fixo acima.
+    $usoPorValor = @{}
+    foreach ($tc in @($script:ColunasDaLista[$tipo])) {
+        $parte = $tc.Split(':')
+        foreach ($g in (Invoke-Consulta ('SELECT ' + $parte[1] + ' AS v, COUNT(*) AS n FROM ' + $parte[0] + ' WHERE ' + $parte[1] + ' IS NOT NULL GROUP BY ' + $parte[1]) @())) {
+            $k = ([string]$g.v).ToUpperInvariant()
+            $usoPorValor[$k] = [int]$usoPorValor[$k] + [int]$g.n
+        }
+    }
     $itens = @($linhas | ForEach-Object {
         $linha = $_
-        $uso = 0
-        foreach ($tc in $colunas) {
-            $parte = $tc.Split(':')
-            $uso += [int](Invoke-Valor ('SELECT COUNT(*) FROM ' + $parte[0] + ' WHERE ' + $parte[1] + '=?') @((P 'texto' ([string]$linha.valor))))
-        }
+        $uso = [int]$usoPorValor[([string]$linha.valor).ToUpperInvariant()]
         $item = [ordered]@{ valor = [string]$linha.valor; ordem = $linha.ordem; ativo = [bool]$linha.ativo; uso = $uso }
         if ($tipo -eq 'Etapa') {
             $item['encerra'] = [bool]$linha.encerra; $item['resultado'] = [string]$linha.resultado
@@ -1432,7 +1436,10 @@ function Invoke-GerenciarLista($a) {
         $tipoOk = $tipos | Where-Object { $_ -ieq $tipo } | Select-Object -First 1
         if (-not $tipoOk) { throw ("Lista '" + $tipo + "' não existe. Listas: " + ($tipos -join ' | ')) }
         $ehEtapa = ($tipoOk -eq 'Etapa')
-        $ex = $ctx.Consultar('SELECT * FROM listas WHERE tipo=? AND valor=?', @((P 'texto' $tipoOk), (P 'texto' $valor)))
+        # pela chave (C01/C02): "Pedído Fechado" é o mesmo valor que "Pedido Fechado"
+        $chave = ConvertTo-ChaveLista $valor
+        $ex = @($ctx.Consultar('SELECT * FROM listas WHERE tipo=?', @((P 'texto' $tipoOk))) | Where-Object { (ConvertTo-ChaveLista ([string]$_.valor)) -eq $chave })
+        if ($ex.Count -gt 0 -and $acao -ne 'incluir') { $valor = [string]$ex[0].valor }
         $ordem = $null; if (Test-TemArg $a 'ordem') { $ordem = [int]$a.ordem }
         # C05: UF só entra se for uma das 27
         if ($tipoOk -eq 'UF' -and $acao -eq 'incluir' -and -not (Test-UFValida $valor)) { throw ("'" + $valor + "' não é uma UF do Brasil (C05).") }
@@ -1452,9 +1459,9 @@ function Invoke-GerenciarLista($a) {
                     if ($quad -notin @('FUNIL', 'PROSPECCAO')) { throw 'quadro deve ser FUNIL ou PROSPECCAO.' }
                     $fam = (Test-TemArg $a 'exige_familia') -and [bool]$a.exige_familia
                     $resP = $null; if ($res -ne '') { $resP = $res }
-                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, chave, ordem, ativo, encerra, resultado, quadro, exige_familia) VALUES (?,?,?,?,True,?,?,?,?)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'texto' $chave), (P 'inteiro' $ordem), (P 'logico' $enc), (P 'texto' $resP), (P 'texto' $quad), (P 'logico' $fam)))
                 } else {
-                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, ordem, ativo) VALUES (?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'inteiro' $ordem)))
+                    [void]$ctx.Executar('INSERT INTO listas (tipo, valor, chave, ordem, ativo) VALUES (?,?,?,?,True)', @((P 'texto' $tipoOk), (P 'texto' $valor), (P 'texto' $chave), (P 'inteiro' $ordem)))
                 }
                 $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
                 $ctx.Log('listas', $id, 'valor', '', ($tipoOk + ': ' + $valor), 'INSERIR')
