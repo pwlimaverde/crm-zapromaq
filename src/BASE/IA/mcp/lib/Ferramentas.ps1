@@ -175,14 +175,18 @@ function Invoke-ListarOpcoes($a) {
     }
     # detalhar: inativos também, com o uso (atendimentos e clientes) e, na etapa, o papel
     $linhas = Invoke-Consulta 'SELECT valor, ordem, ativo, encerra, resultado, quadro, exige_familia FROM listas WHERE tipo=? ORDER BY ordem, valor' @((P 'texto' $tipo))
-    $colunas = @($script:ColunasDaLista[$tipo])
+    # uso: uma leitura agrupada por coluna (nunca uma conexão por valor). Tabela e coluna vêm do mapa fixo acima.
+    $usoPorValor = @{}
+    foreach ($tc in @($script:ColunasDaLista[$tipo])) {
+        $parte = $tc.Split(':')
+        foreach ($g in (Invoke-Consulta ('SELECT ' + $parte[1] + ' AS v, COUNT(*) AS n FROM ' + $parte[0] + ' WHERE ' + $parte[1] + ' IS NOT NULL GROUP BY ' + $parte[1]) @())) {
+            $k = ([string]$g.v).ToUpperInvariant()
+            $usoPorValor[$k] = [int]$usoPorValor[$k] + [int]$g.n
+        }
+    }
     $itens = @($linhas | ForEach-Object {
         $linha = $_
-        $uso = 0
-        foreach ($tc in $colunas) {
-            $parte = $tc.Split(':')
-            $uso += [int](Invoke-Valor ('SELECT COUNT(*) FROM ' + $parte[0] + ' WHERE ' + $parte[1] + '=?') @((P 'texto' ([string]$linha.valor))))
-        }
+        $uso = [int]$usoPorValor[([string]$linha.valor).ToUpperInvariant()]
         $item = [ordered]@{ valor = [string]$linha.valor; ordem = $linha.ordem; ativo = [bool]$linha.ativo; uso = $uso }
         if ($tipo -eq 'Etapa') {
             $item['encerra'] = [bool]$linha.encerra; $item['resultado'] = [string]$linha.resultado
