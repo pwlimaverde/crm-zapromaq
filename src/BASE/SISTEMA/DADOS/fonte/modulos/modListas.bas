@@ -95,8 +95,11 @@ Public Function IncluirValor(ByVal tipo As String, ByVal valor As String) As Str
     modCRM.LimparCacheListas
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    IncluirValor = "Nao gravou: " & Err.Description
+    IncluirValor = "Nao gravou: " & descErro
 End Function
 
 ' Desativar ou reativar um valor. C03: nao desativa a ultima etapa ativa
@@ -152,8 +155,11 @@ Public Function DefinirAtivo(ByVal tipo As String, ByVal valor As String, ByVal 
     modCRM.LimparCacheListas
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    DefinirAtivo = "Nao gravou: " & Err.Description
+    DefinirAtivo = "Nao gravou: " & descErro
 End Function
 
 ' Quantos atendimentos estao nesta etapa (o front mostra antes de pedir confirmacao).
@@ -252,8 +258,11 @@ Public Function DefinirPapel(ByVal valor As String, ByVal encerra As Boolean, By
     modCRM.LimparCacheListas
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    DefinirPapel = "Nao gravou: " & Err.Description
+    DefinirPapel = "Nao gravou: " & descErro
 End Function
 
 ' Lista de tipos para o combo do gerenciamento.
@@ -352,6 +361,9 @@ Public Function TrocarOrdem(ByVal tipo As String, ByVal valor As String, ByVal s
     modCRM.LimparCacheListas
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    TrocarOrdem = "Nao gravou: " & Err.Description
+    TrocarOrdem = "Nao gravou: " & descErro
 End Function

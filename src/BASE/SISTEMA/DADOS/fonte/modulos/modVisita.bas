@@ -93,8 +93,11 @@ Public Function CriarVisita(ByVal idOportunidade As Long, ByVal dataAgendada As 
     CriarVisita = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    CriarVisita = "Nao gravou: " & Err.Description
+    CriarVisita = "Nao gravou: " & descErro
 End Function
 
 ' Muda a situacao e os dados da visita. V4 e V5 (C10, C11); C13 ao voltar a PENDENTE.
@@ -191,8 +194,11 @@ Public Function AtualizarVisita(ByVal idVisita As Long, ByVal versaoLida As Long
     AtualizarVisita = ""
     Exit Function
 Falha:
+    ' a descricao antes do Desfazer: o On Error de dentro dele limpa o Err
+    Dim descErro As String
+    descErro = Err.Description
     modDB.Desfazer cn
-    AtualizarVisita = "Nao gravou: " & Err.Description
+    AtualizarVisita = "Nao gravou: " & descErro
 End Function
 
 ' Quantas visitas o atendimento tem, em qualquer situacao (V9): o rotulo Visitas (n).
