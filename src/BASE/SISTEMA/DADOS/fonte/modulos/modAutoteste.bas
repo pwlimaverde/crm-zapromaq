@@ -89,6 +89,9 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C12 texto do historico", modVisita.TextoHistorico(DateSerial(2026, 10, 14) + TimeSerial(9, 30, 0), "Visita", "Positivo", "Visitou"), "VISITA 14/10/2026 09:30 - Visita - Positivo: Visitou"
     Confere "C13 segunda pendente e recusada", modVisita.SegundaPendente(1) <> "", True
     Confere "C13 sem pendente passa", modVisita.SegundaPendente(0), ""
+    ' C02 compara pela chave: variante com acento e o mesmo valor; C07 etapa que encerra = Encerrado
+    Confere "C02 variante com acento tem a mesma chave", modValidacao.ChaveLista("Ped" & ChrW(237) & "do Fechado") = modValidacao.ChaveLista("Pedido Fechado"), True
+    Confere "C07 etapa que encerra fica Encerrado", modCalc.SituacaoDaEtapa(True, DateSerial(2099, 1, 1), Null), "Encerrado"
     ' data digitada nas telas: dia que nao existe e recusado (como o ParseExact do conector)
     Confere "data 2026-02-30 nao existe", modValidacao.DataExiste(2026, 2, 30), False
     Confere "data 2026-10-32 nao existe", modValidacao.DataExiste(2026, 10, 32), False
