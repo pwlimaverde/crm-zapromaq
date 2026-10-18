@@ -7,7 +7,12 @@
   as abas em PDF (execucao\teste\uso-*.pdf) para conferência visual.
   Um vigia encerra o Excel se alguma caixa de mensagem travar a execução.
 
-  Uso: testar-uso.ps1 [-Arquivo <xlsm>]   (padrão: execucao\teste\CRM_Zapromaq.xlsm)
+  Modo completo (padrão): GRAVA no banco (contato, listas, visitas, planejamentos), depende dos dados de
+  demonstração e só roda sobre banco com config.ambiente = TESTE. -SoLeitura: só os casos que leem
+  (grades, filtros, Painel, lote analisado), seguro com dados reais; é o que a publicação usa (passo 10),
+  e a montagem confere por impressão digital que o banco não mudou.
+
+  Uso: testar-uso.ps1 [-Arquivo <xlsm>] [-SemRelatorio] [-SoLeitura]   (padrão: execucao\teste\CRM_Zapromaq.xlsm)
 #>
 param([string]$Arquivo = '', [switch]$SemRelatorio, [switch]$SoLeitura)
 $ErrorActionPreference = 'Stop'
@@ -39,6 +44,13 @@ function Conferir([string]$nome, [bool]$ok, [string]$det = '') {
     if ($ok) { Write-Host ('  OK    ' + $nome) } else { $script:falhas++; Write-Host ('  FALHA ' + $nome + '  ' + $det) }
 }
 
+# Confere algo que depende dos dados de DEMONSTRAÇÃO (cliente 1 com 3 atendimentos, cadastros inativos...).
+# Com dados reais (-SoLeitura) a falha é só informativa; no modo completo vale como Conferir.
+function ConferirDemo([string]$nome, [bool]$ok, [string]$det = '') {
+    if ($SoLeitura -and -not $ok) { Write-Host ('  (informativo) ' + $nome + ' - depende dos dados de demonstração  ' + $det) }
+    else { Conferir $nome $ok $det }
+}
+
 $xl = $null; $idExcel = 0; $sinal = Join-Path $env:TEMP ('crm-uso-' + $PID + '.ok')
 # o teste da troca de contato põe um formulário temporário na cópia (modelo de objeto do VBA)
 $vbomOriginal = Get-AcessoVBOM
@@ -67,7 +79,7 @@ try {
         $ws = $wb.Worksheets.Item($aba); $lo = $ws.ListObjects.Item(1)
         $total = $lo.DataBodyRange.Rows.Count
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
-        Conferir ($aba + ': abre em Ativos (' + $vis + ' de ' + $total + ')') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=' + [string]$ws.Range('F4').Value2 + '; banco de demonstração sem inativos? rode testes\criar-banco-demo.ps1 -Recriar')
+        ConferirDemo ($aba + ': abre em Ativos (' + $vis + ' de ' + $total + ')') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=' + [string]$ws.Range('F4').Value2 + '; banco de demonstração sem inativos? rode testes\criar-banco-demo.ps1 -Recriar')
         $ws.Range('F4').Value2 = 'Todos'
         $xl.Run("'" + $n + "'!modGrade.FiltrarSituacao", $ws)
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
@@ -78,7 +90,7 @@ try {
         $ws.Activate()
         $xl.Run("'" + $n + "'!modGrade.GradeLimparFiltros")
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
-        Conferir ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
+        ConferirDemo ($aba + ': Limpar filtros volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ([string]$vis)
         # célula apagada como o Delete faz (ClearContents na área da célula, aba protegida):
         # em Contatos a mesclagem F:G caía sobre a _b oculta e o Excel recusava
         $xl.EnableEvents = $false
@@ -87,7 +99,7 @@ try {
         Conferir ($aba + ': Delete na célula de situação') $apagou ('área=' + $ws.Range('F4').MergeArea.Address())
         $xl.Run("'" + $n + "'!modGrade.FiltrarSituacao", $ws)
         $vis = [int]$xl.WorksheetFunction.Subtotal(103, $lo.ListColumns.Item('_id').DataBodyRange)
-        Conferir ($aba + ': célula vazia volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=[' + [string]$ws.Range('F4').Value2 + ']')
+        ConferirDemo ($aba + ': célula vazia volta para Ativos') ($vis -lt $total -and [string]$ws.Range('F4').Value2 -eq 'Ativos') ('situação=[' + [string]$ws.Range('F4').Value2 + ']')
     }
     # as macros acima religam os eventos; o resto do teste roda como começou (sem eventos)
     $xl.EnableEvents = $false
@@ -121,7 +133,7 @@ try {
             $id = [int]$vIds.GetValue($k, 1); $obt = [string]$vTel.GetValue($k, 1)
             if ($obt -ne $esp[$id]) { $erradas += ('id ' + $id + ': [' + $obt + '] esperado [' + $esp[$id] + ']') }
         }
-        Conferir ('Oportunidades: Telefone = contato (' + $casos.contato + '), empresa (' + $casos.empresa + '), vazio (' + $casos.vazio + ')') ($erradas.Count -eq 0 -and $casos.empresa -ge 1 -and $casos.vazio -ge 1) (($erradas -join '; ') + ' (sem caso de empresa/vazio? rode testes\criar-banco-demo.ps1 -Recriar)')
+        Conferir ('Oportunidades: Telefone = contato (' + $casos.contato + '), empresa (' + $casos.empresa + '), vazio (' + $casos.vazio + ')') ($erradas.Count -eq 0 -and ($SoLeitura -or ($casos.empresa -ge 1 -and $casos.vazio -ge 1))) (($erradas -join '; ') + ' (sem caso de empresa/vazio? rode testes\criar-banco-demo.ps1 -Recriar)')
     }
 
     # item 6: os dados do contato (troca na ficha) vêm numa consulta só
@@ -135,11 +147,15 @@ try {
     # sem o próprio. No banco de demonstração o cliente 1 tem 3; o id 1 é o mais recente.
     $la = $xl.Run("'" + $n + "'!modCRM.ListarAtendimentosDoCliente", 1, 0, '')
     $qt = if ($la -is [array]) { $la.GetLength(0) } else { 0 }
-    Conferir ('anteriores do cliente 1: ' + $qt + ', o mais recente primeiro') ($qt -ge 2 -and [int]$la.GetValue(1, 1) -eq 1)
+    ConferirDemo ('anteriores do cliente 1: ' + $qt + ', o mais recente primeiro') ($qt -ge 2 -and [int]$la.GetValue(1, 1) -eq 1)
     $lb = $xl.Run("'" + $n + "'!modCRM.ListarAtendimentosDoCliente", 1, 1, '')
     $ids = if ($lb -is [array]) { @(for ($k = 1; $k -le $lb.GetLength(0); $k++) { [int]$lb.GetValue($k, 1) }) } else { @() }
-    Conferir 'anteriores sem o próprio atendimento' ($ids.Count -eq $qt - 1 -and $ids -notcontains 1) ($ids -join ',')
+    ConferirDemo 'anteriores sem o próprio atendimento' ($ids.Count -eq $qt - 1 -and $ids -notcontains 1) ($ids -join ',')
 
+    # -SoLeitura (publicação, spec 004 F5): tudo daqui até o "item 5" GRAVA no banco (contato, listas, visitas,
+    # planejamentos) e depende dos dados de demonstração; só roda no modo completo, sobre banco de TESTE.
+    if ($SoLeitura) { Write-Host '  (só leitura: casos que gravam no banco não rodam; a montagem confere que o banco não mudou)' }
+    if (-not $SoLeitura) {
     # Troca de contato pelo lápis (atendimento gravado) numa empresa só com
     # contatos INATIVOS - o caminho do relato de 10/10/2026: a lista (só ativos)
     # vem vazia; o aviso tem de dizer quantos inativos há, e não "não tem contato";
@@ -602,6 +618,7 @@ End Function
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogQ)
+    }   # fim de: if (-not $SoLeitura)
 
     # item 5: lote fictício com uma linha de cada estado (nada é gravado: só Analisar)
     #   1 OK; 2 SUSPEITO (nome de empresa da base, sem CNPJ); 3 DUPLICADO (CNPJ da linha 1); 4 ERRO (3 colunas)
@@ -637,7 +654,9 @@ End Function
     Write-Host ('  tempos do Painel: ' + $tempos)
     # sem a marca final, o desenho quebrou no meio (e a caixa de erro prendeu o Excel)
     Conferir 'Painel desenhado até o fim' ($tempos -like '*paineis de baixo=*') $tempos
-    Conferir 'Painel em menos de 5 s' ($ms -lt 5000) ($ms.ToString() + ' ms')
+    # com dados reais (-SoLeitura) o tempo é só informativo; o limite de 5 s vale sobre a base de demonstração
+    if ($SoLeitura) { Write-Host ('  (informativo) Painel em ' + $ms + ' ms') }
+    else { Conferir 'Painel em menos de 5 s' ($ms -lt 5000) ($ms.ToString() + ' ms') }
     Conferir ('Painel desenhado em ' + $ms + ' ms') ([string]$p.Range('B3').Value2 -like 'Atualizado em*') ([string]$p.Range('B3').Value2)
     Conferir ('Painel: cartão Empresas = ' + $p.Range('B6').Value2) ($p.Range('B6').Value2 -gt 0)
     Conferir ('Painel: ' + $p.ChartObjects().Count + ' gráfico(s)') ($p.ChartObjects().Count -ge 2)

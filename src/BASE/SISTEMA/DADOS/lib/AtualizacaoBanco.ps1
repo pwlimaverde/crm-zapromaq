@@ -172,6 +172,41 @@ function Get-ContagensDoBanco($cn) {
     return $c
 }
 
+# Impressão digital do conteúdo do banco (texto): para cada tabela, contagem, MAX(id) e SUM(versao) quando
+# existem as colunas. Qualquer INSERT, DELETE ou UPDATE de versão muda o texto. Só leitura (Mode=Read).
+# É o que a publicação usa para provar que o teste de uso (passo 10) não gravou nada na cópia.
+function Get-ImpressaoDoBanco([string]$caminho) {
+    $cn = Open-BancoLeitura $caminho
+    try {
+        $colunas = @{}
+        foreach ($r in $cn.GetSchema('Columns').Rows) {
+            $t = [string]$r['TABLE_NAME']
+            if (-not $colunas.ContainsKey($t)) { $colunas[$t] = New-Object System.Collections.ArrayList }
+            [void]$colunas[$t].Add(([string]$r['COLUMN_NAME']).ToLowerInvariant())
+        }
+        $linhas = New-Object System.Collections.ArrayList
+        foreach ($t in ($colunas.Keys | Where-Object { -not $_.StartsWith('MSys') -and -not $_.StartsWith('~') } | Sort-Object)) {
+            $partes = @('COUNT(*)')
+            if ($colunas[$t].Contains('id')) { $partes += 'MAX(id)' }
+            if ($colunas[$t].Contains('versao')) { $partes += 'SUM(versao)' }
+            $c = New-ComandoBanco $cn ('SELECT ' + ($partes -join ', ') + ' FROM [' + $t + ']') @() $null
+            $rd = $c.ExecuteReader()
+            $v = @()
+            if ($rd.Read()) { for ($i = 0; $i -lt $rd.FieldCount; $i++) { $x = $rd.GetValue($i); $v += $(if ($x -is [DBNull]) { '-' } else { [string]$x }) } }
+            $rd.Close(); $c.Dispose()
+            [void]$linhas.Add($t + '=' + ($v -join '|'))
+        }
+        return ($linhas -join "`n")
+    } finally { $cn.Close(); $cn.Dispose() }
+}
+
+# Quais execuções do teste de uso o passo 10 faz. Publicação real: só a de leitura (dados reais não podem ser
+# gravados nem apagados por teste). -Teste: a de leitura e, depois, a completa (banco de TESTE).
+function Get-ExecucoesTesteDeUso([bool]$teste) {
+    if ($teste) { return @('SoLeitura', 'Completo') }
+    return @('SoLeitura')
+}
+
 # Ensaio da atualização (spec 004, F4): faz os passos 3 a 8 sobre uma cópia, em $pastaEnsaio, e escreve o
 # relatório. NUNCA troca o banco de produção, não cria backup em execucao\backup e não precisa de Excel.
 # Exige a trava livre (a cópia só é consistente com o banco fechado). Confere o hash da produção antes e depois.

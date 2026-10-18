@@ -13,7 +13,8 @@
     7. migrações aplicadas NA CÓPIA (dados em transação; estrutura guardada)
     8. conferências na cópia: municípios, papel das etapas, índice único, valores em uso
     9. montagem do front com Config!B2 provisório (apontando para a cópia): compilação e autoteste
-    10. teste de uso contra a cópia
+    10. teste de uso contra a cópia: na publicação só o de LEITURA (-SoLeitura) e a impressão digital da
+        cópia tem de ser igual antes e depois; no -Teste, leitura e depois o completo (banco de TESTE)
     11. troca: Config!B2 definitivo (UNC do banco de produção) no .xlsm; troca do banco de
         produção pela cópia SÓ com a trava livre e o hash igual ao H0
     12. publicação: .xlsm anterior -> execucao\historico-front; novo -> raiz; config.versao_front;
@@ -404,9 +405,22 @@ try {
     if (-not $SemTesteDeUso) {
         $log.L('')
         $log.L('--- teste de uso (grades e Painel com os dados reais)')
-        $saidaUso = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dados 'testes\testar-uso.ps1') -Arquivo $temp -SemRelatorio 2>&1
-        foreach ($linha in @($saidaUso)) { if ([string]$linha -ne '') { $log.L('  ' + [string]$linha) } }
-        if ($LASTEXITCODE -ne 0) { Parar 'o teste de uso falhou (veja acima). Nada foi publicado.' }
+        # Publicação: só o teste de LEITURA, e a impressão digital da cópia tem de ser a mesma antes e depois
+        # (o teste que grava só roda no -Teste, sobre banco de TESTE). A cópia vira a produção no passo 11.
+        $impAntes = Get-ImpressaoDoBanco $prep.copia
+        foreach ($modoUso in @(Get-ExecucoesTesteDeUso ([bool]$Teste))) {
+            $argsUso = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $dados 'testes\testar-uso.ps1'), '-Arquivo', $temp, '-SemRelatorio')
+            if ($modoUso -eq 'SoLeitura') { $argsUso += '-SoLeitura' }
+            $log.L('  teste de uso: ' + $(if ($modoUso -eq 'SoLeitura') { 'só leitura' } else { 'completo (banco de TESTE)' }))
+            $saidaUso = & powershell.exe @argsUso 2>&1
+            foreach ($linha in @($saidaUso)) { if ([string]$linha -ne '') { $log.L('  ' + [string]$linha) } }
+            if ($LASTEXITCODE -ne 0) { Parar 'o teste de uso falhou (veja acima). Nada foi publicado.' }
+            if ($modoUso -eq 'SoLeitura') {
+                $impDepois = Get-ImpressaoDoBanco $prep.copia
+                if ($impDepois -ne $impAntes) { Parar-NoPasso 10 'o teste de uso de leitura alterou a cópia do banco (impressão digital diferente). Nada foi publicado.' }
+                $log.L('  teste de uso só leitura: impressão da cópia igual antes e depois')
+            }
+        }
     }
 
     # ------------------------------------------------------------ passo 11: troca do banco (tudo ou nada)

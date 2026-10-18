@@ -171,6 +171,10 @@ try {
     Conferir 'arquivo listado e ausente é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
 } finally { Remove-Item -LiteralPath $tmpM -Recurse -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- teste de uso no passo 10 (spec 004, F5)'
+Conferir 'publicação roda só o teste de leitura' ((@(Get-ExecucoesTesteDeUso $false) -join ',') -eq 'SoLeitura') (@(Get-ExecucoesTesteDeUso $false) -join ',')
+Conferir '-Teste roda a leitura e depois o completo' ((@(Get-ExecucoesTesteDeUso $true) -join ',') -eq 'SoLeitura,Completo') (@(Get-ExecucoesTesteDeUso $true) -join ',')
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1

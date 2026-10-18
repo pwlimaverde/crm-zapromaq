@@ -187,6 +187,21 @@ try {
     } finally { $conexaoAberta.Close(); $conexaoAberta.Dispose() }
     Conferir 'banco em uso: produção ficou igual (hash)' ((Get-HashArquivo $p4) -eq $h)
 
+    Write-Host '--- F5: impressão digital do banco (o teste de uso da publicação não pode gravar)'
+    $i1 = Get-ImpressaoDoBanco $cop4
+    $i2 = Get-ImpressaoDoBanco $cop4
+    Conferir 'impressão é igual no mesmo banco' ($i1 -eq $i2 -and $i1 -match 'clientes' -and $i1 -match 'log_alteracoes') $i1
+    $cnI = Open-Banco $cop4
+    try { [void](Invoke-Comando $cnI 'UPDATE clientes SET versao = versao + 1 WHERE id = (SELECT MIN(id) FROM clientes)' @() $null) } finally { $cnI.Close(); $cnI.Dispose() }
+    $i3 = Get-ImpressaoDoBanco $cop4
+    Conferir 'impressão muda depois de UPDATE versao+1' ($i3 -ne $i1)
+    $cnI = Open-Banco $cop4
+    try { [void](Invoke-Comando $cnI 'UPDATE clientes SET versao = versao - 1 WHERE id = (SELECT MIN(id) FROM clientes)' @() $null) } finally { $cnI.Close(); $cnI.Dispose() }
+    Conferir 'impressão volta ao valor original ao desfazer' ((Get-ImpressaoDoBanco $cop4) -eq $i1)
+    $cnI = Open-Banco $cop4
+    try { [void](Invoke-Comando $cnI "INSERT INTO log_alteracoes (tabela, id_registro, campo, acao, usuario, quando, origem) VALUES ('clientes', 1, 'x', 'TESTE', 'tpr', Now(), 'FRONT')" @() $null) } finally { $cnI.Close(); $cnI.Dispose() }
+    Conferir 'impressão muda depois de linha nova no log' ((Get-ImpressaoDoBanco $cop4) -ne $i1)
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 
