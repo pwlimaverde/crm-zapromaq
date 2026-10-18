@@ -9,6 +9,8 @@
   Não publica o front: isso é o passo 12 da montagem.
 #>
 
+. (Join-Path $PSScriptRoot 'Backup.ps1')   # manifesto e validação do backup (passo 5)
+
 function Get-HashArquivo([string]$arquivo) {
     $sha = [System.Security.Cryptography.SHA256]::Create()
     $fs = [System.IO.File]::OpenRead($arquivo)
@@ -133,6 +135,13 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     $h0 = Get-HashArquivo $producao
     if ((Get-HashArquivo $backup) -ne $h0) { return New-ResultadoBanco $false 5 'o backup não confere com o banco de produção. Nada foi alterado.' }
     $log.L('  backup: ' + $backup + '  H0 ' + $h0.Substring(0, 12))
+
+    # backup VALIDADO (DA-8): manifesto e restauração numa pasta descartável; o arquivo de backup não é aberto
+    try { $manifestoBkp = New-ManifestoBackup $backup $producao 'antes-da-publicacao' }
+    catch { return New-ResultadoBanco $false 5 ('não foi possível ler o banco de produção para validar o backup (' + $_.Exception.Message.Split([char]13)[0] + '). Nada foi alterado.') }
+    $valBkp = Test-BackupRestauravel $backup
+    if (-not $valBkp.ok) { return New-ResultadoBanco $false 5 ('o backup não é restaurável: ' + ($valBkp.problemas -join '; ') + '. Nada foi alterado.') }
+    $log.L('  backup validado: restaurado numa pasta descartável, esquema ' + $valBkp.esquema + ' e contagens conferidas com o manifesto')
 
     New-Item -ItemType Directory -Path $pastaTrabalho -Force | Out-Null
     $copia = Join-Path $pastaTrabalho ([IO.Path]::GetFileName($producao))

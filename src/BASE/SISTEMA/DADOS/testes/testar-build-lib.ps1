@@ -141,9 +141,9 @@ try {
     $logP = [pscustomobject]@{ linhas = New-Object System.Collections.ArrayList }
     $logP | Add-Member -MemberType ScriptMethod -Name L -Value { param($x) [void]$this.linhas.Add([string]$x) }
     $pr = Invoke-PreparacaoDoBanco $prodP (Join-Path $tmpP 'publicacao') (Join-Path $tmpP 'backup') 5571 $logP
-    Conferir 'passo 7 (migração na cópia) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 7) ($pr.motivo)
-    Conferir 'erro no passo 7: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
-    Conferir 'erro no passo 7: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
+    Conferir 'passo 5 (backup validado) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 5) ($pr.motivo)
+    Conferir 'erro no passo 5: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
+    Conferir 'erro no passo 5: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
     $tmpT = Join-Path $tmpP 'trava'
     New-Item -ItemType Directory -Path $tmpT -Force | Out-Null
     $prodT = Join-Path $tmpT 'crm_zapromaq.accdb'

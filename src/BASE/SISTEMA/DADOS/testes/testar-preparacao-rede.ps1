@@ -211,6 +211,52 @@ try {
     Conferir 'versao_front gravada na cópia' ($vfCopia -eq '9.9') $vfCopia
     Conferir 'produção intacta: hash igual e versao_front antiga' ((Get-HashArquivo $p4) -eq $h -and (& $vfProd) -eq $vfAntes)
 
+    Write-Host '--- F8: backup validado e restauração verificável'
+    . (Join-Path $dados 'lib\Backup.ps1')
+    Conferir 'ensaio: o backup da janela tem manifesto' (Test-Path -LiteralPath (Join-Path $ensaio4 'backup\crm_zapromaq.accdb.manifesto.json'))
+    $b8 = NovaBaseTemporaria 'base-f8'
+    $ref8 = Join-Path $b8 'crm_zapromaq.accdb'
+    & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $raizBase 'IA\teste\criar-banco-teste.ps1') -Banco $ref8 -Recriar | Out-Null
+    $pastaBk8 = Join-Path $b8 'SISTEMA\DADOS\execucao\backup'
+    New-Item -ItemType Directory -Path $pastaBk8 -Force | Out-Null
+    $bk8 = Join-Path $pastaBk8 'crm_diario_20261005-0800_EST1.accdb'
+    Copy-Item -LiteralPath $ref8 -Destination $bk8
+    $hBk8 = Get-HashArquivo $bk8
+    $man8 = New-ManifestoBackup $bk8 $ref8 'diario'
+    $mj = Get-Content -LiteralPath ($bk8 + '.manifesto.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    Conferir 'manifesto: instante, sha256, esquema e contagens' ($mj.sha256 -eq $hBk8 -and $mj.esquema -eq '1.1' -and $mj.contagens.clientes -ge 1 -and [string]$mj.instante_utc -ne '')
+    Conferir 'o arquivo de backup não foi aberto nem alterado (hash)' ((Get-HashArquivo $bk8) -eq $hBk8)
+    $val8 = Test-BackupRestauravel $bk8
+    Conferir 'backup restaurável é aprovado' ($val8.ok -and $val8.problemas.Count -eq 0) ($val8.problemas -join '; ')
+    Conferir 'validar não alterou o arquivo de backup (hash)' ((Get-HashArquivo $bk8) -eq $hBk8)
+
+    $rest8 = Join-Path $b8 'SISTEMA\DADOS\operacao\scripts\restaurar-banco.ps1'
+    $r = Executar $rest8 @('-Backup', $bk8, '-Referencia', $ref8)
+    Conferir 'restauração aprovada termina com 0' ($r.codigo -eq 0) $r.saida
+    # contagem da referência adulterada (uma linha de cliente a mais): diverge
+    $cn8 = Open-Banco $ref8
+    try { [void](Invoke-Comando $cn8 "INSERT INTO clientes (estagio, empresa, ativo, versao) VALUES ('Pré-cliente', 'EXTRA FICTICIA', True, 1)" @() $null) } finally { $cn8.Close(); $cn8.Dispose() }
+    $r = Executar $rest8 @('-Backup', $bk8, '-Referencia', $ref8)
+    Conferir 'contagem divergente da referência: termina com 1' ($r.codigo -eq 1) $r.saida
+    # manifesto adulterado: reprovado
+    $txt = (Get-Content -LiteralPath ($bk8 + '.manifesto.json') -Raw -Encoding UTF8) -replace '"clientes":\s*\d+', '"clientes": 999'
+    [IO.File]::WriteAllText(($bk8 + '.manifesto.json'), $txt, (New-Object System.Text.UTF8Encoding($false)))
+    $val8 = Test-BackupRestauravel $bk8
+    Conferir 'manifesto adulterado: backup reprovado' (-not $val8.ok -and $val8.problemas.Count -ge 1)
+    $r = Executar $rest8 @('-Backup', $bk8)
+    Conferir 'manifesto adulterado: restauração termina com 1' ($r.codigo -eq 1) $r.saida
+
+    # "mais recente": pelo nome (ou manifesto), não pelo LastWriteTime
+    Remove-Item -LiteralPath ($bk8 + '.manifesto.json') -Force
+    $velho8 = Join-Path $pastaBk8 'crm_diario_20261001-0800_EST1.accdb'
+    Copy-Item -LiteralPath $bk8 -Destination $velho8
+    (Get-Item -LiteralPath $velho8).LastWriteTime = (Get-Date)
+    (Get-Item -LiteralPath $bk8).LastWriteTime = (Get-Date).AddDays(-30)
+    $esc = Get-BackupMaisRecente $pastaBk8
+    Conferir 'mais recente pelo nome, mesmo com LastWriteTime invertido' ($esc.Name -eq 'crm_diario_20261005-0800_EST1.accdb') $esc.Name
+    $r = Executar $rest8 @()
+    Conferir 'restaurar sem -Backup usa o mais recente pelo nome' ($r.saida -match 'crm_diario_20261005') $r.saida
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 
