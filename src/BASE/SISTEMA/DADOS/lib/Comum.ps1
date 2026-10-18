@@ -135,6 +135,37 @@ function Invoke-Comando($cn, [string]$sql, [array]$params, $tx) {
     try { return $c.ExecuteNonQuery() } finally { $c.Dispose() }
 }
 
+# Lê config.ambiente de um banco SEM alterá-lo (Mode=Read). Devolve o texto ('TESTE', 'PRODUCAO'...),
+# ou $null se o arquivo não abre ou não tem a tabela config.
+function Get-AmbienteDoBanco([string]$caminho) {
+    $cn = $null
+    try {
+        $cn = New-Object System.Data.OleDb.OleDbConnection(
+            'Provider=' + (Get-ProvedorAce) + ';Data Source=' + $caminho + ';Mode=Read;OLE DB Services=-4;Persist Security Info=False;')
+        $cn.Open()
+        $v = Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='ambiente'" @() $null
+        if ($null -eq $v) { return $null }
+        return [string]$v
+    } catch { return $null }
+    finally { if ($cn) { $cn.Dispose() } }
+}
+
+# Trava de segurança de tudo o que APAGA ou SOBRESCREVE um banco (-Recriar, criar-banco-teste/demo):
+# só se apaga arquivo inexistente ou banco com config.ambiente = TESTE. Banco de PRODUCAO, ou que
+# não abre (não dá para provar que é de teste), é recusado ANTES de qualquer remoção.
+# Devolve o motivo; vazio = pode substituir.
+function Assert-PodeSubstituirBanco([string]$caminho) {
+    if (-not (Test-Path -LiteralPath $caminho)) { return '' }
+    $amb = Get-AmbienteDoBanco $caminho
+    if ($null -eq $amb) {
+        return ('RECUSADO: não foi possível ler config.ambiente de ' + $caminho + ' (arquivo ilegível ou sem tabela config); só se substitui banco com ambiente TESTE. Nada foi apagado.')
+    }
+    if ($amb -ne 'TESTE') {
+        return ('RECUSADO: ' + $caminho + ' está com config.ambiente = ' + $amb + '; só se substitui banco com ambiente TESTE. Nada foi apagado.')
+    }
+    return ''
+}
+
 function Get-VersaoEsquemaBanco($cn) {
     return [string](Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='versao_esquema'" @())
 }
