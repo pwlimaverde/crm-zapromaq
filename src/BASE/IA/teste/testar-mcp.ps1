@@ -450,7 +450,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'crm_status' (-not $res.isError) $res.content[0].text
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
-        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (1.0 e 1.1)') (($st.versao_esquema -in @('1.0', '1.1')) -and $st.gravacao_liberada -eq $true)
+        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
 
         $d = Dados (Chamar 'buscar_clientes' ([ordered]@{ texto = "d'angelo" }))
         Conferir 'busca com apóstrofo' ($d.quantidade -eq 1)

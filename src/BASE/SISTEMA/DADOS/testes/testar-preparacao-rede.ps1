@@ -257,6 +257,43 @@ try {
     $r = Executar $rest8 @()
     Conferir 'restaurar sem -Backup usa o mais recente pelo nome' ($r.saida -match 'crm_diario_20261005') $r.saida
 
+    Write-Host '--- F9: conector exige o esquema 1.1 e recusa com mensagem clara no 1.0'
+    # cliente MCP mínimo (protocolo legado): sobe o servidor sobre um banco, faz initialize e uma chamada
+    function ChamarMcp([string]$banco, [string]$ferramenta, $argumentos) {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $ps
+        $psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $raizBase 'IA\mcp\servidor.ps1') + '" -Banco "' + $banco + '"'
+        $psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+        $psi.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false); $psi.CreateNoWindow = $true
+        $p = [System.Diagnostics.Process]::Start($psi)
+        $err = $p.StandardError.ReadToEndAsync()
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        function Linha($o) { $b = $utf8.GetBytes((ConvertTo-Json -InputObject $o -Depth 20 -Compress) + "`n"); $p.StandardInput.BaseStream.Write($b, 0, $b.Length); $p.StandardInput.BaseStream.Flush() }
+        try {
+            Linha ([ordered]@{ jsonrpc = '2.0'; id = 1; method = 'initialize'; params = [ordered]@{ protocolVersion = '2025-06-18'; capabilities = [ordered]@{}; clientInfo = [ordered]@{ name = 'tpr'; version = '1.0' } } })
+            [void]$p.StandardOutput.ReadLine()
+            Linha ([ordered]@{ jsonrpc = '2.0'; method = 'notifications/initialized' })
+            Linha ([ordered]@{ jsonrpc = '2.0'; id = 2; method = 'tools/call'; params = [ordered]@{ name = $ferramenta; arguments = $argumentos } })
+            return ($p.StandardOutput.ReadLine() | ConvertFrom-Json).result
+        } finally { try { $p.StandardInput.Close() } catch { }; if (-not $p.WaitForExit(5000)) { $p.Kill() } }
+    }
+    $v10 = Join-Path $tmp 'conector-1-0.accdb'
+    & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $raizBase 'IA\teste\criar-banco-teste.ps1') -Banco $v10 -Recriar -CasosDaMigracao | Out-Null
+    $hv = Get-HashArquivo $v10
+    $res = ChamarMcp $v10 'crm_status' ([ordered]@{})
+    $st = $res.content[0].text | ConvertFrom-Json
+    Conferir 'banco 1.0: crm_status responde, com atualizacao_pendente=true e gravacao_liberada=false' (-not $res.isError -and $st.atualizacao_pendente -eq $true -and $st.gravacao_liberada -eq $false) ($res.content[0].text)
+    Conferir 'crm_status informa esquemas_suportados = 1.1' (@($st.esquemas_suportados) -join ',' -eq '1.1') (@($st.esquemas_suportados) -join ',')
+    Conferir 'crm_status informa versao_servidor_mcp 1.5.0' ($st.versao_servidor_mcp -eq '1.5.0') $st.versao_servidor_mcp
+    $res = ChamarMcp $v10 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' })
+    Conferir 'banco 1.0: leitura recusada com a mensagem do esquema 1.0' ($res.isError -eq $true -and $res.content[0].text -match 'esquema 1\.0') ($res.content[0].text)
+    $res = ChamarMcp $v10 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = 1; tentativas = 2; autor = 'tpr' })
+    Conferir 'banco 1.0: gravação recusada com a mensagem do esquema 1.0' ($res.isError -eq $true -and $res.content[0].text -match 'esquema 1\.0') ($res.content[0].text)
+    Conferir 'banco 1.0: nada foi gravado (hash)' ((Get-HashArquivo $v10) -eq $hv)
+    $res = ChamarMcp $ref8 'crm_status' ([ordered]@{})
+    $st = $res.content[0].text | ConvertFrom-Json
+    Conferir 'banco 1.1: crm_status normal, sem atualização pendente e gravação liberada' ($st.atualizacao_pendente -eq $false -and $st.gravacao_liberada -eq $true -and $st.versao_esquema -eq '1.1') ($res.content[0].text)
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 

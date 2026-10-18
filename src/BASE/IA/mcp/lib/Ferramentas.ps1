@@ -148,6 +148,8 @@ function Invoke-CrmStatus($a) {
         provedor            = Get-ProvedorAce
         versao_esquema      = $esq
         gravacao_liberada   = ($script:EsquemasSuportados -contains $esq)
+        atualizacao_pendente = (-not ($script:EsquemasSuportados -contains $esq))
+        esquemas_suportados = @($script:EsquemasSuportados)
         versao_front        = Invoke-Valor "SELECT valor FROM config WHERE chave='versao_front'" @()
         ambiente            = Invoke-Valor "SELECT valor FROM config WHERE chave='ambiente'" @()
         registros           = $cont

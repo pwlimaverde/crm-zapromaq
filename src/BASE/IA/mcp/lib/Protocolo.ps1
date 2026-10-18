@@ -152,7 +152,7 @@ function Invoke-Ferramenta($params) {
     try {
         # erro de validação volta como erro DE FERRAMENTA, para o modelo ler e corrigir
         Test-Argumentos $f.inputSchema $a
-        if ($script:AntesDaFerramenta) { & $script:AntesDaFerramenta $a }
+        if ($script:AntesDaFerramenta) { & $script:AntesDaFerramenta $a $nome }
         $resultado = & $f.handler $a
         Write-Diag ('OK   ' + $nome + ' (' + [int]((Get-Date) - $inicio).TotalMilliseconds + ' ms)')
         # ferramenta que devolve imagem (ou mais de um bloco) monta o próprio

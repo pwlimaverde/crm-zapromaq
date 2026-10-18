@@ -13,9 +13,10 @@ $script:ProvedorAce = $null
 # Versoes de esquema com que este servidor sabe trabalhar. O front grava
 # config.versao_esquema; se o banco estiver numa versao desconhecida, a
 # gravacao e recusada (leitura continua liberada).
-# 1.1 = migração 003 (municípios, planejamentos, visitas, papel das listas). Com 1.0 o banco ainda
-# não tem as colunas novas: a leitura do que existe continua, e a gravação das colunas novas virá com as ferramentas.
-$script:EsquemasSuportados = @('1.0', '1.1')
+# 1.1 = migração 003 (municípios, planejamentos, visitas, papel das listas). O conector lê colunas que só
+# existem no 1.1, então exige 1.1: com o banco ainda no 1.0 (entre extrair o pacote e terminar a montagem)
+# só o crm_status responde, dizendo que a atualização está pendente (spec 004, F9).
+$script:EsquemasSuportados = @('1.1')
 
 function Get-ProvedorAce {
     if ($script:ProvedorAce) { return $script:ProvedorAce }
@@ -214,6 +215,16 @@ function Format-ValorLog($v) {
 
 function Get-VersaoEsquema {
     return [string](Invoke-Valor "SELECT valor FROM config WHERE chave='versao_esquema'" @())
+}
+
+# Todas as ferramentas, menos o crm_status, exigem um esquema suportado (leitura e gravação). Devolve o
+# motivo; vazio = pode seguir. Erro ao ler o esquema não é motivo para recusar aqui: o handler relata o seu.
+function Get-MotivoEsquemaNaoSuportado {
+    try { $v = Get-VersaoEsquema } catch { return '' }
+    if ($script:EsquemasSuportados -contains $v) { return '' }
+    return ("Banco aguardando atualizacao: ele esta no esquema " + $v + " e este conector exige o esquema " +
+            ($script:EsquemasSuportados -join ', ') + '. A atualizacao do banco e feita pela montagem (MONTAR-FRONTEND.bat) na estacao de implantacao; ' +
+            'enquanto isso so o crm_status responde. Nada foi lido nem gravado.')
 }
 
 function Assert-EsquemaGravavel {
