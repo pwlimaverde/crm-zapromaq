@@ -9,13 +9,27 @@
 
   Uso: testar-uso.ps1 [-Arquivo <xlsm>]   (padrão: execucao\teste\CRM_Zapromaq.xlsm)
 #>
-param([string]$Arquivo = '', [switch]$SemRelatorio)
+param([string]$Arquivo = '', [switch]$SemRelatorio, [switch]$SoLeitura)
 $ErrorActionPreference = 'Stop'
 $dados = Split-Path -Parent $PSScriptRoot
 . (Join-Path $dados 'lib\Comum.ps1')
 . (Join-Path $dados 'build\lib\Excel.ps1')
+. (Join-Path $dados 'build\lib\Pacote.ps1')
 $raiz = Get-RaizBase $PSScriptRoot
 if (-not $Arquivo) { $Arquivo = Join-Path $dados 'execucao\teste\CRM_Zapromaq.xlsm' }
+# Trava (spec 004, F2): o teste completo GRAVA (contato, listas, visitas, planejamentos) e apaga o
+# log depois. Só roda se o banco para onde o front aponta (Config!B2) tiver config.ambiente = TESTE.
+# A publicação usa -SoLeitura, que não grava (F5).
+if (-not $SoLeitura) {
+    $bancoAlvo = Get-TextoCelulaXlsx $Arquivo 'Config' 'B2'
+    if ([string]::IsNullOrWhiteSpace($bancoAlvo) -or -not (Test-Path -LiteralPath $bancoAlvo)) {
+        Write-Host ('RECUSADO: o banco de Config!B2 não foi encontrado (' + $bancoAlvo + '). O teste completo só roda sobre banco de TESTE. Nada foi alterado.'); exit 2
+    }
+    $motivoTrava = Assert-PodeSubstituirBanco $bancoAlvo
+    if ($motivoTrava) {
+        Write-Host ('RECUSADO: o teste de uso completo grava no banco e só roda sobre banco de TESTE (config.ambiente = PRODUCAO ou ilegível). ' + $motivoTrava + ' Use -SoLeitura para conferir sem gravar.'); exit 2
+    }
+}
 $pasta = Get-PastaExecucao $raiz 'teste'
 $copia = Join-Path $env:TEMP ('crm-uso-' + $PID + '.xlsm')
 Copy-Item -LiteralPath $Arquivo -Destination $copia -Force

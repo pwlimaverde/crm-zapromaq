@@ -9,6 +9,7 @@ $dados = Split-Path -Parent $PSScriptRoot
 $raizBase = Split-Path -Parent (Split-Path -Parent $dados)
 . (Join-Path $dados 'lib\Comum.ps1')
 . (Join-Path $dados 'lib\AtualizacaoBanco.ps1')
+. (Join-Path $dados 'build\lib\Pacote.ps1')
 
 $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $esquema = Join-Path $dados 'banco\esquema\criar-banco.ps1'
@@ -31,6 +32,32 @@ function Executar([string]$script, [string[]]$argumentos) {
 function NovoBanco([string]$caminho, [string]$ambiente) {
     $r = Executar $esquema @('-Banco', $caminho, '-Ambiente', $ambiente)
     if ($r.codigo -ne 0) { throw ('não criou o banco ' + $caminho + ': ' + $r.saida) }
+}
+
+# BASE mínima em pasta temporária: o suficiente para rodar os scripts de IA\teste e SISTEMA\DADOS.
+# Devolve a raiz da BASE temporária (sem banco: cada caso cria o seu).
+function NovaBaseTemporaria([string]$nome) {
+    $b = Join-Path $tmp $nome
+    foreach ($rel in @('IA\mcp', 'IA\teste', 'SISTEMA\DADOS\lib', 'SISTEMA\DADOS\banco', 'SISTEMA\DADOS\build\lib', 'SISTEMA\DADOS\testes')) {
+        $dest = Join-Path $b $rel
+        New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $raizBase $rel) -Destination $dest -Recurse
+    }
+    Copy-Item -LiteralPath (Join-Path $dados 'VERSAO.txt') -Destination (Join-Path $b 'SISTEMA\DADOS\VERSAO.txt')
+    return $b
+}
+# .xlsm falso (só o suficiente para Get-TextoCelulaXlsx): aba Config com $texto em B2.
+function NovoXlsmFalso([string]$caminho, [string]$texto) {
+    if (Test-Path -LiteralPath $caminho) { Remove-Item -LiteralPath $caminho -Force }
+    $zip = [System.IO.Compression.ZipFile]::Open($caminho, 'Create')
+    function Parte($nome, $conteudo) {
+        $e = $zip.CreateEntry($nome); $w = New-Object System.IO.StreamWriter($e.Open(), (New-Object System.Text.UTF8Encoding($false)))
+        $w.Write($conteudo); $w.Dispose()
+    }
+    Parte 'xl/workbook.xml' '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Config" sheetId="1" r:id="rId1"/></sheets></workbook>'
+    Parte 'xl/_rels/workbook.xml.rels' '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>'
+    Parte 'xl/worksheets/sheet1.xml' ('<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="B2" t="inlineStr"><is><t>' + [Security.SecurityElement]::Escape($texto) + '</t></is></c></row></sheetData></worksheet>')
+    $zip.Dispose()
 }
 
 try {
@@ -62,6 +89,21 @@ try {
     Conferir 'Assert-PodeSubstituirBanco devolve o motivo para PRODUCAO' ($msg -match 'PRODUCAO')
     Conferir 'Assert-PodeSubstituirBanco aceita TESTE' ((Assert-PodeSubstituirBanco $teste) -eq '')
     Conferir 'Assert-PodeSubstituirBanco aceita inexistente' ((Assert-PodeSubstituirBanco (Join-Path $tmp 'nao-existe.accdb')) -eq '')
+
+    Write-Host '--- F2: testes que gravam recusam banco que não seja TESTE'
+    $b2 = NovaBaseTemporaria 'base-f2'
+    $bancoB2 = Join-Path $b2 'crm_zapromaq.accdb'
+    NovoBanco $bancoB2 'PRODUCAO'
+    $h = Get-HashArquivo $bancoB2
+    $r = Executar (Join-Path $b2 'IA\teste\testar-mcp.ps1') @()
+    Conferir 'testar-mcp recusa banco PRODUCAO' ($r.codigo -ne 0 -and $r.saida -match 'PRODUCAO') $r.saida
+    Conferir 'banco PRODUCAO ficou igual depois do testar-mcp (hash)' ((Get-HashArquivo $bancoB2) -eq $h)
+
+    $xlsm = Join-Path $tmp 'falso.xlsm'
+    NovoXlsmFalso $xlsm $bancoB2
+    $r = Executar (Join-Path $dados 'testes\testar-uso.ps1') @('-Arquivo', $xlsm)
+    Conferir 'testar-uso (completo) recusa front apontando para banco PRODUCAO' ($r.codigo -ne 0 -and $r.saida -match 'PRODUCAO') $r.saida
+    Conferir 'banco PRODUCAO ficou igual depois do testar-uso (hash)' ((Get-HashArquivo $bancoB2) -eq $h)
 
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
