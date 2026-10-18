@@ -287,6 +287,9 @@ function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [s
     $atual = Get-HashArquivo $producao
     if ($atual -ne $h0) { return New-ResultadoBanco $false 11 'alguém gravou no banco durante a montagem (o hash mudou); nada foi trocado. Rode de novo.' }
 
+    # Tudo o que demora (backup da produção, cópia do .novo para a pasta de produção e a conferência do
+    # hash dele) acontece ANTES da última conferência. Entre ela e o Replace sobra só uma checagem barata
+    # (trava, tamanho e data do arquivo), para não deixar uma janela de segundos em que uma gravação se perde.
     New-Item -ItemType Directory -Path $pastaBackup -Force | Out-Null
     Copy-Item -LiteralPath $producao -Destination (Join-Path $pastaBackup ([IO.Path]::GetFileName($producao))) -Force
 
@@ -297,11 +300,37 @@ function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [s
         Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
         return New-ResultadoBanco $false 11 'a cópia do novo banco não conferiu na pasta de produção; nada foi trocado.'
     }
+    $arq = Get-Item -LiteralPath $producao
+    $tamanho = $arq.Length; $quandoGravou = $arq.LastWriteTimeUtc
+    if ($script:GanchoAntesDaTroca) { & $script:GanchoAntesDaTroca }   # só os testes usam: simula uma gravação tardia
+
+    # última conferência, logo antes do Replace
+    $arq = Get-Item -LiteralPath $producao
+    if (-not (Test-BancoLivre $producao).livre) {
+        Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
+        return New-ResultadoBanco $false 11 'alguém abriu o banco (.laccdb) logo antes da troca; nada foi trocado. Rode de novo quando fecharem o CRM.'
+    }
+    if ($arq.Length -ne $tamanho -or $arq.LastWriteTimeUtc -ne $quandoGravou) {
+        Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
+        return New-ResultadoBanco $false 11 'alguém gravou no banco logo antes da troca (o arquivo mudou depois da preparação); nada foi trocado. Rode de novo.'
+    }
     $anterior = $producao + '.anterior'   # o Replace exige um nome de backup real, na mesma pasta
     try { [System.IO.File]::Replace($novo, $producao, $anterior) }
     catch {
         Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
         return New-ResultadoBanco $false 11 ('não foi possível trocar o arquivo de produção (' + $_.Exception.Message + '); nada foi trocado.')
+    }
+    if ($script:GanchoDepoisDaTroca) { & $script:GanchoDepoisDaTroca }   # só os testes usam
+    # o que o Replace pôs em .anterior é o arquivo que existia no instante da troca: tem de ser o H0
+    if ((Get-HashArquivo $anterior) -ne $h0) {
+        $rejeitado = $producao + '.rejeitado'
+        try {
+            [System.IO.File]::Replace($anterior, $producao, $rejeitado)
+            Remove-Item -LiteralPath $rejeitado -Force -ErrorAction SilentlyContinue
+            return New-ResultadoBanco $false 11 'alguém gravou no banco no instante da troca; o banco anterior (com essa gravação) foi devolvido. Rode de novo.'
+        } catch {
+            return New-ResultadoBanco $false 11 ('alguém gravou no banco no instante da troca e não foi possível devolver o anterior (' + $_.Exception.Message + '); ele está em ' + $anterior + '. Avise antes de mexer.')
+        }
     }
     Remove-Item -LiteralPath $anterior -Force -ErrorAction SilentlyContinue
     if ((Get-HashArquivo $producao) -ne (Get-HashArquivo $copia)) {
