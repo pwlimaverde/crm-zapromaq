@@ -139,7 +139,7 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     $migrar = Join-Path $dados 'banco\aplicar-migracoes.ps1'
     # stderr do processo filho não pode virar exceção aqui: a falha é tratada pelo código de saída
     $preferencia = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    try { $saidaMig = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia 2>&1 | ForEach-Object { [string]$_ }) }
+    try { $saidaMig = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia -CopiaDeTrabalho 2>&1 | ForEach-Object { [string]$_ }) }
     finally { $ErrorActionPreference = $preferencia }
     foreach ($linha in $saidaMig) { if ($linha -ne '') { $log.L('  ' + $linha) } }
     if ($LASTEXITCODE -ne 0) {

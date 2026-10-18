@@ -38,7 +38,7 @@ function NovoBanco([string]$caminho, [string]$ambiente) {
 # Devolve a raiz da BASE temporária (sem banco: cada caso cria o seu).
 function NovaBaseTemporaria([string]$nome) {
     $b = Join-Path $tmp $nome
-    foreach ($rel in @('IA\mcp', 'IA\teste', 'SISTEMA\DADOS\lib', 'SISTEMA\DADOS\banco', 'SISTEMA\DADOS\build\lib', 'SISTEMA\DADOS\testes')) {
+    foreach ($rel in @('IA\mcp', 'IA\teste', 'SISTEMA\DADOS\lib', 'SISTEMA\DADOS\banco', 'SISTEMA\DADOS\build\lib', 'SISTEMA\DADOS\testes', 'SISTEMA\DADOS\operacao')) {
         $dest = Join-Path $b $rel
         New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $raizBase $rel) -Destination $dest -Recurse
@@ -104,6 +104,43 @@ try {
     $r = Executar (Join-Path $dados 'testes\testar-uso.ps1') @('-Arquivo', $xlsm)
     Conferir 'testar-uso (completo) recusa front apontando para banco PRODUCAO' ($r.codigo -ne 0 -and $r.saida -match 'PRODUCAO') $r.saida
     Conferir 'banco PRODUCAO ficou igual depois do testar-uso (hash)' ((Get-HashArquivo $bancoB2) -eq $h)
+
+    Write-Host '--- F3: migração estrutural só pela montagem (cópia de trabalho)'
+    $b3 = NovaBaseTemporaria 'base-f3'
+    $mig3 = Join-Path $b3 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1'
+    $p3 = Join-Path $b3 'crm_zapromaq.accdb'
+    NovoBanco $p3 'PRODUCAO'
+    $h = Get-HashArquivo $p3
+    $r = Executar $mig3 @('-Banco', $p3)
+    Conferir 'PRODUCAO 1.0 sem a opção: migração estrutural é recusada' ($r.codigo -ne 0 -and $r.saida -match 'estrutural') $r.saida
+    Conferir 'PRODUCAO recusada ficou igual, sem nem a 001/002 (hash)' ((Get-HashArquivo $p3) -eq $h)
+
+    $fora = Join-Path $tmp 'fora.accdb'
+    Copy-Item -LiteralPath $p3 -Destination $fora
+    $hf = Get-HashArquivo $fora
+    $r = Executar $mig3 @('-Banco', $fora, '-CopiaDeTrabalho')
+    Conferir '-CopiaDeTrabalho fora de execucao\publicacao e execucao\ensaio é recusado' ($r.codigo -ne 0 -and $r.saida -match 'execucao') $r.saida
+    Conferir 'cópia fora de execucao ficou igual (hash)' ((Get-HashArquivo $fora) -eq $hf)
+    $r = Executar $mig3 @('-Banco', $p3, '-CopiaDeTrabalho')
+    Conferir '-CopiaDeTrabalho apontando para o banco de produção é recusado' ($r.codigo -ne 0) $r.saida
+    Conferir 'banco de produção ficou igual (hash)' ((Get-HashArquivo $p3) -eq $h)
+
+    $pastaEns = Join-Path $b3 'SISTEMA\DADOS\execucao\ensaio'
+    New-Item -ItemType Directory -Path $pastaEns -Force | Out-Null
+    $copia3 = Join-Path $pastaEns 'crm_zapromaq.accdb'
+    Copy-Item -LiteralPath $p3 -Destination $copia3
+    $r = Executar $mig3 @('-Banco', $copia3, '-CopiaDeTrabalho')
+    $cn3 = Open-Banco $copia3
+    try { $esq3 = Get-VersaoEsquemaBanco $cn3 } finally { $cn3.Close(); $cn3.Dispose() }
+    Conferir 'cópia de trabalho em execucao\ensaio chega ao esquema 1.1' ($r.codigo -eq 0 -and $esq3 -eq '1.1') ($r.saida + ' esquema=' + $esq3)
+    Conferir 'produção continua igual depois da migração na cópia (hash)' ((Get-HashArquivo $p3) -eq $h)
+
+    $t3 = Join-Path $tmp 'teste-1-0.accdb'
+    NovoBanco $t3 'TESTE'
+    $r = Executar $mig3 @('-Banco', $t3)
+    $cn3 = Open-Banco $t3
+    try { $esq3 = Get-VersaoEsquemaBanco $cn3 } finally { $cn3.Close(); $cn3.Dispose() }
+    Conferir 'banco TESTE 1.0 migra no lugar até o 1.1' ($r.codigo -eq 0 -and $esq3 -eq '1.1') ($r.saida + ' esquema=' + $esq3)
 
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
