@@ -1,0 +1,46 @@
+# Tarefas: Preparação da rede (ciclo 004)
+
+- [ ] F0: ligar testes novos ao verificar-tudo
+  - Teste primeiro: `tpr` com o primeiro caso da F1
+  - Verificar: `verificar-tudo -Rapido`
+  - Arquivos: `agent-config\ferramentas\verificar-tudo.ps1`, `testes\testar-preparacao-rede.ps1`
+- [ ] F1: `Assert-PodeSubstituirBanco` nos três criadores de banco
+  - Teste primeiro: `tpr` (PRODUCAO recusa, ilegível recusa, TESTE aceita)
+  - Verificar: `-Rapido` e padrão
+  - Arquivos: `lib\Comum.ps1`, `banco\esquema\criar-banco.ps1`, `IA\teste\criar-banco-teste.ps1`, `testes\criar-banco-demo.ps1`
+- [ ] F2: testes que gravam recusam banco não TESTE
+  - Teste primeiro: `tpr` (testar-mcp em BASE temporária PRODUCAO)
+  - Verificar: padrão
+  - Arquivos: `IA\teste\testar-mcp.ps1`, `testes\testar-uso.ps1`
+- [ ] F3: migração estrutural só pela montagem
+  - Teste primeiro: `tpr`
+  - Verificar: padrão (checkpoint)
+  - Arquivos: `banco\aplicar-migracoes.ps1`, `lib\AtualizacaoBanco.ps1`, `IA\mcp-dev\lib\Catalogo.ps1`
+- [ ] F4: ensaio
+  - Teste primeiro: `tpr`
+  - Verificar: padrão
+  - Arquivos: `lib\AtualizacaoBanco.ps1`, `build\montar-frontend.ps1`
+- [ ] F5: passo 10 só leitura e impressão
+  - Teste primeiro: `tbl`, `tpr`
+  - Verificar: `-Completo` (checkpoint)
+  - Arquivos: `testes\testar-uso.ps1`, `lib\AtualizacaoBanco.ps1`, `build\montar-frontend.ps1`
+- [ ] F6: troca sem janela
+  - Teste primeiro: `tbl`
+  - Verificar: `-Rapido`
+  - Arquivos: `lib\AtualizacaoBanco.ps1`
+- [ ] F7: passo 12 recuperável
+  - Teste primeiro: `tbl`, `tpr`
+  - Verificar: `-Completo` + `testar-falha-passos`
+  - Arquivos: `build\lib\Pacote.ps1`, `build\montar-frontend.ps1`, `lib\AtualizacaoBanco.ps1`
+- [ ] F8: backup validado e restauração verificável
+  - Teste primeiro: `tpr`
+  - Verificar: padrão
+  - Arquivos: `lib\Backup.ps1`, `lib\AtualizacaoBanco.ps1`, `operacao\scripts\restaurar-banco.ps1`
+- [ ] F9: conector exige 1.1
+  - Teste primeiro: `testar-mcp`
+  - Verificar: padrão (checkpoint)
+  - Arquivos: `IA\mcp\lib\Banco.ps1`, `Protocolo.ps1`, `servidor.ps1`, `Ferramentas.ps1`, `IA\teste\testar-mcp.ps1`
+- [ ] F10: documentação e roteiro
+  - Teste primeiro: `verificar.py`
+  - Verificar: `-Completo` final
+  - Arquivos: `docs\implantacao.md`, `levar-para-a-empresa.md`, `LEIA-ME-PRIMEIRO.md`, specs de stack, `CLAUDE.md`, `PLANO.md`
