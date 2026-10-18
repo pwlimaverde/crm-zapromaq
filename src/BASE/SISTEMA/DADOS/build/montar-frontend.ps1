@@ -23,6 +23,8 @@
 
   -Teste          os mesmos passos, só sobre banco com config.ambiente = TESTE (senão recusa);
                   o passo 12 grava em execucao\teste e não sobe a versão
+  -Ensaio         ensaio da atualização: passos 1 a 8 numa cópia (execucao\ensaio), sem Excel e sem trocar o
+                  banco; gera execucao\ensaio\relatorio-*.txt. Exige a trava livre. Não combina com -Teste.
   -SemTesteDeUso  pula o teste de uso (passo 10)
   -Ambiente PRODUCAO | TESTE (padrão: config.ambiente do banco; sem banco, PRODUCAO)
 
@@ -32,6 +34,7 @@
 param(
     [switch]$Teste,
     [switch]$SemTesteDeUso,
+    [switch]$Ensaio,
     [ValidateSet('', 'PRODUCAO', 'TESTE')][string]$Ambiente = '',
     [int]$TempoLimite = 300
 )
@@ -65,18 +68,20 @@ try {
     $log.L('=== MONTAGEM DO FRONTEND - CRM Zapromaq ===')
     $log.L('Data....: ' + (Get-Date -Format 'dd/MM/yyyy HH:mm:ss') + '   ' + $env:COMPUTERNAME + '\' + $env:USERNAME)
     $log.L('Raiz....: ' + (ConvertTo-CaminhoUNC $raiz))
-    $log.L('Modo....: ' + $(if ($Teste) { 'TESTE (não publica)' } else { 'PUBLICAÇÃO' }))
+    $log.L('Modo....: ' + $(if ($Ensaio) { 'ENSAIO (passos 1 a 8 numa cópia; não troca o banco, não monta o front)' } elseif ($Teste) { 'TESTE (não publica)' } else { 'PUBLICAÇÃO' }))
 
     # ------------------------------------------------------------ 1. pré-checagens
     try { $trava = [System.IO.File]::Open((Join-Path $pastaBuild 'build.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
     catch { Parar 'Outro build está em andamento (execucao\build\build.lock em uso). Espere ele terminar.' }
 
-    if ($null -eq [type]::GetTypeFromProgID('Excel.Application')) {
+    if ($Ensaio -and $Teste) { Parar '-Ensaio e -Teste não se combinam: o ensaio nunca troca banco nem monta o front.' }
+
+    if (-not $Ensaio -and $null -eq [type]::GetTypeFromProgID('Excel.Application')) {
         Parar 'Excel não está instalado nesta máquina. O build roda numa estação com Excel 2019 64 bits (veja testes\CHECAR-AMBIENTE.bat).'
     }
     if (-not [Environment]::Is64BitProcess) { Parar 'Rode pelo MONTAR-FRONTEND.bat: o build precisa do PowerShell 64 bits.' }
 
-    if (-not $Teste -and (Test-Path -LiteralPath $destinoRaiz)) {
+    if (-not $Teste -and -not $Ensaio -and (Test-Path -LiteralPath $destinoRaiz)) {
         try { $f = [System.IO.File]::Open($destinoRaiz, 'Open', 'ReadWrite', 'None'); $f.Close() }
         catch { Parar ('O ' + $script:NomeFront + ' da raiz está aberto por alguém. Feche-o em todas as máquinas e rode de novo. Nada foi alterado.') }
     }
@@ -96,7 +101,7 @@ try {
     if ($Teste) { $motivoTeste = Test-ModoTeste $Ambiente; if ($motivoTeste) { Parar-NoPasso 2 $motivoTeste } }
     # publicar sem o banco geraria uma planilha apontando para um arquivo que não existe
     # (por exemplo, depois de trocar a pasta BASE inteira e esquecer o .accdb)
-    if (-not $Teste -and -not $temBanco) {
+    if (-not $Teste -and -not $temBanco) {   # vale também para o ensaio: sem banco não há o que ensaiar
         Parar ('o banco ' + $script:NomeBanco + ' não está na raiz de BASE ou não abriu (veja o aviso acima). Ele precisa estar em ' + $bancoArq + '. Nada foi publicado.')
     }
 
@@ -109,6 +114,21 @@ try {
     $motivoManifesto = Test-Manifesto $raiz
     if ($motivoManifesto) { Parar-NoPasso 1 $motivoManifesto }
     $totalMunicipios = [int]((Get-Content -LiteralPath (Join-Path $dados 'banco\referencia\municipios.fonte.json') -Raw -Encoding UTF8 | ConvertFrom-Json).total)
+
+    # ------------------------------------------------------------ -Ensaio: passos 1 a 8 numa cópia, sem Excel e sem trocar nada
+    if ($Ensaio) {
+        $script:passo = 3
+        $log.L('[3/12] a 8/12 (ENSAIO): trava, cópia, migração na cópia e conferências...')
+        $ens = Invoke-EnsaioDoBanco $bancoArq (Get-PastaExecucao $raiz 'ensaio') $totalMunicipios $log
+        if (-not $ens.ok) { Parar-NoPasso $ens.passo $ens.motivo }
+        $log.L('')
+        $log.L('ENSAIO APROVADO. Esquema ' + $ens.esquema_antes + ' -> ' + $ens.esquema_depois + ' na cópia; migrações: ' + (@($ens.migracoes | ForEach-Object { ($_ -split '\s+')[0] }) -join ', ') +
+               '; hash do banco de produção igual antes e depois (' + $ens.h0.Substring(0, 12) + '); ' + $ens.segundos + ' s.')
+        $log.L('Relatório: ' + $ens.relatorio + '   (tem dado real: não vai para o repositório)')
+        $log.L('O banco de produção e a raiz de BASE não foram alterados. Para publicar, rode o MONTAR-FRONTEND.bat sem -Ensaio.')
+        $sucesso = $true
+        exit 0
+    }
 
     # ------------------------------------------------------------ passos 3 a 8: trava, esquema, backup, cópia, migração na cópia, conferências
     $script:passo = 5

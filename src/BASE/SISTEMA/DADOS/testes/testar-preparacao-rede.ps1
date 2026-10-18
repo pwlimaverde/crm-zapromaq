@@ -142,6 +142,51 @@ try {
     try { $esq3 = Get-VersaoEsquemaBanco $cn3 } finally { $cn3.Close(); $cn3.Dispose() }
     Conferir 'banco TESTE 1.0 migra no lugar até o 1.1' ($r.codigo -eq 0 -and $esq3 -eq '1.1') ($r.saida + ' esquema=' + $esq3)
 
+    Write-Host '--- F4: ensaio (montar-frontend -Ensaio, passos 1 a 8, sem Excel e sem trocar o banco)'
+    # banco "como a rede": esquema 1.0, ambiente PRODUCAO, sem nenhum registro migracao.*, com os casos da 003
+    $b4 = NovaBaseTemporaria 'base-f4'
+    New-Item -ItemType Directory -Path (Join-Path $b4 'SISTEMA\DADOS\fonte') -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $dados 'fonte\layout') -Destination (Join-Path $b4 'SISTEMA\DADOS\fonte\layout') -Recurse
+    Copy-Item -LiteralPath (Join-Path $dados 'build\montar-frontend.ps1') -Destination (Join-Path $b4 'SISTEMA\DADOS\build\montar-frontend.ps1')
+    $p4 = Join-Path $b4 'crm_zapromaq.accdb'
+    & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $raizBase 'IA\teste\criar-banco-teste.ps1') -Banco $p4 -Recriar -CasosDaMigracao | Out-Null
+    $cn4 = Open-Banco $p4
+    try {
+        Set-ConfigBanco $cn4 'ambiente' 'PRODUCAO' $null
+        $migrAntes = [int](Invoke-Escalar $cn4 "SELECT COUNT(*) FROM config WHERE chave LIKE 'migracao.%'" @() $null)
+        $esqAntes = Get-VersaoEsquemaBanco $cn4
+    } finally { $cn4.Close(); $cn4.Dispose() }
+    Conferir 'banco "como a rede": 1.0, PRODUCAO, sem migracao.*' ($esqAntes -eq '1.0' -and $migrAntes -eq 0 -and (Get-AmbienteDoBanco $p4) -eq 'PRODUCAO')
+    $h = Get-HashArquivo $p4
+    $r = Executar (Join-Path $b4 'SISTEMA\DADOS\build\montar-frontend.ps1') @('-Ensaio')
+    Conferir 'montar-frontend -Ensaio termina com 0 e diz ENSAIO APROVADO' ($r.codigo -eq 0 -and $r.saida -match 'ENSAIO APROVADO') $r.saida
+    Conferir 'ensaio: banco de produção ficou igual (hash)' ((Get-HashArquivo $p4) -eq $h)
+    $ensaio4 = Join-Path $b4 'SISTEMA\DADOS\execucao\ensaio'
+    $cop4 = Join-Path $ensaio4 'copia\crm_zapromaq.accdb'
+    Conferir 'ensaio: a cópia existe em execucao\ensaio' (Test-Path -LiteralPath $cop4)
+    if (Test-Path -LiteralPath $cop4) {
+        $cn4 = Open-Banco $cop4
+        try {
+            $nm = [int](Invoke-Escalar $cn4 "SELECT COUNT(*) FROM config WHERE chave IN ('migracao.001','migracao.002','migracao.003')" @() $null)
+            $esq4 = Get-VersaoEsquemaBanco $cn4
+        } finally { $cn4.Close(); $cn4.Dispose() }
+        Conferir 'ensaio: 001, 002 e 003 registradas NA CÓPIA e esquema 1.1' ($nm -eq 3 -and $esq4 -eq '1.1') ('migracoes=' + $nm + ' esquema=' + $esq4)
+    }
+    $rel4 = @(Get-ChildItem -LiteralPath $ensaio4 -Filter 'relatorio-*.txt' -ErrorAction SilentlyContinue)
+    Conferir 'ensaio: relatório gerado' ($rel4.Count -eq 1)
+    if ($rel4.Count -eq 1) {
+        $txt4 = Get-Content -LiteralPath $rel4[0].FullName -Raw -Encoding UTF8
+        Conferir 'relatório traz esquema antes/depois, hash e contagens' ($txt4 -match '1\.0' -and $txt4 -match '1\.1' -and $txt4 -match $h.Substring(0, 12) -and $txt4 -match 'clientes')
+    }
+    Conferir 'ensaio: execucao\backup\antes-da-publicacao não foi criada' (-not (Test-Path -LiteralPath (Join-Path $b4 'SISTEMA\DADOS\execucao\backup\antes-da-publicacao')))
+    # trava ocupada: o ensaio recusa (a cópia não seria consistente)
+    $conexaoAberta = Open-Banco $p4   # uma conexão de verdade segura o .laccdb (o ACE apaga trava falsa)
+    try {
+        $r = Executar (Join-Path $b4 'SISTEMA\DADOS\build\montar-frontend.ps1') @('-Ensaio')
+        Conferir 'ensaio com banco em uso (.laccdb) é recusado, sem alterar nada' ($r.codigo -ne 0 -and $r.saida -match 'conectado') $r.saida
+    } finally { $conexaoAberta.Close(); $conexaoAberta.Dispose() }
+    Conferir 'banco em uso: produção ficou igual (hash)' ((Get-HashArquivo $p4) -eq $h)
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 

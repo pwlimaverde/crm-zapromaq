@@ -135,14 +135,21 @@ function Invoke-Comando($cn, [string]$sql, [array]$params, $tx) {
     try { return $c.ExecuteNonQuery() } finally { $c.Dispose() }
 }
 
+# Conexão SOMENTE LEITURA (Mode=Read): não cria .laccdb de gravação nem altera o arquivo.
+function Open-BancoLeitura([string]$caminho) {
+    if (-not (Test-Path -LiteralPath $caminho)) { throw ('Banco não encontrado: ' + $caminho) }
+    $cn = New-Object System.Data.OleDb.OleDbConnection(
+        'Provider=' + (Get-ProvedorAce) + ';Data Source=' + $caminho + ';Mode=Read;OLE DB Services=-4;Persist Security Info=False;')
+    $cn.Open()
+    return $cn
+}
+
 # Lê config.ambiente de um banco SEM alterá-lo (Mode=Read). Devolve o texto ('TESTE', 'PRODUCAO'...),
 # ou $null se o arquivo não abre ou não tem a tabela config.
 function Get-AmbienteDoBanco([string]$caminho) {
     $cn = $null
     try {
-        $cn = New-Object System.Data.OleDb.OleDbConnection(
-            'Provider=' + (Get-ProvedorAce) + ';Data Source=' + $caminho + ';Mode=Read;OLE DB Services=-4;Persist Security Info=False;')
-        $cn.Open()
+        $cn = Open-BancoLeitura $caminho
         $v = Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='ambiente'" @() $null
         if ($null -eq $v) { return $null }
         return [string]$v

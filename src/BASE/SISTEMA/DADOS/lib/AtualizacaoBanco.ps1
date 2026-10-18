@@ -21,7 +21,11 @@ function Get-HashArquivo([string]$arquivo) {
 function Get-EstacoesDaTrava([string]$laccdb) {
     $estacoes = New-Object System.Collections.ArrayList
     if (-not (Test-Path -LiteralPath $laccdb)) { return , $estacoes }
-    $bytes = [System.IO.File]::ReadAllBytes($laccdb)
+    # o .laccdb está aberto pelo próprio Access enquanto há alguém conectado: ler com compartilhamento total
+    try {
+        $fs = New-Object System.IO.FileStream($laccdb, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try { $bytes = New-Object byte[] ([int]$fs.Length); [void]$fs.Read($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
+    } catch { return , $estacoes }   # sem conseguir ler os nomes, a trava continua valendo (livre = não existe o arquivo)
     for ($i = 0; $i + 64 -le $bytes.Length; $i += 64) {
         $nome = [Text.Encoding]::ASCII.GetString($bytes, $i, 32).Trim([char]0, ' ')
         if ($nome) { [void]$estacoes.Add($nome) }
@@ -154,6 +158,90 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     }
     $log.L('  conferências da cópia: aprovadas')
     return New-ResultadoBanco $true 8 'cópia pronta' @{ copia = $copia; h0 = $h0; backup = $backup; migracao = $saidaMig }
+}
+
+# Contagem de linhas de cada tabela de dados (nome -> total), na ordem do nome. Só leitura.
+function Get-ContagensDoBanco($cn) {
+    $nomes = New-Object System.Collections.ArrayList
+    foreach ($r in $cn.GetSchema('Tables').Rows) {
+        $n = [string]$r['TABLE_NAME']
+        if ([string]$r['TABLE_TYPE'] -eq 'TABLE' -and -not $n.StartsWith('MSys') -and -not $n.StartsWith('~')) { [void]$nomes.Add($n) }
+    }
+    $c = [ordered]@{}
+    foreach ($n in ($nomes | Sort-Object)) { $c[$n] = [int](Invoke-Escalar $cn ('SELECT COUNT(*) FROM [' + $n + ']') @() $null) }
+    return $c
+}
+
+# Ensaio da atualização (spec 004, F4): faz os passos 3 a 8 sobre uma cópia, em $pastaEnsaio, e escreve o
+# relatório. NUNCA troca o banco de produção, não cria backup em execucao\backup e não precisa de Excel.
+# Exige a trava livre (a cópia só é consistente com o banco fechado). Confere o hash da produção antes e depois.
+function Invoke-EnsaioDoBanco([string]$producao, [string]$pastaEnsaio, [int]$totalMunicipios, $log) {
+    $inicio = Get-Date
+    $livre = Test-BancoLivre $producao
+    if (-not $livre.livre) {
+        $quem = if ($livre.estacoes.Count) { ' Estações: ' + ($livre.estacoes -join ', ') + '.' } else { '' }
+        return New-ResultadoBanco $false 3 ('há usuário conectado ao banco (.laccdb).' + $quem + ' O ensaio precisa do banco fechado. Nada foi alterado.')
+    }
+    $h0 = Get-HashArquivo $producao
+    $cnL = Open-BancoLeitura $producao
+    try { $esquemaAntes = Get-VersaoEsquemaBanco $cnL; $ambiente = [string](Invoke-Escalar $cnL "SELECT valor FROM config WHERE chave='ambiente'" @() $null); $contAntes = Get-ContagensDoBanco $cnL }
+    finally { $cnL.Close(); $cnL.Dispose() }
+    $log.L('  produção: esquema ' + $esquemaAntes + ', ambiente ' + $ambiente + ', H0 ' + $h0.Substring(0, 12))
+
+    # pasta do ensaio sempre começa vazia (cópia e backup do ensaio anterior saem)
+    foreach ($sub in @('copia', 'backup')) {
+        $p = Join-Path $pastaEnsaio $sub
+        if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
+    }
+    $prep = Invoke-PreparacaoDoBanco $producao (Join-Path $pastaEnsaio 'copia') (Join-Path $pastaEnsaio 'backup') $totalMunicipios $log
+    if (-not $prep.ok) { return $prep }
+
+    $hDepois = Get-HashArquivo $producao
+    if ($hDepois -ne $h0) { return New-ResultadoBanco $false 8 'o banco de produção mudou durante o ensaio (hash diferente); alguém gravou nele. Refaça o ensaio.' }
+
+    $cn = Open-Banco $prep.copia
+    try {
+        $esquemaDepois = Get-VersaoEsquemaBanco $cn
+        $contDepois = Get-ContagensDoBanco $cn
+        $aplicadas = New-Object System.Collections.ArrayList
+        $c = New-ComandoBanco $cn "SELECT chave, valor FROM config WHERE chave LIKE 'migracao.%' ORDER BY chave" @() $null
+        $rd = $c.ExecuteReader()
+        while ($rd.Read()) { [void]$aplicadas.Add([string]$rd.GetValue(0) + '  ' + [string]$rd.GetValue(1)) }
+        $rd.Close(); $c.Dispose()
+    } finally { $cn.Close(); $cn.Dispose() }
+
+    $unif = 0; $inativos = 0
+    foreach ($linha in @($prep.migracao)) {
+        if ($linha -match 'unificações: (\d+)') { $unif = [int]$matches[1] }
+        if ($linha -match 'entrou INATIVO') { $inativos++ }
+    }
+    $segundos = [int]((Get-Date) - $inicio).TotalSeconds
+    $rel = New-Object System.Collections.ArrayList
+    [void]$rel.Add('RELATÓRIO DO ENSAIO - CRM Zapromaq   ' + (Get-Date -Format 'dd/MM/yyyy HH:mm:ss'))
+    [void]$rel.Add('Este relatório pode conter dado real da produção: NÃO vai para o repositório.')
+    [void]$rel.Add('')
+    [void]$rel.Add('Produção....: ' + $producao + '  (ambiente ' + $ambiente + ')')
+    [void]$rel.Add('Esquema.....: ' + $esquemaAntes + ' -> ' + $esquemaDepois + '  (na cópia)')
+    [void]$rel.Add('H0 antes....: ' + $h0)
+    [void]$rel.Add('H0 depois...: ' + $hDepois + '  (igual: a produção não foi tocada)')
+    [void]$rel.Add('Tempo.......: ' + $segundos + ' s (cópia, migração e conferências)')
+    [void]$rel.Add('Migrações registradas na cópia:')
+    foreach ($a in $aplicadas) { [void]$rel.Add('  ' + $a) }
+    [void]$rel.Add('Listas: ' + $unif + ' unificação(ões); ' + $inativos + ' valor(es) incluído(s) como inativo(s)')
+    [void]$rel.Add('')
+    [void]$rel.Add('Contagens (antes -> depois, na cópia):')
+    $todas = @($contAntes.Keys) + @($contDepois.Keys | Where-Object { -not $contAntes.Contains($_) })
+    foreach ($t in $todas) {
+        $a = if ($contAntes.Contains($t)) { [string]$contAntes[$t] } else { '(não existia)' }
+        $d = if ($contDepois.Contains($t)) { [string]$contDepois[$t] } else { '-' }
+        [void]$rel.Add(('  {0,-20} {1,10} -> {2}' -f $t, $a, $d))
+    }
+    [void]$rel.Add('')
+    [void]$rel.Add('Saída da migração:')
+    foreach ($linha in @($prep.migracao)) { if ($linha -ne '') { [void]$rel.Add('  ' + $linha) } }
+    $arq = Join-Path $pastaEnsaio ('relatorio-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
+    [System.IO.File]::WriteAllLines($arq, [string[]]$rel.ToArray(), (New-Object System.Text.UTF8Encoding($true)))
+    return New-ResultadoBanco $true 8 'ensaio aprovado' @{ relatorio = $arq; h0 = $h0; esquema_antes = $esquemaAntes; esquema_depois = $esquemaDepois; migracoes = @($aplicadas); copia = $prep.copia; segundos = $segundos }
 }
 
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).
