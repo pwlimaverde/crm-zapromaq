@@ -202,6 +202,15 @@ try {
     try { [void](Invoke-Comando $cnI "INSERT INTO log_alteracoes (tabela, id_registro, campo, acao, usuario, quando, origem) VALUES ('clientes', 1, 'x', 'TESTE', 'tpr', Now(), 'FRONT')" @() $null) } finally { $cnI.Close(); $cnI.Dispose() }
     Conferir 'impressão muda depois de linha nova no log' ((Get-ImpressaoDoBanco $cop4) -ne $i1)
 
+    Write-Host '--- F7: config.versao_front é gravada na CÓPIA, antes da troca'
+    $vfProd = { $c = Open-BancoLeitura $p4; try { return [string](Invoke-Escalar $c "SELECT valor FROM config WHERE chave='versao_front'" @() $null) } finally { $c.Close(); $c.Dispose() } }
+    $vfAntes = & $vfProd
+    Set-VersaoFrontNaCopia $cop4 '9.9'
+    $cnV = Open-BancoLeitura $cop4
+    try { $vfCopia = [string](Invoke-Escalar $cnV "SELECT valor FROM config WHERE chave='versao_front'" @() $null) } finally { $cnV.Close(); $cnV.Dispose() }
+    Conferir 'versao_front gravada na cópia' ($vfCopia -eq '9.9') $vfCopia
+    Conferir 'produção intacta: hash igual e versao_front antiga' ((Get-HashArquivo $p4) -eq $h -and (& $vfProd) -eq $vfAntes)
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 

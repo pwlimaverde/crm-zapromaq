@@ -104,6 +104,7 @@ if ($Completo) {
             Etapa 'banco de demonstração' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\criar-banco-demo.ps1') }
         }
         Etapa 'build -Teste (compilação, autoteste, teste de uso)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\build\montar-frontend.ps1') -Teste }
+        Etapa 'publicação completa numa cópia (spec 004, F7)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-publicacao-copia.ps1') }
         Etapa 'falha forçada nos passos 9 a 12 (1.7b)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-falha-passos.ps1') }
     }
 }

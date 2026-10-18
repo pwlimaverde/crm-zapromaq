@@ -279,6 +279,13 @@ function Invoke-EnsaioDoBanco([string]$producao, [string]$pastaEnsaio, [int]$tot
     return New-ResultadoBanco $true 8 'ensaio aprovado' @{ relatorio = $arq; h0 = $h0; esquema_antes = $esquemaAntes; esquema_depois = $esquemaDepois; migracoes = @($aplicadas); copia = $prep.copia; segundos = $segundos }
 }
 
+# config.versao_front é gravada NA CÓPIA, antes da troca (passo 11). Antes ela era gravada na produção
+# depois da troca, o que mudava o hash e impedia a reversão (Reverter-Troca exige o hash da troca).
+function Set-VersaoFrontNaCopia([string]$copia, [string]$versao) {
+    $cn = Open-Banco $copia
+    try { Set-ConfigBanco $cn 'versao_front' $versao $null } finally { $cn.Close(); $cn.Dispose() }
+}
+
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).
 # Antes de trocar, guarda o banco anterior em $pastaBackup (para reverter).
 function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [string]$pastaBackup) {
