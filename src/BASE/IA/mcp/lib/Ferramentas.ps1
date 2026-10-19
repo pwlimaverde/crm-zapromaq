@@ -136,6 +136,31 @@ function Add-Calculados($o) {
     return $o
 }
 
+# Último backup VALIDADO (marca <backup>.validado gravada por SISTEMA\DADOS\operacao\scripts\backup-banco.ps1 só
+# depois de restaurar uma cópia numa pasta descartável e conferir). Espelho de Get-AlertaBackup (lib\Backup.ps1):
+# alerta se não há nenhum ou se o último passou de 36 h.
+$script:BackupAlertaHoras = 36
+function Get-StatusBackup {
+    $pasta = Join-Path (Split-Path -Parent $script:CaminhoBanco) 'SISTEMA\DADOS\execucao\backup'
+    $melhor = $null
+    if (Test-Path -LiteralPath $pasta) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $pasta -Filter 'crm_*.validado' -File -ErrorAction SilentlyContinue)) {
+            try {
+                $j = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                $d = [datetime]::Parse([string]$j.validado_utc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal).ToLocalTime()
+                if ($null -eq $melhor -or $d -gt $melhor.instante) { $melhor = [pscustomobject]@{ arquivo = ($f.Name -replace '\.validado$', ''); instante = $d } }
+            } catch { }
+        }
+    }
+    if ($null -eq $melhor) { return [ordered]@{ ultimo = $null; alerta = $true; mensagem = 'Nenhum backup validado encontrado.' } }
+    $h = [math]::Round(((Get-Date) - $melhor.instante).TotalHours, 1)
+    return [ordered]@{
+        ultimo   = [ordered]@{ arquivo = $melhor.arquivo; validado_em = $melhor.instante.ToString('yyyy-MM-dd HH:mm:ss'); horas = $h }
+        alerta   = ($h -gt $script:BackupAlertaHoras)
+        mensagem = $(if ($h -gt $script:BackupAlertaHoras) { 'O último backup validado tem ' + $h + ' h (limite ' + $script:BackupAlertaHoras + ' h).' } else { 'Último backup validado há ' + $h + ' h.' })
+    }
+}
+
 # ================================================================= LEITURA
 function Invoke-CrmStatus($a) {
     $cont = [ordered]@{}
@@ -143,7 +168,11 @@ function Invoke-CrmStatus($a) {
         $cont[$t] = [int](Invoke-Valor ('SELECT COUNT(*) FROM ' + $t) @())
     }
     $esq = Get-VersaoEsquema
+    $bkp = Get-StatusBackup
     return [ordered]@{
+        ultimo_backup_validado = $bkp.ultimo
+        alerta_backup       = $bkp.alerta
+        mensagem_backup     = $bkp.mensagem
         banco               = $script:CaminhoBanco
         provedor            = Get-ProvedorAce
         versao_esquema      = $esq

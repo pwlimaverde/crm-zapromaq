@@ -1,16 +1,10 @@
-# Plano: Backup coordenado e alerta (rascunho)
+# Plano: Backup coordenado e alerta (ciclo 006)
 
 Spec: [SPEC.md](SPEC.md)
 
-## Fatias (teste que falha primeiro, depois prova)
-
-- trava de backup com dono e sessão e recuperação de trava abandonada (tpr, dois processos)
-- nome único, arquivo temporário promovido só depois de conferido, log por execução
-- manifesto em toda cópia; retenção nunca apaga a última validada
-- ver_log backup lê o backup.log (testar-mcp-dev)
-- último backup validado em crm_status, estado_sistema e Início; alerta acima de 36 h
-- config.geracao_base renovada ao restaurar
-
-## Depende de
-
-004 F8
+1. Trava de backup (`Enter-/Exit-TravaBackup`) - `testar-preparacao-rede` com processo filho.
+2. `backup-banco.ps1`: nome único, `.tmp`, manifesto, validado, logs - `testar-preparacao-rede`.
+3. Retenção protege o último validado - `testar-preparacao-rede`.
+4. Estado do backup no conector e no dev - `testar-preparacao-rede`, `testar-mcp-dev`.
+5. Alerta no front (`modBackupAviso`) - `modAutoteste`.
+6. `geracao_base` e `renovar-geracao.ps1` - `testar-preparacao-rede`.

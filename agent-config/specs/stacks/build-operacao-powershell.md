@@ -105,3 +105,10 @@ banco antigo: `-Recriar`. Mudança no
 - Backup da janela validado (`lib\Backup.ps1`: manifesto, restauração numa pasta descartável, nunca abrir o
   arquivo de backup); `restaurar-banco.ps1 -Referencia` sai com 1 em divergência. RPO 24 h, RTO 4 h, alerta 36 h.
 - Testes: `testar-preparacao-rede.ps1` (ACE), `testar-build-lib.ps1`, `testar-publicacao-copia.ps1` (Excel).
+
+## Backup coordenado (spec 006)
+
+- `backup-banco.ps1`: trava `backup.lock` com dono (exit 4 se ocupado; abandonada é recuperada), nome com segundos,
+  `.tmp` promovido após conferência, manifesto + restauração descartável e marca `.validado`, logs por execução.
+  A retenção nunca apaga o último validado. `config.geracao_base` é renovada na publicação e por `renovar-geracao.ps1`.
+- Alerta: front (`modBackupAviso`) e conector (`crm_status`) avisam se o último validado passou de 36 h.

@@ -113,6 +113,18 @@ try {
     # sem banco na cópia: o estado ainda responde, só sem as versões do banco
     $e = Dados (Chamar 'estado_sistema' ([ordered]@{}))
     Conferir 'estado_sistema traz a versão da próxima publicação' ($e.versao_proxima_publicacao -match '^\d+\.\d+$') ($e | ConvertTo-Json -Compress)
+    Conferir 'estado_sistema sem backup validado: alerta_backup=true' ($e.alerta_backup -eq $true)
+    # ver_log backup lê o backup.log consolidado (execucao\backup), não execucao\logs
+    $r = Chamar 'ver_log' ([ordered]@{ tipo = 'backup' })
+    Conferir 'ver_log backup sem log ainda: erro claro' ($r.isError -and $r.content[0].text -match 'backup')
+    New-Item -ItemType Directory -Path (Join-Path $dados 'execucao\backup') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $dados 'execucao\backup\backup.log'), "18/10/2026 08:00:00  [Diario]  [EST1]  OK: crm_diario_x.accdb`r`n")
+    $vf = Join-Path $dados 'execucao\backup\crm_diario_20261018-080000_EST1.accdb.validado'
+    [IO.File]::WriteAllText($vf, (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }))
+    $r = Chamar 'ver_log' ([ordered]@{ tipo = 'backup' })
+    Conferir 'ver_log backup lê o backup.log consolidado' ((-not $r.isError) -and $r.content[0].text -match 'crm_diario_x') $r.content[0].text
+    $e = Dados (Chamar 'estado_sistema' ([ordered]@{}))
+    Conferir 'estado_sistema traz o último backup validado e alerta_backup=false' ($e.alerta_backup -eq $false -and [string]$e.ultimo_backup_validado.arquivo -match '^crm_diario_') ($e | ConvertTo-Json -Compress)
     $m = Dados (Chamar 'listar_migracoes' ([ordered]@{}))
     Conferir 'listar_migracoes vê as migrações existentes' (@($m.migracoes).Count -ge 2) (@($m.migracoes | ForEach-Object { $_.arquivo }) -join ',')
     $r = Chamar 'criar_migracao' ([ordered]@{ nome = 'teste-perigo'; descricao = 'teste'; sql = (Lista 'DROP TABLE clientes') })

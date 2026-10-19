@@ -292,7 +292,8 @@ function Invoke-EnsaioDoBanco([string]$producao, [string]$pastaEnsaio, [int]$tot
 # depois da troca, o que mudava o hash e impedia a reversão (Reverter-Troca exige o hash da troca).
 function Set-VersaoFrontNaCopia([string]$copia, [string]$versao) {
     $cn = Open-Banco $copia
-    try { Set-ConfigBanco $cn 'versao_front' $versao $null } finally { $cn.Close(); $cn.Dispose() }
+    # a troca do arquivo do banco também renova a geração da base (config.geracao_base, spec 006)
+    try { Set-ConfigBanco $cn 'versao_front' $versao $null; [void](Set-GeracaoBase $cn) } finally { $cn.Close(); $cn.Dispose() }
 }
 
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).
