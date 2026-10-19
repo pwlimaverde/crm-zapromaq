@@ -89,3 +89,10 @@ o resultado; rodar duas vezes prova a idempotência.
 ## Referências offline
 
 `referencias/` 06-access-sql-ace, 07-ado, 08-dotnet-oledb.
+
+## Quem pode apagar ou alterar a estrutura (spec 004)
+
+- `criar-banco.ps1 -Recriar` (e `criar-banco-teste`, `criar-banco-demo`) só apaga arquivo inexistente ou banco
+  com `config.ambiente = TESTE` (`Assert-PodeSubstituirBanco`, leitura em `Mode=Read`).
+- `aplicar-migracoes.ps1` recusa migração ESTRUTURAL (exit 3) fora de banco TESTE ou de uma cópia de trabalho
+  (`-CopiaDeTrabalho`, dentro de `execucao\publicacao` ou `execucao\ensaio`); as migrações só de dados continuam no lugar.

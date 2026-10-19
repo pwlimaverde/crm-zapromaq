@@ -92,3 +92,16 @@ banco antigo: `-Recriar`. Mudança no
 ## Referências offline
 
 `referencias/` 09-powershell-5.1, 04-excel-modelo-objetos, 03-vbe-modelo-extensibilidade.
+
+## Atualização do banco e publicação (spec 004)
+
+- O banco de produção só é alterado pela montagem: cópia de trabalho, migração na cópia, conferências, troca
+  (`lib\AtualizacaoBanco.ps1`). A troca prepara e confere o `.novo` antes da última checagem (trava, tamanho e
+  data) e confere o hash do `.anterior`; `Get-EstacoesDaTrava` lê o `.laccdb` com compartilhamento total.
+- `MONTAR-FRONTEND.bat -Ensaio`: passos 1-8 numa cópia em `execucao\ensaio`, sem Excel, sem trocar o banco,
+  com relatório. Passo 10 da publicação: `testar-uso -SoLeitura` + impressão digital da cópia
+  (`Get-ImpressaoDoBanco`). Passo 12: `Publicar-FrontNaRaiz`; `VERSAO-FRONT.txt` por último (ponto de não retorno);
+  `config.versao_front` é gravada na cópia, antes da troca.
+- Backup da janela validado (`lib\Backup.ps1`: manifesto, restauração numa pasta descartável, nunca abrir o
+  arquivo de backup); `restaurar-banco.ps1 -Referencia` sai com 1 em divergência. RPO 24 h, RTO 4 h, alerta 36 h.
+- Testes: `testar-preparacao-rede.ps1` (ACE), `testar-build-lib.ps1`, `testar-publicacao-copia.ps1` (Excel).

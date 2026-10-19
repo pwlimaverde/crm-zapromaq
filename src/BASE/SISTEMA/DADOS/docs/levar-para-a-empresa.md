@@ -36,10 +36,14 @@ coisas continuam lá depois da troca:
    `BASE` (`01 - CRM\01 - CONTROLE`), e responda **"Substituir os arquivos no
    destino"**. **Nunca apague a `BASE` antes**: o banco e a planilha publicada
    estão nela e não vêm no pacote.
-4. `SISTEMA\MONTAR-FRONTEND.bat` — confere o ambiente, faz backup, aplica as
-   migrações pendentes do banco, monta, compila, roda autoteste e teste de uso e
-   publica a versão seguinte. Se qualquer etapa falhar, nada é publicado e a
-   planilha de antes continua valendo.
+4. Primeiro o **ensaio**: `SISTEMA\MONTAR-FRONTEND.bat -Ensaio` (sem Excel, sem
+   trocar o banco) faz o backup validado, a migração numa cópia e as
+   conferências, e escreve `execucao\ensaio\relatorio-*.txt`. Depois
+   `SISTEMA\MONTAR-FRONTEND.bat` — confere o ambiente, faz backup, aplica as
+   migrações pendentes **numa cópia** do banco, monta, compila, roda autoteste e
+   teste de uso (só leitura) e publica a versão seguinte. Se qualquer etapa
+   falhar, nada é publicado e a planilha de antes continua valendo. O roteiro
+   completo, com conferências e volta atrás, é `docs\implantacao.md`.
 5. As estações atualizam sozinhas pelo `INICIAR-CRM` (ele compara a primeira
    linha de `VERSAO-FRONT.txt` com a versão instalada).
 

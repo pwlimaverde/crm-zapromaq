@@ -1,6 +1,6 @@
 # Spec: Preparação da rede (ciclo 004)
 
-> Situação: aprovada em 18/10/2026 (pedido explícito do usuário: revisar o plano, executar o ciclo sem pendências e sem perguntas)
+> Concluída em 18/10/2026 - feature/preparacao-da-rede (aprovada em 18/10/2026 por pedido explícito do usuário: revisar o plano, executar o ciclo sem pendências e sem perguntas)
 
 ## Objetivo
 
@@ -40,18 +40,18 @@ N1 passo 10 grava na cópia do banco real; N2 `APLICAR-MIGRACOES` aplica DDL no 
 
 ## Critérios de aceite (coluna "Prova" das fatias)
 
-- [ ] F0 `verificar-tudo` padrão mostra no RESUMO as etapas `testar-migracao-003` e `testar-preparacao-rede`.
-- [ ] F1 `criar-banco -Recriar`, `criar-banco-teste` e `criar-banco-demo -Recriar` recusam banco PRODUCAO ou ilegível antes de apagar (hash igual); aceitam inexistente e TESTE.
-- [ ] F2 `testar-mcp` e `testar-uso` (modo completo) recusam banco não TESTE antes da primeira gravação (hash igual).
-- [ ] F3 migração estrutural só com `-CopiaDeTrabalho` dentro de `execucao\publicacao` ou `execucao\ensaio`; PRODUCAO 1.0 sem a opção recusa antes de aplicar; TESTE 1.0 chega ao 1.1; `Invoke-PreparacaoDoBanco` passa a opção.
-- [ ] F4 `Invoke-EnsaioDoBanco` e `montar-frontend -Ensaio` aprovam banco "como a rede" (1.0, PRODUCAO, sem `migracao.*`), registram 001/002/003 na cópia, produção com hash igual, relatório gerado.
-- [ ] F5 publicação roda o teste de uso só de leitura e compara impressão; `-Teste` roda leitura e depois completo; `-Completo` mostra "só leitura... impressão igual".
-- [ ] F6 gancho que simula gravação depois de preparar o `.novo` faz a troca recusar sem trocar nada.
-- [ ] F7 falha forçada em cada subpasso do passo 12 devolve raiz, `VERSAO.txt` e `VERSAO-FRONT.txt` (hash igual); sucesso grava na ordem certa; `versao_front` na cópia.
-- [ ] F8 manifesto de backup (instante, sha256, esquema, contagens); restauração aprovada = 0, adulterada = 1; escolha pelo manifesto/nome, não por `LastWriteTime`.
-- [ ] F9 conector exige 1.1; com 1.0 só `crm_status` responde (`atualizacao_pendente=true`), demais com `isError` e "esquema 1.0"; gravação recusada; `VersaoServidor 1.5.0`.
-- [ ] F10 documentação e roteiro atualizados; `verificar.py` sem falha.
-- [ ] `verificar-tudo -Completo` sem falha, saída mostrada.
+- [x] F0 `verificar-tudo` padrão mostra no RESUMO as etapas `testar-migracao-003` e `testar-preparacao-rede`.
+- [x] F1 `criar-banco -Recriar`, `criar-banco-teste` e `criar-banco-demo -Recriar` recusam banco PRODUCAO ou ilegível antes de apagar (hash igual); aceitam inexistente e TESTE.
+- [x] F2 `testar-mcp` e `testar-uso` (modo completo) recusam banco não TESTE antes da primeira gravação (hash igual).
+- [x] F3 migração estrutural só com `-CopiaDeTrabalho` dentro de `execucao\publicacao` ou `execucao\ensaio`; PRODUCAO 1.0 sem a opção recusa antes de aplicar; TESTE 1.0 chega ao 1.1; `Invoke-PreparacaoDoBanco` passa a opção.
+- [x] F4 `Invoke-EnsaioDoBanco` e `montar-frontend -Ensaio` aprovam banco "como a rede" (1.0, PRODUCAO, sem `migracao.*`), registram 001/002/003 na cópia, produção com hash igual, relatório gerado.
+- [x] F5 publicação roda o teste de uso só de leitura e compara impressão; `-Teste` roda leitura e depois completo; `-Completo` mostra "só leitura... impressão igual".
+- [x] F6 gancho que simula gravação depois de preparar o `.novo` faz a troca recusar sem trocar nada.
+- [x] F7 falha forçada em cada subpasso do passo 12 devolve raiz, `VERSAO.txt` e `VERSAO-FRONT.txt` (hash igual); sucesso grava na ordem certa; `versao_front` na cópia.
+- [x] F8 manifesto de backup (instante, sha256, esquema, contagens); restauração aprovada = 0, adulterada = 1; escolha pelo manifesto/nome, não por `LastWriteTime`.
+- [x] F9 conector exige 1.1; com 1.0 só `crm_status` responde (`atualizacao_pendente=true`), demais com `isError` e "esquema 1.0"; gravação recusada; `VersaoServidor 1.5.0`.
+- [x] F10 documentação e roteiro atualizados; `verificar.py` sem falha.
+- [x] `verificar-tudo -Completo` sem falha, saída mostrada.
 
 ## Stacks tocadas
 

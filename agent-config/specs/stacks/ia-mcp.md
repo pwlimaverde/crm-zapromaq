@@ -84,3 +84,10 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
 ## Referências offline
 
 `referencias/` 12-mcp-especificacao, 13-claude-desktop, 09-powershell-5.1, 08-dotnet-oledb.
+
+## Esquema suportado (spec 004)
+
+- O conector (1.5.0) exige o esquema 1.1 (`EsquemasSuportados = @('1.1')`). Com outro esquema só o `crm_status`
+  responde (`atualizacao_pendente`, `esquemas_suportados`, `gravacao_liberada`); as demais ferramentas voltam
+  `isError` com "esquema X". O `Protocolo` passa o nome da ferramenta ao `AntesDaFerramenta`.
+- `aplicar_migracoes` (MCP de desenvolvimento) recusa migração estrutural em banco de produção.
