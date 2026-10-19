@@ -13,16 +13,21 @@
     7. migrações aplicadas NA CÓPIA (dados em transação; estrutura guardada)
     8. conferências na cópia: municípios, papel das etapas, índice único, valores em uso
     9. montagem do front com Config!B2 provisório (apontando para a cópia): compilação e autoteste
-    10. teste de uso contra a cópia
+    10. teste de uso contra a cópia: na publicação só o de LEITURA (-SoLeitura) e a impressão digital da
+        cópia tem de ser igual antes e depois; no -Teste, leitura e depois o completo (banco de TESTE)
     11. troca: Config!B2 definitivo (UNC do banco de produção) no .xlsm; troca do banco de
         produção pela cópia SÓ com a trava livre e o hash igual ao H0
-    12. publicação: .xlsm anterior -> execucao\historico-front; novo -> raiz; config.versao_front;
-        VERSAO.txt; VERSAO-FRONT.txt; CHANGELOG.md. Se falhar aqui, o banco volta ao backup.
+    12. publicação: .xlsm anterior -> execucao\historico-front; novo -> raiz; VERSAO.txt; VERSAO-FRONT.txt
+        POR ÚLTIMO (ponto de não retorno); depois CHANGELOG.md (falha vira aviso). config.versao_front já
+        foi gravada na cópia (passo 11). Falha antes do VERSAO-FRONT.txt devolve o .xlsm anterior, o
+        VERSAO.txt e o banco (backup).
 
   Falha antes do passo 11 NÃO altera o banco de produção nem a raiz de BASE.
 
   -Teste          os mesmos passos, só sobre banco com config.ambiente = TESTE (senão recusa);
                   o passo 12 grava em execucao\teste e não sobe a versão
+  -Ensaio         ensaio da atualização: passos 1 a 8 numa cópia (execucao\ensaio), sem Excel e sem trocar o
+                  banco; gera execucao\ensaio\relatorio-*.txt. Exige a trava livre. Não combina com -Teste.
   -SemTesteDeUso  pula o teste de uso (passo 10)
   -Ambiente PRODUCAO | TESTE (padrão: config.ambiente do banco; sem banco, PRODUCAO)
 
@@ -32,6 +37,7 @@
 param(
     [switch]$Teste,
     [switch]$SemTesteDeUso,
+    [switch]$Ensaio,
     [ValidateSet('', 'PRODUCAO', 'TESTE')][string]$Ambiente = '',
     [int]$TempoLimite = 300
 )
@@ -53,7 +59,7 @@ $pastaBuild = Get-PastaExecucao $raiz 'build'
 $destinoRaiz = Get-CaminhoFront $raiz
 $bancoArq = Get-CaminhoBanco $raiz
 
-$xl = $null; $idExcel = 0; $trava = $null; $vbomOriginal = 'nao-alterado'; $sucesso = $false
+$xl = $null; $idExcel = 0; $trava = $null; $vbomOriginal = 'nao-alterado'; $sucesso = $false; $pontoSemRetorno = $false
 $script:passo = 2
 $nomesPassos = @{ 1 = 'pacote de municípios'; 2 = 'ambiente'; 3 = 'trava'; 4 = 'esquema'; 5 = 'backup'; 6 = 'cópia de trabalho';
                   7 = 'migrações na cópia'; 8 = 'conferências da cópia'; 9 = 'montagem do front'; 10 = 'teste de uso';
@@ -65,18 +71,20 @@ try {
     $log.L('=== MONTAGEM DO FRONTEND - CRM Zapromaq ===')
     $log.L('Data....: ' + (Get-Date -Format 'dd/MM/yyyy HH:mm:ss') + '   ' + $env:COMPUTERNAME + '\' + $env:USERNAME)
     $log.L('Raiz....: ' + (ConvertTo-CaminhoUNC $raiz))
-    $log.L('Modo....: ' + $(if ($Teste) { 'TESTE (não publica)' } else { 'PUBLICAÇÃO' }))
+    $log.L('Modo....: ' + $(if ($Ensaio) { 'ENSAIO (passos 1 a 8 numa cópia; não troca o banco, não monta o front)' } elseif ($Teste) { 'TESTE (não publica)' } else { 'PUBLICAÇÃO' }))
 
     # ------------------------------------------------------------ 1. pré-checagens
     try { $trava = [System.IO.File]::Open((Join-Path $pastaBuild 'build.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
     catch { Parar 'Outro build está em andamento (execucao\build\build.lock em uso). Espere ele terminar.' }
 
-    if ($null -eq [type]::GetTypeFromProgID('Excel.Application')) {
+    if ($Ensaio -and $Teste) { Parar '-Ensaio e -Teste não se combinam: o ensaio nunca troca banco nem monta o front.' }
+
+    if (-not $Ensaio -and $null -eq [type]::GetTypeFromProgID('Excel.Application')) {
         Parar 'Excel não está instalado nesta máquina. O build roda numa estação com Excel 2019 64 bits (veja testes\CHECAR-AMBIENTE.bat).'
     }
     if (-not [Environment]::Is64BitProcess) { Parar 'Rode pelo MONTAR-FRONTEND.bat: o build precisa do PowerShell 64 bits.' }
 
-    if (-not $Teste -and (Test-Path -LiteralPath $destinoRaiz)) {
+    if (-not $Teste -and -not $Ensaio -and (Test-Path -LiteralPath $destinoRaiz)) {
         try { $f = [System.IO.File]::Open($destinoRaiz, 'Open', 'ReadWrite', 'None'); $f.Close() }
         catch { Parar ('O ' + $script:NomeFront + ' da raiz está aberto por alguém. Feche-o em todas as máquinas e rode de novo. Nada foi alterado.') }
     }
@@ -96,7 +104,7 @@ try {
     if ($Teste) { $motivoTeste = Test-ModoTeste $Ambiente; if ($motivoTeste) { Parar-NoPasso 2 $motivoTeste } }
     # publicar sem o banco geraria uma planilha apontando para um arquivo que não existe
     # (por exemplo, depois de trocar a pasta BASE inteira e esquecer o .accdb)
-    if (-not $Teste -and -not $temBanco) {
+    if (-not $Teste -and -not $temBanco) {   # vale também para o ensaio: sem banco não há o que ensaiar
         Parar ('o banco ' + $script:NomeBanco + ' não está na raiz de BASE ou não abriu (veja o aviso acima). Ele precisa estar em ' + $bancoArq + '. Nada foi publicado.')
     }
 
@@ -109,6 +117,21 @@ try {
     $motivoManifesto = Test-Manifesto $raiz
     if ($motivoManifesto) { Parar-NoPasso 1 $motivoManifesto }
     $totalMunicipios = [int]((Get-Content -LiteralPath (Join-Path $dados 'banco\referencia\municipios.fonte.json') -Raw -Encoding UTF8 | ConvertFrom-Json).total)
+
+    # ------------------------------------------------------------ -Ensaio: passos 1 a 8 numa cópia, sem Excel e sem trocar nada
+    if ($Ensaio) {
+        $script:passo = 3
+        $log.L('[3/12] a 8/12 (ENSAIO): trava, cópia, migração na cópia e conferências...')
+        $ens = Invoke-EnsaioDoBanco $bancoArq (Get-PastaExecucao $raiz 'ensaio') $totalMunicipios $log
+        if (-not $ens.ok) { Parar-NoPasso $ens.passo $ens.motivo }
+        $log.L('')
+        $log.L('ENSAIO APROVADO. Esquema ' + $ens.esquema_antes + ' -> ' + $ens.esquema_depois + ' na cópia; migrações: ' + (@($ens.migracoes | ForEach-Object { ($_ -split '\s+')[0] }) -join ', ') +
+               '; hash do banco de produção igual antes e depois (' + $ens.h0.Substring(0, 12) + '); ' + $ens.segundos + ' s.')
+        $log.L('Relatório: ' + $ens.relatorio + '   (tem dado real: não vai para o repositório)')
+        $log.L('O banco de produção e a raiz de BASE não foram alterados. Para publicar, rode o MONTAR-FRONTEND.bat sem -Ensaio.')
+        $sucesso = $true
+        exit 0
+    }
 
     # ------------------------------------------------------------ passos 3 a 8: trava, esquema, backup, cópia, migração na cópia, conferências
     $script:passo = 5
@@ -384,9 +407,22 @@ try {
     if (-not $SemTesteDeUso) {
         $log.L('')
         $log.L('--- teste de uso (grades e Painel com os dados reais)')
-        $saidaUso = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dados 'testes\testar-uso.ps1') -Arquivo $temp -SemRelatorio 2>&1
-        foreach ($linha in @($saidaUso)) { if ([string]$linha -ne '') { $log.L('  ' + [string]$linha) } }
-        if ($LASTEXITCODE -ne 0) { Parar 'o teste de uso falhou (veja acima). Nada foi publicado.' }
+        # Publicação: só o teste de LEITURA, e a impressão digital da cópia tem de ser a mesma antes e depois
+        # (o teste que grava só roda no -Teste, sobre banco de TESTE). A cópia vira a produção no passo 11.
+        $impAntes = Get-ImpressaoDoBanco $prep.copia
+        foreach ($modoUso in @(Get-ExecucoesTesteDeUso ([bool]$Teste))) {
+            $argsUso = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $dados 'testes\testar-uso.ps1'), '-Arquivo', $temp, '-SemRelatorio')
+            if ($modoUso -eq 'SoLeitura') { $argsUso += '-SoLeitura' }
+            $log.L('  teste de uso: ' + $(if ($modoUso -eq 'SoLeitura') { 'só leitura' } else { 'completo (banco de TESTE)' }))
+            $saidaUso = & powershell.exe @argsUso 2>&1
+            foreach ($linha in @($saidaUso)) { if ([string]$linha -ne '') { $log.L('  ' + [string]$linha) } }
+            if ($LASTEXITCODE -ne 0) { Parar 'o teste de uso falhou (veja acima). Nada foi publicado.' }
+            if ($modoUso -eq 'SoLeitura') {
+                $impDepois = Get-ImpressaoDoBanco $prep.copia
+                if ($impDepois -ne $impAntes) { Parar-NoPasso 10 'o teste de uso de leitura alterou a cópia do banco (impressão digital diferente). Nada foi publicado.' }
+                $log.L('  teste de uso só leitura: impressão da cópia igual antes e depois')
+            }
+        }
     }
 
     # ------------------------------------------------------------ passo 11: troca do banco (tudo ou nada)
@@ -404,6 +440,12 @@ try {
     } finally { Close-Excel $xl2 $idExcel2 }
     if ((Get-TextoCelulaXlsx $temp 'Config' $abas.config.banco) -ne $bancoFinal) { Parar-NoPasso 11 'Config!B2 definitivo não conferiu no .xlsm montado' }
     $log.L('  Config!B2 definitivo = ' + $bancoFinal)
+    # config.versao_front vai NA CÓPIA, antes da troca: depois dela o hash da produção ficaria diferente do
+    # da troca e a reversão (Reverter-Troca) nunca conseguiria voltar. Só na publicação (o -Teste não grava).
+    if (-not $Teste -and $temBanco) {
+        try { Set-VersaoFrontNaCopia $prep.copia $versao; $log.L('  config.versao_front = ' + $versao + ' (na cópia)') }
+        catch { Parar-NoPasso 11 ('não foi possível gravar config.versao_front na cópia: ' + $_.Exception.Message.Split([char]13)[0] + '. Nada foi trocado.') }
+    }
     $troca = Trocar-BancoProducao $prep.copia $bancoArq $prep.h0 $pastaBkp
     if (-not $troca.ok) { Parar-NoPasso 11 $troca.motivo }
     $hashNovo = Get-HashArquivo $bancoArq
@@ -420,41 +462,25 @@ try {
         $log.L(''); $log.L('TESTE CONCLUÍDO: ' + $destTeste + '  (nada publicado, versão continua ' + $versaoAtual + ')')
         $sucesso = $true
     } else {
-        $log.L('--- publicação')
-        if (Test-Path -LiteralPath $destinoRaiz) {
-            try { $f = [System.IO.File]::Open($destinoRaiz, 'Open', 'ReadWrite', 'None'); $f.Close() }
-            catch { Parar 'o .xlsm da raiz foi aberto por alguém durante o build. Nada foi publicado; rode de novo.' }
-            $hist = Join-Path (Get-PastaExecucao $raiz 'historico-front') ('CRM_Zapromaq_v' + $versaoAtual + '_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.xlsm')
-            Move-Item -LiteralPath $destinoRaiz -Destination $hist
-            $log.L('  anterior -> ' + (Split-Path -Leaf $hist))
-        }
-        Copy-Item -LiteralPath $temp -Destination $destinoRaiz
-        $h1 = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash; $h2 = (Get-FileHash -LiteralPath $destinoRaiz -Algorithm SHA256).Hash
-        if ($h1 -ne $h2) { Parar 'a cópia publicada não confere com a montada (hash diferente)' }
-        $log.L('  publicado: ' + $destinoRaiz)
-
-        if ($temBanco) {
-            try { $cn = Open-Banco $bancoArq; try { Set-ConfigBanco $cn 'versao_front' $versao $null } finally { $cn.Close(); $cn.Dispose() }
-                  $log.L('  config.versao_front = ' + $versao) }
-            catch { $log.L('  AVISO: versão não gravada no banco (' + $_.Exception.Message.Split([char]13)[0] + '): cópias antigas não vão avisar.') }
-        }
-        Set-VersaoArquivo $dados $versao
+        $log.L('--- publicação (recuperável até gravar o VERSAO-FRONT.txt)')
+        # Ordem: .xlsm anterior -> histórico, .xlsm novo, VERSAO.txt e, por ÚLTIMO, o VERSAO-FRONT.txt (ponto de
+        # não retorno: o INICIAR-CRM das estações decide por ele; a estação nunca vê número novo apontando para
+        # arquivo velho). Falha antes dele devolve o .xlsm anterior, o VERSAO.txt e o VERSAO-FRONT.txt, e o catch
+        # abaixo devolve também o banco (config.versao_front já foi gravada na cópia, no passo 11, então o hash
+        # da produção ainda é o da troca e a reversão é possível).
+        # falha simulada de subpasso: só com banco de TESTE (testes\testar-publicacao-copia.ps1)
+        $falhaSub = ''
+        if ($Ambiente -eq 'TESTE' -and $env:CRM_FALHA_SUBPASSO_12) { $falhaSub = [string]$env:CRM_FALHA_SUBPASSO_12 }
+        $pub = Publicar-FrontNaRaiz $temp $raiz $dados $versao $textoB7 $quando (Get-PastaExecucao $raiz 'historico-front') $versaoAtual $falhaSub
+        if (-not $pub.ok) { Parar-NoPasso 12 ('publicação do front: ' + $pub.motivo) }
+        $pontoSemRetorno = $true
+        $log.L('  publicado: ' + $destinoRaiz + '   (etapas: ' + ($pub.ordem -join ', ') + ')')
+        $log.L('  config.versao_front = ' + $versao + ' (gravada na cópia, antes da troca)')
         $log.L('  VERSAO.txt = ' + $versao)
+        $log.L('  VERSAO-FRONT.txt (raiz) = ' + $versao + '   <- o INICIAR-CRM compara por aqui; ponto de não retorno')
 
-        # VERSAO-FRONT.txt na raiz, ao lado do .xlsm: é por ele que o
-        # INICIAR-CRM das estações decide se precisa copiar de novo. Ler um
-        # texto é instantâneo; ler Início!B7 exigiria abrir o Excel (segundos
-        # por estação) ou descompactar o .xlsm. Gravado DEPOIS do .xlsm: a
-        # estação nunca vê número novo apontando para arquivo velho.
-        # ANSI + CRLF: é o cmd.exe do .bat que lê.
-        $arqVersao = Join-Path $raiz 'VERSAO-FRONT.txt'
-        $conteudo = $versao + "`r`n" + $textoB7 + "`r`n" +
-                    'arquivo=' + $script:NomeFront + "`r`n" +
-                    'publicado=' + $quando.ToString('yyyy-MM-dd HH:mm:ss') + "`r`n" +
-                    'por=' + $env:COMPUTERNAME + '\' + $env:USERNAME + "`r`n"
-        [System.IO.File]::WriteAllText($arqVersao, $conteudo, (New-Object System.Text.ASCIIEncoding))
-        $log.L('  VERSAO-FRONT.txt (raiz) = ' + $versao + '   <- o INICIAR-CRM compara por aqui')
-
+        # Depois do ponto de não retorno nada reverte: falha aqui vira aviso.
+        try {
         # CHANGELOG: o que mudou em fonte\ desde a publicação anterior
         $manif = Join-Path (Get-PastaExecucao $raiz 'build') 'ultima-publicacao.json'
         $agora = [ordered]@{}
@@ -475,6 +501,7 @@ try {
         else { foreach ($m in ($mud | Sort-Object)) { $entrada += '- ' + $m + "`r`n" } }
         [System.IO.File]::WriteAllText($chg, $cab + $entrada + "`r`n" + $resto, (New-Object System.Text.UTF8Encoding($false)))
         $log.L('  CHANGELOG.md atualizado (' + $mud.Count + ' arquivo(s) de fonte alterado(s))')
+        } catch { $log.L('  AVISO: o CHANGELOG não foi atualizado (' + $_.Exception.Message.Split([char]13)[0] + '). A versão já está publicada; registre a mudança à mão.') }
 
         $unif = 0; $inativos = 0; $munic = 0; $relatorio = ''
         foreach ($linha in @($prep.migracao)) {
@@ -490,7 +517,7 @@ try {
         $sucesso = $true
     }
     } catch {
-        if ($troca -and $troca.ok) {
+        if ($troca -and $troca.ok -and -not $pontoSemRetorno) {
             $volta = Reverter-Troca $bancoArq $prep.backup $hashNovo
             $log.L('  ' + $volta.motivo)
         }

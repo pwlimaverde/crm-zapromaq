@@ -17,7 +17,7 @@ Ciclo: teste falha → código → `verificar-tudo` no nível indicado → commi
 - [x] 1.10 MANIFESTO.json e conferência no passo 1 (`fd815e1`)
 - [x] 1.7b Falha forçada automatizada nos passos 9 a 12 — `Conferir` em `testar-build-lib.ps1`
 - [x] 1.10b Pacote em pasta vazia com banco de teste roda sem outro comando
-- [~] 1.11 Documentação da Fase 1 — feito: `contrato-banco` (seção 8, esquema 1.1: tabelas, `listas` com chave e papel, regras de gravação). Falta: `banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+ — `verificar.py`
+- [x] 1.11 Documentação da Fase 1 (concluída no ciclo 004, F10: banco-access, build-operacao-powershell, ia-mcp, ferramentas-dev, levar-para-a-empresa, implantacao, CLAUDE.md, PLANO D21+) — feito: `contrato-banco` (seção 8, esquema 1.1: tabelas, `listas` com chave e papel, regras de gravação). Falta: `banco-access`, `build-operacao-powershell`, `ferramentas-dev`, `levar-para-a-empresa`, `implantacao`, `CLAUDE.md` Comandos, `PLANO.md` D21+ — `verificar.py`
 - [ ] 🖥B `MONTAR-FRONTEND.bat -Teste` completo nesta estação; trava falsa
 
 ## Fase 2: gerenciamento de listas (publicação A)

@@ -24,7 +24,9 @@ BASE\                        (a pasta da rede que já existe)
    usar o Claude Desktop).
 3. **Peça para todos fecharem o CRM.** As cópias locais em `Documentos` podem
    ficar abertas; o que não pode é o `.xlsm` da rede aberto.
-4. Abra a pasta `SISTEMA` e **execute `MONTAR-FRONTEND.bat`**. Ele faz tudo:
+4. Abra a pasta `SISTEMA`. Antes de publicar, rode **`MONTAR-FRONTEND.bat -Ensaio`**
+   (no `cmd`): é um ensaio numa cópia do banco, sem Excel e sem tocar na produção;
+   leia o relatório em `DADOS\execucao\ensaio`. Depois **execute `MONTAR-FRONTEND.bat`**. Ele faz tudo:
    confere o ambiente, faz backup do banco e do front, aplica as migrações
    pendentes, monta o `.xlsm` novo, compila, roda o autoteste, confere o pacote,
    roda o teste de uso com os dados reais e só então publica na raiz, subindo a

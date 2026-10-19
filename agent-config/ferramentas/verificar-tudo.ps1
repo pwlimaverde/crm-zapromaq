@@ -88,6 +88,9 @@ if (-not $Rapido) {
         if ($LASTEXITCODE -ne 0) { Write-Output 'ERRO ao criar o banco de teste'; return }
         & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-mcp.ps1')
     }
+    # só em pasta temporária e com bancos fictícios (ver o cabeçalho de cada teste)
+    Etapa 'migração 003 (casos de dados)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-migracao-003.ps1') }
+    Etapa 'preparação da rede (spec 004)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'SISTEMA\DADOS\testes\testar-preparacao-rede.ps1') }
     Etapa 'MCP de desenvolvimento' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-mcp-dev.ps1') -SemPrevia }
     Remove-Item -LiteralPath $copia -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -101,6 +104,7 @@ if ($Completo) {
             Etapa 'banco de demonstração' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\criar-banco-demo.ps1') }
         }
         Etapa 'build -Teste (compilação, autoteste, teste de uso)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\build\montar-frontend.ps1') -Teste }
+        Etapa 'publicação completa numa cópia (spec 004, F7)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-publicacao-copia.ps1') }
         Etapa 'falha forçada nos passos 9 a 12 (1.7b)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\testes\testar-falha-passos.ps1') }
     }
 }

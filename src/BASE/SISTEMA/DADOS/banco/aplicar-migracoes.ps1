@@ -12,9 +12,13 @@
   - Antes de qualquer migração é feito um backup (execucao\backup). Sem backup, não migra.
   - O que foi aplicado fica em config: chave 'migracao.NNN' = data e usuário.
 
-  Uso: aplicar-migracoes.ps1 [-Banco <accdb>] [-Simular]
+  Migração estrutural só pela montagem: no banco de produção ela é recusada (exit 3). A montagem
+  aplica numa cópia de trabalho (-CopiaDeTrabalho, em execucao\publicacao ou execucao\ensaio) e só
+  depois troca o banco. Em banco com config.ambiente = TESTE, aplica no lugar.
+
+  Uso: aplicar-migracoes.ps1 [-Banco <accdb>] [-Simular] [-CopiaDeTrabalho]
 #>
-param([string]$Banco = '', [switch]$Simular)
+param([string]$Banco = '', [switch]$Simular, [switch]$CopiaDeTrabalho)
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib\Comum.ps1')
 
@@ -23,6 +27,26 @@ if ([string]::IsNullOrWhiteSpace($Banco)) { $Banco = Get-CaminhoBanco $raiz }
 $log = New-Log $raiz 'migracoes'
 $log.L('=== MIGRAÇÕES DO BANCO - CRM Zapromaq ===')
 $log.L('Banco...: ' + $Banco)
+
+# Migração ESTRUTURAL (DDL no ACE não é transacional) só é aplicada:
+#   - numa cópia de trabalho da montagem (-CopiaDeTrabalho), que tem de estar em execucao\publicacao
+#     ou execucao\ensaio e não pode ser o banco de produção da raiz; ou
+#   - em banco com config.ambiente = TESTE.
+# Qualquer outro caso (banco de produção no lugar) é recusado ANTES de aplicar qualquer migração,
+# inclusive as de dados: a atualização do banco real acontece só pelo MONTAR-FRONTEND.bat.
+if ($CopiaDeTrabalho) {
+    $cheio = [System.IO.Path]::GetFullPath($Banco)
+    $pastaExec = [System.IO.Path]::GetFullPath((Join-Path (Get-PastaDados $raiz) 'execucao')) + '\'
+    $dentro = $false
+    foreach ($sub in @('publicacao', 'ensaio')) {
+        if ($cheio.StartsWith($pastaExec + $sub + '\', [StringComparison]::OrdinalIgnoreCase)) { $dentro = $true }
+    }
+    $ehProducao = ($cheio -ieq [System.IO.Path]::GetFullPath((Get-CaminhoBanco $raiz)))
+    if (-not $dentro -or $ehProducao) {
+        $log.L(''); $log.L('RECUSADO: -CopiaDeTrabalho exige um banco dentro de execucao\publicacao ou execucao\ensaio e diferente do banco de produção. Nada foi alterado.')
+        $log.Salvar(); exit 3
+    }
+}
 
 $pasta = Join-Path $PSScriptRoot 'migracoes'
 $arquivos = @(Get-ChildItem -LiteralPath $pasta -Filter '*.ps1' -File | Where-Object { $_.Name -match '^\d{3}-' } | Sort-Object Name)
@@ -51,6 +75,14 @@ try {
 
 # ---- backup antes de mexer (e exclusividade, se houver migração estrutural)
 $estrutural = @($pendentes | Where-Object { $_.EsquemaPara }).Count -gt 0
+if ($estrutural -and -not $CopiaDeTrabalho) {
+    $amb = Get-AmbienteDoBanco $Banco
+    if ($amb -ne 'TESTE') {
+        $log.L(''); $log.L('RECUSADO: há migração estrutural pendente e este banco não é uma cópia de trabalho da montagem nem está com config.ambiente = TESTE (ambiente: ' + $(if ($amb) { $amb } else { 'ilegível' }) + ').')
+        $log.L('O banco de produção só é atualizado pelo MONTAR-FRONTEND.bat (cópia, conferência e troca). Nada foi alterado.')
+        $log.Salvar(); exit 3
+    }
+}
 $ocupado = Test-Path -LiteralPath ([System.IO.Path]::ChangeExtension($Banco, 'laccdb'))
 if ($estrutural -and $ocupado) {
     $log.L(''); $log.L('ABORTADO: há migração estrutural e o banco está em uso (.laccdb). Peça para todos fecharem o CRM.')

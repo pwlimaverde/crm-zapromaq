@@ -77,6 +77,20 @@ Write-Host '--- valor inativo (C06, D-j): só o que já está gravado no registr
 . (Join-Path $raizIA 'mcp\lib\Banco.ps1')
 . (Join-Path $raizIA 'mcp\lib\Ferramentas.ps1')
 $script:CaminhoBanco = Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb'
+# Trava (spec 004, F2): daqui em diante o teste GRAVA no banco. Só roda se config.ambiente = TESTE;
+# banco de PRODUCAO (ou que não se lê) é recusado antes de qualquer gravação. Fora de processo,
+# para não misturar as funções de SISTEMA\DADOS\lib\Comum.ps1 com as do conector.
+if (Test-Path -LiteralPath $script:CaminhoBanco) {
+    $env:CRM_TRAVA_COMUM = Join-Path (Split-Path -Parent $raizIA) 'SISTEMA\DADOS\lib\Comum.ps1'
+    $env:CRM_TRAVA_BANCO = $script:CaminhoBanco
+    $motivoTrava = (& $ps -NoProfile -ExecutionPolicy Bypass -Command '. $env:CRM_TRAVA_COMUM; Assert-PodeSubstituirBanco $env:CRM_TRAVA_BANCO' 2>&1 | Out-String).Trim()
+    Remove-Item Env:CRM_TRAVA_COMUM, Env:CRM_TRAVA_BANCO -ErrorAction SilentlyContinue
+    if ($motivoTrava) {
+        Write-Host ('RECUSADO: o testar-mcp grava no banco e só roda em banco de TESTE. ' + $motivoTrava) -ForegroundColor Red
+        try { $proc.StandardInput.Close(); if (-not $proc.WaitForExit(3000)) { $proc.Kill() } } catch { }
+        exit 2
+    }
+}
 function Recusa([scriptblock]$bloco) { try { $null = & $bloco; return [bool]$false } catch { return [bool]$true } }
 # o banco de demonstração não tem etapa inativa: desativa 'Perdido' só durante estes casos e restaura
 function Set-AtivoEtapa([string]$valor, [bool]$ativo) {
@@ -436,7 +450,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'crm_status' (-not $res.isError) $res.content[0].text
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
-        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (1.0 e 1.1)') (($st.versao_esquema -in @('1.0', '1.1')) -and $st.gravacao_liberada -eq $true)
+        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
 
         $d = Dados (Chamar 'buscar_clientes' ([ordered]@{ texto = "d'angelo" }))
         Conferir 'busca com apóstrofo' ($d.quantidade -eq 1)

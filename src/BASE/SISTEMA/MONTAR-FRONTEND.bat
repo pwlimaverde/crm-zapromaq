@@ -13,7 +13,8 @@ rem
 rem  Falhou antes do passo 11: NADA mudou (banco de producao e raiz).
 rem  Falhou no 12: o banco volta ao backup.
 rem
-rem  Opcoes:  MONTAR-FRONTEND.bat -Teste          so sobre banco TESTE; nao publica
+rem  Opcoes:  MONTAR-FRONTEND.bat -Ensaio         passos 1 a 8 numa copia; nao troca o banco, nao precisa de Excel
+rem           MONTAR-FRONTEND.bat -Teste          so sobre banco TESTE; nao publica
 rem           MONTAR-FRONTEND.bat -SemTesteDeUso  pula o teste de uso
 rem ============================================================
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -36,6 +37,11 @@ pause
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0DADOS\build\montar-frontend.ps1" %*
 set "RC=%errorlevel%"
 echo.
+if "%RC%"=="0" if "%~1"=="-Ensaio" (
+  echo  ENSAIO APROVADO. Nada foi publicado e o banco de producao nao foi tocado.
+  echo  Leia o relatorio indicado acima ^(DADOS\execucao\ensaio^).
+  goto :fim
+)
 if "%RC%"=="0" if not "%~1"=="-Teste" (
   echo  CONCLUIDO. A versao nova esta publicada na raiz de BASE.
   echo.
@@ -55,6 +61,7 @@ if "%RC%"=="0" if "%~1"=="-Teste" (
   echo  FALHOU - veja o log indicado acima. NADA foi publicado:
   echo  o CRM_Zapromaq.xlsm da raiz continua sendo o de antes.
 )
+:fim
 echo.
 pause
 exit /b %RC%

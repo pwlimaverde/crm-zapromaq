@@ -9,6 +9,8 @@
   Não publica o front: isso é o passo 12 da montagem.
 #>
 
+. (Join-Path $PSScriptRoot 'Backup.ps1')   # manifesto e validação do backup (passo 5)
+
 function Get-HashArquivo([string]$arquivo) {
     $sha = [System.Security.Cryptography.SHA256]::Create()
     $fs = [System.IO.File]::OpenRead($arquivo)
@@ -21,7 +23,11 @@ function Get-HashArquivo([string]$arquivo) {
 function Get-EstacoesDaTrava([string]$laccdb) {
     $estacoes = New-Object System.Collections.ArrayList
     if (-not (Test-Path -LiteralPath $laccdb)) { return , $estacoes }
-    $bytes = [System.IO.File]::ReadAllBytes($laccdb)
+    # o .laccdb está aberto pelo próprio Access enquanto há alguém conectado: ler com compartilhamento total
+    try {
+        $fs = New-Object System.IO.FileStream($laccdb, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try { $bytes = New-Object byte[] ([int]$fs.Length); [void]$fs.Read($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
+    } catch { return , $estacoes }   # sem conseguir ler os nomes, a trava continua valendo (livre = não existe o arquivo)
     for ($i = 0; $i + 64 -le $bytes.Length; $i += 64) {
         $nome = [Text.Encoding]::ASCII.GetString($bytes, $i, 32).Trim([char]0, ' ')
         if ($nome) { [void]$estacoes.Add($nome) }
@@ -130,6 +136,13 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     if ((Get-HashArquivo $backup) -ne $h0) { return New-ResultadoBanco $false 5 'o backup não confere com o banco de produção. Nada foi alterado.' }
     $log.L('  backup: ' + $backup + '  H0 ' + $h0.Substring(0, 12))
 
+    # backup VALIDADO (DA-8): manifesto e restauração numa pasta descartável; o arquivo de backup não é aberto
+    try { $manifestoBkp = New-ManifestoBackup $backup $producao 'antes-da-publicacao' }
+    catch { return New-ResultadoBanco $false 5 ('não foi possível ler o banco de produção para validar o backup (' + $_.Exception.Message.Split([char]13)[0] + '). Nada foi alterado.') }
+    $valBkp = Test-BackupRestauravel $backup
+    if (-not $valBkp.ok) { return New-ResultadoBanco $false 5 ('o backup não é restaurável: ' + ($valBkp.problemas -join '; ') + '. Nada foi alterado.') }
+    $log.L('  backup validado: restaurado numa pasta descartável, esquema ' + $valBkp.esquema + ' e contagens conferidas com o manifesto')
+
     New-Item -ItemType Directory -Path $pastaTrabalho -Force | Out-Null
     $copia = Join-Path $pastaTrabalho ([IO.Path]::GetFileName($producao))
     Copy-Item -LiteralPath $producao -Destination $copia -Force
@@ -139,7 +152,7 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     $migrar = Join-Path $dados 'banco\aplicar-migracoes.ps1'
     # stderr do processo filho não pode virar exceção aqui: a falha é tratada pelo código de saída
     $preferencia = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    try { $saidaMig = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia 2>&1 | ForEach-Object { [string]$_ }) }
+    try { $saidaMig = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migrar -Banco $copia -CopiaDeTrabalho 2>&1 | ForEach-Object { [string]$_ }) }
     finally { $ErrorActionPreference = $preferencia }
     foreach ($linha in $saidaMig) { if ($linha -ne '') { $log.L('  ' + $linha) } }
     if ($LASTEXITCODE -ne 0) {
@@ -156,6 +169,132 @@ function Invoke-PreparacaoDoBanco([string]$producao, [string]$pastaTrabalho, [st
     return New-ResultadoBanco $true 8 'cópia pronta' @{ copia = $copia; h0 = $h0; backup = $backup; migracao = $saidaMig }
 }
 
+# Contagem de linhas de cada tabela de dados (nome -> total), na ordem do nome. Só leitura.
+function Get-ContagensDoBanco($cn) {
+    $nomes = New-Object System.Collections.ArrayList
+    foreach ($r in $cn.GetSchema('Tables').Rows) {
+        $n = [string]$r['TABLE_NAME']
+        if ([string]$r['TABLE_TYPE'] -eq 'TABLE' -and -not $n.StartsWith('MSys') -and -not $n.StartsWith('~')) { [void]$nomes.Add($n) }
+    }
+    $c = [ordered]@{}
+    foreach ($n in ($nomes | Sort-Object)) { $c[$n] = [int](Invoke-Escalar $cn ('SELECT COUNT(*) FROM [' + $n + ']') @() $null) }
+    return $c
+}
+
+# Impressão digital do conteúdo do banco (texto): para cada tabela, contagem, MAX(id) e SUM(versao) quando
+# existem as colunas. Qualquer INSERT, DELETE ou UPDATE de versão muda o texto. Só leitura (Mode=Read).
+# É o que a publicação usa para provar que o teste de uso (passo 10) não gravou nada na cópia.
+function Get-ImpressaoDoBanco([string]$caminho) {
+    $cn = Open-BancoLeitura $caminho
+    try {
+        $colunas = @{}
+        foreach ($r in $cn.GetSchema('Columns').Rows) {
+            $t = [string]$r['TABLE_NAME']
+            if (-not $colunas.ContainsKey($t)) { $colunas[$t] = New-Object System.Collections.ArrayList }
+            [void]$colunas[$t].Add(([string]$r['COLUMN_NAME']).ToLowerInvariant())
+        }
+        $linhas = New-Object System.Collections.ArrayList
+        foreach ($t in ($colunas.Keys | Where-Object { -not $_.StartsWith('MSys') -and -not $_.StartsWith('~') } | Sort-Object)) {
+            $partes = @('COUNT(*)')
+            if ($colunas[$t].Contains('id')) { $partes += 'MAX(id)' }
+            if ($colunas[$t].Contains('versao')) { $partes += 'SUM(versao)' }
+            $c = New-ComandoBanco $cn ('SELECT ' + ($partes -join ', ') + ' FROM [' + $t + ']') @() $null
+            $rd = $c.ExecuteReader()
+            $v = @()
+            if ($rd.Read()) { for ($i = 0; $i -lt $rd.FieldCount; $i++) { $x = $rd.GetValue($i); $v += $(if ($x -is [DBNull]) { '-' } else { [string]$x }) } }
+            $rd.Close(); $c.Dispose()
+            [void]$linhas.Add($t + '=' + ($v -join '|'))
+        }
+        return ($linhas -join "`n")
+    } finally { $cn.Close(); $cn.Dispose() }
+}
+
+# Quais execuções do teste de uso o passo 10 faz. Publicação real: só a de leitura (dados reais não podem ser
+# gravados nem apagados por teste). -Teste: a de leitura e, depois, a completa (banco de TESTE).
+function Get-ExecucoesTesteDeUso([bool]$teste) {
+    if ($teste) { return @('SoLeitura', 'Completo') }
+    return @('SoLeitura')
+}
+
+# Ensaio da atualização (spec 004, F4): faz os passos 3 a 8 sobre uma cópia, em $pastaEnsaio, e escreve o
+# relatório. NUNCA troca o banco de produção, não cria backup em execucao\backup e não precisa de Excel.
+# Exige a trava livre (a cópia só é consistente com o banco fechado). Confere o hash da produção antes e depois.
+function Invoke-EnsaioDoBanco([string]$producao, [string]$pastaEnsaio, [int]$totalMunicipios, $log) {
+    $inicio = Get-Date
+    $livre = Test-BancoLivre $producao
+    if (-not $livre.livre) {
+        $quem = if ($livre.estacoes.Count) { ' Estações: ' + ($livre.estacoes -join ', ') + '.' } else { '' }
+        return New-ResultadoBanco $false 3 ('há usuário conectado ao banco (.laccdb).' + $quem + ' O ensaio precisa do banco fechado. Nada foi alterado.')
+    }
+    $h0 = Get-HashArquivo $producao
+    $cnL = Open-BancoLeitura $producao
+    try { $esquemaAntes = Get-VersaoEsquemaBanco $cnL; $ambiente = [string](Invoke-Escalar $cnL "SELECT valor FROM config WHERE chave='ambiente'" @() $null); $contAntes = Get-ContagensDoBanco $cnL }
+    finally { $cnL.Close(); $cnL.Dispose() }
+    $log.L('  produção: esquema ' + $esquemaAntes + ', ambiente ' + $ambiente + ', H0 ' + $h0.Substring(0, 12))
+
+    # pasta do ensaio sempre começa vazia (cópia e backup do ensaio anterior saem)
+    foreach ($sub in @('copia', 'backup')) {
+        $p = Join-Path $pastaEnsaio $sub
+        if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
+    }
+    $prep = Invoke-PreparacaoDoBanco $producao (Join-Path $pastaEnsaio 'copia') (Join-Path $pastaEnsaio 'backup') $totalMunicipios $log
+    if (-not $prep.ok) { return $prep }
+
+    $hDepois = Get-HashArquivo $producao
+    if ($hDepois -ne $h0) { return New-ResultadoBanco $false 8 'o banco de produção mudou durante o ensaio (hash diferente); alguém gravou nele. Refaça o ensaio.' }
+
+    $cn = Open-Banco $prep.copia
+    try {
+        $esquemaDepois = Get-VersaoEsquemaBanco $cn
+        $contDepois = Get-ContagensDoBanco $cn
+        $aplicadas = New-Object System.Collections.ArrayList
+        $c = New-ComandoBanco $cn "SELECT chave, valor FROM config WHERE chave LIKE 'migracao.%' ORDER BY chave" @() $null
+        $rd = $c.ExecuteReader()
+        while ($rd.Read()) { [void]$aplicadas.Add([string]$rd.GetValue(0) + '  ' + [string]$rd.GetValue(1)) }
+        $rd.Close(); $c.Dispose()
+    } finally { $cn.Close(); $cn.Dispose() }
+
+    $unif = 0; $inativos = 0
+    foreach ($linha in @($prep.migracao)) {
+        if ($linha -match 'unificações: (\d+)') { $unif = [int]$matches[1] }
+        if ($linha -match 'entrou INATIVO') { $inativos++ }
+    }
+    $segundos = [int]((Get-Date) - $inicio).TotalSeconds
+    $rel = New-Object System.Collections.ArrayList
+    [void]$rel.Add('RELATÓRIO DO ENSAIO - CRM Zapromaq   ' + (Get-Date -Format 'dd/MM/yyyy HH:mm:ss'))
+    [void]$rel.Add('Este relatório pode conter dado real da produção: NÃO vai para o repositório.')
+    [void]$rel.Add('')
+    [void]$rel.Add('Produção....: ' + $producao + '  (ambiente ' + $ambiente + ')')
+    [void]$rel.Add('Esquema.....: ' + $esquemaAntes + ' -> ' + $esquemaDepois + '  (na cópia)')
+    [void]$rel.Add('H0 antes....: ' + $h0)
+    [void]$rel.Add('H0 depois...: ' + $hDepois + '  (igual: a produção não foi tocada)')
+    [void]$rel.Add('Tempo.......: ' + $segundos + ' s (cópia, migração e conferências)')
+    [void]$rel.Add('Migrações registradas na cópia:')
+    foreach ($a in $aplicadas) { [void]$rel.Add('  ' + $a) }
+    [void]$rel.Add('Listas: ' + $unif + ' unificação(ões); ' + $inativos + ' valor(es) incluído(s) como inativo(s)')
+    [void]$rel.Add('')
+    [void]$rel.Add('Contagens (antes -> depois, na cópia):')
+    $todas = @($contAntes.Keys) + @($contDepois.Keys | Where-Object { -not $contAntes.Contains($_) })
+    foreach ($t in $todas) {
+        $a = if ($contAntes.Contains($t)) { [string]$contAntes[$t] } else { '(não existia)' }
+        $d = if ($contDepois.Contains($t)) { [string]$contDepois[$t] } else { '-' }
+        [void]$rel.Add(('  {0,-20} {1,10} -> {2}' -f $t, $a, $d))
+    }
+    [void]$rel.Add('')
+    [void]$rel.Add('Saída da migração:')
+    foreach ($linha in @($prep.migracao)) { if ($linha -ne '') { [void]$rel.Add('  ' + $linha) } }
+    $arq = Join-Path $pastaEnsaio ('relatorio-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
+    [System.IO.File]::WriteAllLines($arq, [string[]]$rel.ToArray(), (New-Object System.Text.UTF8Encoding($true)))
+    return New-ResultadoBanco $true 8 'ensaio aprovado' @{ relatorio = $arq; h0 = $h0; esquema_antes = $esquemaAntes; esquema_depois = $esquemaDepois; migracoes = @($aplicadas); copia = $prep.copia; segundos = $segundos }
+}
+
+# config.versao_front é gravada NA CÓPIA, antes da troca (passo 11). Antes ela era gravada na produção
+# depois da troca, o que mudava o hash e impedia a reversão (Reverter-Troca exige o hash da troca).
+function Set-VersaoFrontNaCopia([string]$copia, [string]$versao) {
+    $cn = Open-Banco $copia
+    try { Set-ConfigBanco $cn 'versao_front' $versao $null } finally { $cn.Close(); $cn.Dispose() }
+}
+
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).
 # Antes de trocar, guarda o banco anterior em $pastaBackup (para reverter).
 function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [string]$pastaBackup) {
@@ -164,6 +303,9 @@ function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [s
     $atual = Get-HashArquivo $producao
     if ($atual -ne $h0) { return New-ResultadoBanco $false 11 'alguém gravou no banco durante a montagem (o hash mudou); nada foi trocado. Rode de novo.' }
 
+    # Tudo o que demora (backup da produção, cópia do .novo para a pasta de produção e a conferência do
+    # hash dele) acontece ANTES da última conferência. Entre ela e o Replace sobra só uma checagem barata
+    # (trava, tamanho e data do arquivo), para não deixar uma janela de segundos em que uma gravação se perde.
     New-Item -ItemType Directory -Path $pastaBackup -Force | Out-Null
     Copy-Item -LiteralPath $producao -Destination (Join-Path $pastaBackup ([IO.Path]::GetFileName($producao))) -Force
 
@@ -174,11 +316,37 @@ function Trocar-BancoProducao([string]$copia, [string]$producao, [string]$h0, [s
         Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
         return New-ResultadoBanco $false 11 'a cópia do novo banco não conferiu na pasta de produção; nada foi trocado.'
     }
+    $arq = Get-Item -LiteralPath $producao
+    $tamanho = $arq.Length; $quandoGravou = $arq.LastWriteTimeUtc
+    if ($script:GanchoAntesDaTroca) { & $script:GanchoAntesDaTroca }   # só os testes usam: simula uma gravação tardia
+
+    # última conferência, logo antes do Replace
+    $arq = Get-Item -LiteralPath $producao
+    if (-not (Test-BancoLivre $producao).livre) {
+        Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
+        return New-ResultadoBanco $false 11 'alguém abriu o banco (.laccdb) logo antes da troca; nada foi trocado. Rode de novo quando fecharem o CRM.'
+    }
+    if ($arq.Length -ne $tamanho -or $arq.LastWriteTimeUtc -ne $quandoGravou) {
+        Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
+        return New-ResultadoBanco $false 11 'alguém gravou no banco logo antes da troca (o arquivo mudou depois da preparação); nada foi trocado. Rode de novo.'
+    }
     $anterior = $producao + '.anterior'   # o Replace exige um nome de backup real, na mesma pasta
     try { [System.IO.File]::Replace($novo, $producao, $anterior) }
     catch {
         Remove-Item -LiteralPath $novo -Force -ErrorAction SilentlyContinue
         return New-ResultadoBanco $false 11 ('não foi possível trocar o arquivo de produção (' + $_.Exception.Message + '); nada foi trocado.')
+    }
+    if ($script:GanchoDepoisDaTroca) { & $script:GanchoDepoisDaTroca }   # só os testes usam
+    # o que o Replace pôs em .anterior é o arquivo que existia no instante da troca: tem de ser o H0
+    if ((Get-HashArquivo $anterior) -ne $h0) {
+        $rejeitado = $producao + '.rejeitado'
+        try {
+            [System.IO.File]::Replace($anterior, $producao, $rejeitado)
+            Remove-Item -LiteralPath $rejeitado -Force -ErrorAction SilentlyContinue
+            return New-ResultadoBanco $false 11 'alguém gravou no banco no instante da troca; o banco anterior (com essa gravação) foi devolvido. Rode de novo.'
+        } catch {
+            return New-ResultadoBanco $false 11 ('alguém gravou no banco no instante da troca e não foi possível devolver o anterior (' + $_.Exception.Message + '); ele está em ' + $anterior + '. Avise antes de mexer.')
+        }
     }
     Remove-Item -LiteralPath $anterior -Force -ErrorAction SilentlyContinue
     if ((Get-HashArquivo $producao) -ne (Get-HashArquivo $copia)) {

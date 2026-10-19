@@ -273,3 +273,9 @@ Teste: `IA\teste\TESTAR-MCP-DEV.bat` (numa cópia; nada do projeto muda).
 **Todo ajuste feito na rede precisa voltar ao repositório de desenvolvimento**
 antes do próximo ciclo: `SISTEMA\DADOS\docs\sincronizar-rede.md`.
 
+
+## Conector 1.5.0 - exige o esquema 1.1 (ciclo 004)
+
+O conector só trabalha com o banco no esquema 1.1. Com o banco ainda no 1.0 (por exemplo, entre extrair o
+pacote e terminar o `MONTAR-FRONTEND.bat`), só o `crm_status` responde, com `atualizacao_pendente: true`; as
+demais ferramentas dizem "banco aguardando atualização" e não leem nem gravam nada.

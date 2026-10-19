@@ -133,6 +133,10 @@ powershell -File SISTEMA\DADOS\build\gerar-visual.ps1 [-Tela frmCRM] [-Tolerante
 
 # Build (só numa estação com Excel 2019): -Teste monta em execucao\teste sem publicar nem subir versão
 SISTEMA\MONTAR-FRONTEND.bat [-Teste]
+SISTEMA\MONTAR-FRONTEND.bat -Ensaio    # passos 1-8 numa cópia (execucao\ensaio), sem Excel e sem trocar o banco; gera relatório (tem dado real)
+# O banco de produção só é alterado pela montagem: migração estrutural fora dela é recusada, e os scripts de teste/criação só aceitam banco TESTE.
+powershell -File SISTEMA\DADOS\testes\testar-preparacao-rede.ps1       # spec 004 (ACE, pasta temporária, bancos fictícios)
+powershell -File SISTEMA\DADOS\testes\testar-publicacao-copia.ps1      # publicação de verdade numa cópia de BASE (Excel)
 
 # Testes
 powershell -File SISTEMA\DADOS\testes\testar-build-lib.ps1           # funções do build (versão, B7, pacote zip)
@@ -166,7 +170,7 @@ Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela pr�
 
 ## IA
 
-- `IA\mcp\servidor.ps1` (dados, 25 ferramentas; também instalável no Codex por `IA\INSTALAR-CLAUDE-E-CODEX.bat`) e `IA\mcp-dev\servidor-dev.ps1` (desenvolvimento, 15 ferramentas: lê/grava só `SISTEMA\DADOS\fonte`, prévia como imagem, migrações do banco — listar/ler/criar/aplicar —, conferência estática, estado do sistema, montagem de teste, publicação com confirmação) usam o mesmo núcleo `IA\mcp\lib\Protocolo.ps1`. Instalação: `IA\INSTALAR-MCP.bat` / `IA\INSTALAR-MCP-DEV.bat`.
+- `IA\mcp\servidor.ps1` (dados, 41 ferramentas; exige o esquema 1.1 - com 1.0 só o `crm_status` responde; também instalável no Codex por `IA\INSTALAR-CLAUDE-E-CODEX.bat`) e `IA\mcp-dev\servidor-dev.ps1` (desenvolvimento, 15 ferramentas: lê/grava só `SISTEMA\DADOS\fonte`, prévia como imagem, migrações do banco — listar/ler/criar/aplicar —, conferência estática, estado do sistema, montagem de teste, publicação com confirmação) usam o mesmo núcleo `IA\mcp\lib\Protocolo.ps1`. Instalação: `IA\INSTALAR-MCP.bat` / `IA\INSTALAR-MCP-DEV.bat`.
 - Skills do Claude Desktop em `IA\instrucoes\`: `crm-zapromaq` (dados) e `crm-zapromaq-dev` (manutenção: onde mexer, pacote de campo novo, quando publicar).
 - Ajuste feito na rede pelo MCP de desenvolvimento fica em `execucao\dev\alteracoes.log` (+ cópias) e volta ao repositório com `trazer-da-rede.ps1` (`docs\sincronizar-rede.md`).
 

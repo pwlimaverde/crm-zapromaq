@@ -84,7 +84,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'aplicar_migracoes'; title = 'Aplicar migrações pendentes'; handler = 'Invoke-AplicarMigracoes'; annotations = $script:Grava
-        description = 'Aplica as migrações ainda não aplicadas (faz backup do banco antes). simular=true só mostra o que seria feito. A publicação (publicar) também aplica sozinha o que estiver pendente.'
+        description = 'Aplica as migrações ainda não aplicadas (faz backup do banco antes). simular=true só mostra o que seria feito. Migração ESTRUTURAL é recusada em banco de produção: ela só é aplicada pela publicação (publicar), que migra numa cópia, confere e só então troca o banco; em banco de teste aplica no lugar. As migrações só de dados continuam permitidas.'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             simular = [ordered]@{ type = 'boolean'; default = $false } } }
     },

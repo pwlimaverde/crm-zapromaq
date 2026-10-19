@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Data
 
-$script:VersaoServidor = '1.4.1'
+$script:VersaoServidor = '1.5.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.
@@ -51,7 +51,12 @@ Servidor do CRM Comercial Zapromaq (banco Access compartilhado em rede).
 
 # quem gravou: 'IA' ou 'IA (<autor>)' no log de auditoria
 $script:AntesDaFerramenta = {
-    param($a)
+    param($a, $nomeFerramenta)
+    # banco em esquema não suportado (ex.: 1.0, aguardando a montagem): só o crm_status responde
+    if ($nomeFerramenta -ne 'crm_status') {
+        $motivoEsquema = Get-MotivoEsquemaNaoSuportado
+        if ($motivoEsquema) { throw $motivoEsquema }
+    }
     $script:UsuarioLog = 'IA'
     $autor = Get-Arg $a 'autor'
     if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')') }

@@ -141,9 +141,9 @@ try {
     $logP = [pscustomobject]@{ linhas = New-Object System.Collections.ArrayList }
     $logP | Add-Member -MemberType ScriptMethod -Name L -Value { param($x) [void]$this.linhas.Add([string]$x) }
     $pr = Invoke-PreparacaoDoBanco $prodP (Join-Path $tmpP 'publicacao') (Join-Path $tmpP 'backup') 5571 $logP
-    Conferir 'passo 7 (migração na cópia) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 7) ($pr.motivo)
-    Conferir 'erro no passo 7: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
-    Conferir 'erro no passo 7: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
+    Conferir 'passo 5 (backup validado) recusa banco que não abre' ((-not $pr.ok) -and $pr.passo -eq 5) ($pr.motivo)
+    Conferir 'erro no passo 5: banco de produção intacto' ((Get-HashArquivo $prodP) -eq $hP)
+    Conferir 'erro no passo 5: backup criado com o H0' ((Get-HashArquivo (Join-Path $tmpP 'backup\crm_zapromaq.accdb')) -eq $hP)
     $tmpT = Join-Path $tmpP 'trava'
     New-Item -ItemType Directory -Path $tmpT -Force | Out-Null
     $prodT = Join-Path $tmpT 'crm_zapromaq.accdb'
@@ -170,6 +170,87 @@ try {
     Remove-Item -LiteralPath (Join-Path $tmpM 'SISTEMA\DADOS\a.txt') -Force
     Conferir 'arquivo listado e ausente é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
 } finally { Remove-Item -LiteralPath $tmpM -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- troca sem janela (spec 004, F6): .novo pronto ANTES da última conferência'
+$tmpT = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-troca-' + $PID)
+New-Item -ItemType Directory -Path $tmpT -Force | Out-Null
+try {
+    $prodT = Join-Path $tmpT 'crm.accdb'; $copiaT = Join-Path $tmpT 'trabalho\crm.accdb'; $bkpT = Join-Path $tmpT 'backup'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $copiaT) -Force | Out-Null
+    function Preparar { [IO.File]::WriteAllBytes($prodT, [byte[]](1..200)); [IO.File]::WriteAllBytes($copiaT, [byte[]](201..255)); Remove-Item -LiteralPath ($prodT + '.novo') -Force -ErrorAction SilentlyContinue }
+    Preparar
+    $h0T = Get-HashArquivo $prodT; $hCopiaT = Get-HashArquivo $copiaT
+    $script:GanchoAntesDaTroca = $null
+    $rT = Trocar-BancoProducao $copiaT $prodT $h0T $bkpT
+    Conferir 'troca sem interferência: ok e produção igual à cópia' ($rT.ok -and (Get-HashArquivo $prodT) -eq $hCopiaT) $rT.motivo
+    Conferir 'troca guarda o banco anterior no backup' ((Get-HashArquivo (Join-Path $bkpT 'crm.accdb')) -eq $h0T)
+
+    Preparar
+    $script:novoJaPronto = $false
+    $script:GanchoAntesDaTroca = { $script:novoJaPronto = (Test-Path -LiteralPath ($prodT + '.novo')); $fs = [IO.File]::Open($prodT, 'Append'); $fs.WriteByte(7); $fs.Close() }
+    $rT = Trocar-BancoProducao $copiaT $prodT $h0T $bkpT
+    $script:GanchoAntesDaTroca = $null
+    Conferir 'o .novo já estava pronto quando a gravação tardia aconteceu' $script:novoJaPronto
+    Conferir 'gravação depois de preparar o .novo: troca recusada' (-not $rT.ok -and $rT.motivo -match 'gravou') $rT.motivo
+    Conferir 'recusada: produção é a gravada pelo usuário, nada foi trocado' ((Get-HashArquivo $prodT) -ne $hCopiaT -and (Get-Item -LiteralPath $prodT).Length -eq 201)
+    Conferir 'recusada: o .novo foi removido' (-not (Test-Path -LiteralPath ($prodT + '.novo')))
+
+    # gravação que escapa no instante do Replace: o que foi parar em .anterior não é o H0, então o anterior volta
+    Preparar
+    $script:GanchoDepoisDaTroca = { $fs = [IO.File]::Open($prodT + '.anterior', 'Append'); $fs.WriteByte(9); $fs.Close() }
+    $rT = Trocar-BancoProducao $copiaT $prodT $h0T $bkpT
+    $script:GanchoDepoisDaTroca = $null
+    Conferir 'gravação no instante da troca: o banco anterior é devolvido' (-not $rT.ok -and (Get-Item -LiteralPath $prodT).Length -eq 201 -and -not (Test-Path -LiteralPath ($prodT + '.anterior'))) ($rT.motivo + ' tam=' + (Get-Item -LiteralPath $prodT).Length)
+} finally { $script:GanchoAntesDaTroca = $null; Remove-Item -LiteralPath $tmpT -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- publicação do front recuperável (spec 004, F7)'
+$tmpP = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-publicar-' + $PID)
+try {
+    $raizP = Join-Path $tmpP 'BASE'; $dadosP = Join-Path $raizP 'SISTEMA\DADOS'; $histP = Join-Path $dadosP 'execucao\historico-front'
+    $origemP = Join-Path $tmpP 'novo.xlsm'
+    $xlsmP = Join-Path $raizP $script:NomeFront; $frontTxtP = Join-Path $raizP 'VERSAO-FRONT.txt'; $versaoTxtP = Join-Path $dadosP 'VERSAO.txt'
+    $b7P = Format-TextoB7 'PRODUCAO' '1.6' ([datetime]::new(2026, 10, 20, 8, 0, 0))
+    function PrepararPublicacao([bool]$comAnterior) {
+        Remove-Item -LiteralPath $tmpP -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $dadosP, $histP -Force | Out-Null
+        [IO.File]::WriteAllBytes($origemP, [byte[]](50..120))
+        [IO.File]::WriteAllText($versaoTxtP, "1.5`r`n")
+        if ($comAnterior) {
+            [IO.File]::WriteAllBytes($xlsmP, [byte[]](1..40))
+            [IO.File]::WriteAllText($frontTxtP, "1.5`r`nAmbiente: PRODUCAO   |   Versao 1.5   |   Publicada em 01/10/2026 08:00`r`n")
+        }
+    }
+    function Estado { return ((@($xlsmP, $frontTxtP, $versaoTxtP) | ForEach-Object { if (Test-Path -LiteralPath $_) { Get-HashArquivo $_ } else { '-' } }) -join '|') }
+
+    PrepararPublicacao $true
+    $hOrigemP = Get-HashArquivo $origemP; $hAntigoP = Get-HashArquivo $xlsmP
+    $rP = Publicar-FrontNaRaiz $origemP $raizP $dadosP '1.6' $b7P ([datetime]::new(2026, 10, 20, 8, 0, 0)) $histP '1.5' ''
+    Conferir 'publicação: ok e na ordem histórico, cópia, VERSAO.txt, VERSAO-FRONT.txt (por último)' ($rP.ok -and ($rP.ordem -join ',') -eq 'historico,copiar,versao,versao-front') (($rP.ordem -join ',') + ' ' + $rP.motivo)
+    Conferir 'publicação: .xlsm da raiz é o novo e o anterior foi para o histórico' ((Get-HashArquivo $xlsmP) -eq $hOrigemP -and @(Get-ChildItem -LiteralPath $histP -Filter '*.xlsm' | Where-Object { (Get-HashArquivo $_.FullName) -eq $hAntigoP }).Count -eq 1)
+    $linhasP = @([IO.File]::ReadAllLines($frontTxtP))
+    Conferir 'publicação: VERSAO-FRONT.txt tem a versão e o texto de Início!B7' ($linhasP[0] -eq '1.6' -and $linhasP[1] -eq $b7P)
+    Conferir 'publicação: VERSAO.txt = 1.6' (([IO.File]::ReadAllText($versaoTxtP)).Trim() -eq '1.6')
+
+    foreach ($falhaP in 'historico', 'copiar', 'versao', 'versao-front') {
+        PrepararPublicacao $true
+        $antesP = Estado
+        $rP = Publicar-FrontNaRaiz $origemP $raizP $dadosP '1.6' $b7P ([datetime]::new(2026, 10, 20, 8, 0, 0)) $histP '1.5' $falhaP
+        Conferir ('falha forçada em "' + $falhaP + '": recusa e devolve .xlsm, VERSAO.txt e VERSAO-FRONT.txt (hash igual)') (-not $rP.ok -and (Estado) -eq $antesP -and @(Get-ChildItem -LiteralPath $histP -File).Count -eq 0) ($rP.motivo + ' | antes=' + $antesP + ' depois=' + (Estado))
+    }
+    PrepararPublicacao $false
+    $rP = Publicar-FrontNaRaiz $origemP $raizP $dadosP '1.6' $b7P ([datetime]::new(2026, 10, 20, 8, 0, 0)) $histP '1.5' 'versao'
+    Conferir 'primeira publicação com falha: não sobra .xlsm nem VERSAO-FRONT.txt na raiz' (-not $rP.ok -and -not (Test-Path -LiteralPath $xlsmP) -and -not (Test-Path -LiteralPath $frontTxtP) -and (([IO.File]::ReadAllText($versaoTxtP)).Trim() -eq '1.5'))
+    PrepararPublicacao $true
+    $trancado = [IO.File]::Open($xlsmP, 'Open', 'ReadWrite', 'None')
+    try {
+        $rP = Publicar-FrontNaRaiz $origemP $raizP $dadosP '1.6' $b7P ([datetime]::new(2026, 10, 20, 8, 0, 0)) $histP '1.5' ''
+    } finally { $trancado.Close() }
+    Conferir '.xlsm da raiz aberto por alguém: recusa sem alterar nada' (-not $rP.ok -and $rP.motivo -match 'aberto' -and ([IO.File]::ReadAllText($versaoTxtP)).Trim() -eq '1.5' -and -not (Test-Path -LiteralPath $histP -PathType Leaf)) $rP.motivo
+} finally { Remove-Item -LiteralPath $tmpP -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '--- teste de uso no passo 10 (spec 004, F5)'
+Conferir 'publicação roda só o teste de leitura' ((@(Get-ExecucoesTesteDeUso $false) -join ',') -eq 'SoLeitura') (@(Get-ExecucoesTesteDeUso $false) -join ',')
+Conferir '-Teste roda a leitura e depois o completo' ((@(Get-ExecucoesTesteDeUso $true) -join ',') -eq 'SoLeitura,Completo') (@(Get-ExecucoesTesteDeUso $true) -join ',')
 
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }

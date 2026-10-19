@@ -114,3 +114,66 @@ function New-BackupAntesDePublicar([string]$raiz, [string]$banco, [string]$front
     }
     return $pasta
 }
+
+# Passo 12 recuperável (spec 004, F7). Publica o front na raiz de BASE na ordem:
+#   1 historico  : .xlsm anterior -> pasta do histórico (só se a raiz o libera: ninguém com ele aberto)
+#   2 copiar     : .xlsm novo -> raiz, com conferência de hash
+#   3 versao     : VERSAO.txt
+#   4 versao-front: VERSAO-FRONT.txt, SEMPRE por último - é o ponto de não retorno: o INICIAR-CRM das
+#                  estações decide por ele, então nunca vê número novo apontando para arquivo velho.
+# Falha em qualquer subpasso devolve tudo (o .xlsm anterior, VERSAO.txt e VERSAO-FRONT.txt) e o resultado
+# diz o que aconteceu. $falharEm só serve aos testes: simula a falha nesse subpasso.
+function Publicar-FrontNaRaiz([string]$origem, [string]$raiz, [string]$dados, [string]$versao, [string]$textoB7,
+                              [datetime]$quando, [string]$pastaHistorico, [string]$versaoAtual, [string]$falharEm = '') {
+    $destino = Join-Path $raiz $script:NomeFront
+    $arqFront = Join-Path $raiz 'VERSAO-FRONT.txt'
+    $arqTxt = Join-Path $dados 'VERSAO.txt'
+    $bytesTxt = if (Test-Path -LiteralPath $arqTxt) { [System.IO.File]::ReadAllBytes($arqTxt) } else { $null }
+    $bytesFront = if (Test-Path -LiteralPath $arqFront) { [System.IO.File]::ReadAllBytes($arqFront) } else { $null }
+    $ordem = New-Object System.Collections.ArrayList
+    $historico = ''; $copiou = $false
+    try {
+        if (Test-Path -LiteralPath $destino) {
+            try { $f = [System.IO.File]::Open($destino, 'Open', 'ReadWrite', 'None'); $f.Close() }
+            catch { throw 'o .xlsm da raiz foi aberto por alguém durante o build. Nada foi publicado; rode de novo.' }
+            if ($falharEm -eq 'historico') { throw 'falha simulada: historico' }
+            New-Item -ItemType Directory -Path $pastaHistorico -Force | Out-Null
+            $historico = Join-Path $pastaHistorico ('CRM_Zapromaq_v' + $versaoAtual + '_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.xlsm')
+            Move-Item -LiteralPath $destino -Destination $historico
+            [void]$ordem.Add('historico')
+        } elseif ($falharEm -eq 'historico') { throw 'falha simulada: historico' }
+        else { [void]$ordem.Add('historico') }
+
+        if ($falharEm -eq 'copiar') { throw 'falha simulada: copiar' }
+        Copy-Item -LiteralPath $origem -Destination $destino
+        $copiou = $true
+        if ((Get-FileHash -LiteralPath $origem -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $destino -Algorithm SHA256).Hash) {
+            throw 'a cópia publicada não confere com a montada (hash diferente)'
+        }
+        [void]$ordem.Add('copiar')
+
+        if ($falharEm -eq 'versao') { throw 'falha simulada: versao' }
+        Set-VersaoArquivo $dados $versao
+        [void]$ordem.Add('versao')
+
+        # ANSI + CRLF: é o cmd.exe do .bat que lê.
+        $conteudo = $versao + "`r`n" + $textoB7 + "`r`n" +
+                    'arquivo=' + $script:NomeFront + "`r`n" +
+                    'publicado=' + $quando.ToString('yyyy-MM-dd HH:mm:ss') + "`r`n" +
+                    'por=' + $env:COMPUTERNAME + '\' + $env:USERNAME + "`r`n"
+        [System.IO.File]::WriteAllText($arqFront, $conteudo, (New-Object System.Text.ASCIIEncoding))
+        if ($falharEm -eq 'versao-front') { throw 'falha simulada: versao-front' }
+        [void]$ordem.Add('versao-front')
+    } catch {
+        $motivo = $_.Exception.Message
+        $erros = New-Object System.Collections.ArrayList
+        # devolve na ordem inversa; cada passo da devolução é independente dos outros
+        try { if ($null -ne $bytesFront) { [System.IO.File]::WriteAllBytes($arqFront, $bytesFront) } elseif (Test-Path -LiteralPath $arqFront) { Remove-Item -LiteralPath $arqFront -Force } } catch { [void]$erros.Add('VERSAO-FRONT.txt: ' + $_.Exception.Message) }
+        try { if ($null -ne $bytesTxt) { [System.IO.File]::WriteAllBytes($arqTxt, $bytesTxt) } } catch { [void]$erros.Add('VERSAO.txt: ' + $_.Exception.Message) }
+        try { if ($copiou -and (Test-Path -LiteralPath $destino)) { Remove-Item -LiteralPath $destino -Force } } catch { [void]$erros.Add('.xlsm novo: ' + $_.Exception.Message) }
+        try { if ($historico -and (Test-Path -LiteralPath $historico) -and -not (Test-Path -LiteralPath $destino)) { Move-Item -LiteralPath $historico -Destination $destino } } catch { [void]$erros.Add('.xlsm anterior: ' + $_.Exception.Message) }
+        $extra = if ($erros.Count) { ' ATENÇÃO, a devolução falhou em: ' + ($erros -join '; ') } else { ' O .xlsm anterior, VERSAO.txt e VERSAO-FRONT.txt foram devolvidos.' }
+        return [pscustomobject]@{ ok = $false; motivo = ($motivo + '.' + $extra); ordem = @($ordem); devolvido = ($erros.Count -eq 0) }
+    }
+    return [pscustomobject]@{ ok = $true; motivo = 'front publicado'; ordem = @($ordem); devolvido = $false }
+}

@@ -47,3 +47,9 @@ cabeçalho com uso; saída em pt-BR; código de saída 0/1. Python em UTF-8, só
 
 - [ ] Funciona a partir de qualquer pasta do repositório (usa `git rev-parse` / `$PSScriptRoot`).
 - [ ] Não altera nada fora do repositório sem dizer; falha com mensagem clara.
+
+## Verificação (spec 004)
+
+- `verificar-tudo` padrão inclui `testar-migracao-003` e `testar-preparacao-rede`; `-Completo` inclui
+  `testar-publicacao-copia` (publicação real numa cópia de BASE, com banco de demonstração).
+- Teste que grava só roda em banco TESTE (trava em `testar-mcp` e `testar-uso`).

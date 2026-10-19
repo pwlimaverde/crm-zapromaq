@@ -20,6 +20,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Data
+. (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'lib\Comum.ps1')
 
 function L([string]$t) { Write-Host $t }
 
@@ -27,6 +28,9 @@ if (-not [Environment]::Is64BitProcess) { throw 'Rode no PowerShell 64 bits.' }
 
 if (Test-Path -LiteralPath $Banco) {
     if (-not $Recriar) { throw ('O banco já existe: ' + $Banco + '. Use -Recriar para substituir.') }
+    # trava de segurança: nunca apaga banco de PRODUCAO nem arquivo que não se prova ser de TESTE
+    $motivo = Assert-PodeSubstituirBanco $Banco
+    if ($motivo) { throw $motivo }
     Remove-Item -LiteralPath $Banco -Force
     L 'banco anterior removido (-Recriar)'
 }

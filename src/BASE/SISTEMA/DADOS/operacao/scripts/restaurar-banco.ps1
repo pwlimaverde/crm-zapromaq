@@ -1,53 +1,99 @@
 ﻿<#
   restaurar-banco.ps1 - restaura um backup numa CÓPIA DE TESTE e confere o que voltou.
 
-  Backup que nunca foi restaurado não é backup. Este script nunca sobrescreve
-  a produção: restaura numa cópia em execucao\backup e conta registros,
-  soma de valor, auditoria e relações, para a pessoa comparar com o esperado.
+  Backup que nunca foi restaurado não é backup. Este script nunca sobrescreve a produção e nunca abre o
+  arquivo de backup: copia o backup para execucao\backup\restauracao-teste-*.accdb e abre só essa cópia.
 
-  Uso: restaurar-banco.ps1 [-Backup <arquivo.accdb>]   (padrão: o mais recente)
+  Escolha do backup (sem -Backup): o mais recente pelo manifesto, ou pelo NOME do arquivo
+  (crm_<tipo>_AAAAMMDD-HHMM_<estação>.accdb); o LastWriteTime só entra em último caso, porque
+  Copy-Item preserva a data do banco original.
+
+  Conferência:
+    - com manifesto (<backup>.manifesto.json): SHA-256, esquema e contagens têm de bater;
+    - com -Referencia <banco.accdb>: as contagens da cópia restaurada são comparadas com as do banco de
+      referência (lido em modo somente leitura). Se a referência está em uso, a divergência pode ser só
+      gravação posterior ao backup: leia a mensagem.
+  Código de saída: 0 tudo conferiu, 1 divergência ou backup que não abre, 2 sem backup para restaurar.
+
+  Uso: restaurar-banco.ps1 [-Backup <arquivo.accdb>] [-Referencia <banco.accdb>]
 #>
-param([string]$Backup = '')
+param([string]$Backup = '', [string]$Referencia = '')
 $ErrorActionPreference = 'Stop'
-. (Join-Path (Split-Path -Parent $PSScriptRoot) '..\lib\Comum.ps1')
+$dadosLib = Join-Path (Split-Path -Parent $PSScriptRoot) '..\lib'
+. (Join-Path $dadosLib 'Comum.ps1')
+. (Join-Path $dadosLib 'AtualizacaoBanco.ps1')
 
 $raiz = Get-RaizBase $PSScriptRoot
 $pastaBkp = Get-PastaExecucao $raiz 'backup'
 $log = New-Log $raiz 'restauracao'
 
 if ([string]::IsNullOrWhiteSpace($Backup)) {
-    $ultimo = Get-ChildItem -LiteralPath $pastaBkp -Filter 'crm_*.accdb' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $ultimo = Get-BackupMaisRecente $pastaBkp
     if ($null -eq $ultimo) {
         $log.L('Nenhum backup encontrado em ' + $pastaBkp + '. Gere um com FAZER-BACKUP.bat.')
-        $log.Salvar(); exit 1
+        $log.Salvar(); exit 2
     }
     $Backup = $ultimo.FullName
 }
-$destino = Join-Path $pastaBkp ('restauracao-teste-' + (Get-Date -Format 'yyyyMMdd-HHmm') + '.accdb')
+if (-not (Test-Path -LiteralPath $Backup)) { $log.L('Backup não encontrado: ' + $Backup); $log.Salvar(); exit 2 }
+$destino = Join-Path $pastaBkp ('restauracao-teste-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.accdb')
+$divergencias = New-Object System.Collections.ArrayList
 
 $log.L('=== TESTE DE RESTAURAÇÃO ===')
-$log.L('Backup..: ' + (Split-Path -Leaf $Backup) + '  (gerado em ' + (Get-Item -LiteralPath $Backup).LastWriteTime + ')')
+$log.L('Backup..: ' + (Split-Path -Leaf $Backup) + '  (instante ' + (Get-InstanteDoBackup (Get-Item -LiteralPath $Backup)) + ')')
 $log.L('Destino.: ' + $destino)
+
+# 1. manifesto (SHA-256, esquema e contagens), numa cópia descartável
+$manifesto = $Backup + '.manifesto.json'
+if (Test-Path -LiteralPath $manifesto) {
+    $val = Test-BackupRestauravel $Backup
+    if ($val.ok) { $log.L('Manifesto: SHA-256, esquema ' + $val.esquema + ' e contagens conferem.') }
+    else { foreach ($p in $val.problemas) { [void]$divergencias.Add('manifesto: ' + $p) } }
+} else {
+    $log.L('Sem manifesto (backup anterior ao manifesto): só a conferência de abertura e, se pedida, a da referência.')
+}
+
+# 2. cópia de teste + o que voltou
 Copy-Item -LiteralPath $Backup -Destination $destino -Force
-
-try { $cn = Open-Banco $destino }
+try { $cn = Open-BancoLeitura $destino }
 catch { $log.L('ERRO: o backup NÃO abriu - este backup não serve. ' + $_.Exception.Message); $log.Salvar(); exit 1 }
-
 try {
+    $contagens = Get-ContagensDoBanco $cn
+    $esquema = Get-VersaoEsquemaBanco $cn
     $log.L('')
     $log.L('--- o que voltou ---')
-    foreach ($t in @('clientes', 'contatos', 'oportunidades', 'listas', 'log_alteracoes')) {
-        $log.L('  ' + $t.PadRight(18) + (Invoke-Escalar $cn ('SELECT COUNT(*) FROM ' + $t) @()))
-    }
-    $log.L('  ' + 'soma de valor'.PadRight(18) + (Invoke-Escalar $cn 'SELECT SUM(valor) FROM oportunidades' @()))
-    $log.L('  ' + 'esquema'.PadRight(18) + (Get-VersaoEsquemaBanco $cn))
+    foreach ($k in $contagens.Keys) { $log.L('  ' + ([string]$k).PadRight(20) + $contagens[$k]) }
+    $log.L('  ' + 'esquema'.PadRight(20) + $esquema)
     $log.L('')
     $log.L('--- relações preservadas ---')
-    $log.L('  contatos órfãos ......: ' + (Invoke-Escalar $cn 'SELECT COUNT(*) FROM contatos WHERE id_cliente NOT IN (SELECT id FROM clientes)' @()))
-    $log.L('  atendimentos órfãos ..: ' + (Invoke-Escalar $cn 'SELECT COUNT(*) FROM oportunidades WHERE id_contato NOT IN (SELECT id FROM contatos)' @()))
+    $orf1 = [int](Invoke-Escalar $cn 'SELECT COUNT(*) FROM contatos WHERE id_cliente NOT IN (SELECT id FROM clientes)' @())
+    $orf2 = [int](Invoke-Escalar $cn 'SELECT COUNT(*) FROM oportunidades WHERE id_contato NOT IN (SELECT id FROM contatos)' @())
+    $log.L('  contatos órfãos ......: ' + $orf1)
+    $log.L('  atendimentos órfãos ..: ' + $orf2)
+    if ($orf1 -gt 0 -or $orf2 -gt 0) { [void]$divergencias.Add('há registros órfãos na cópia restaurada') }
 } finally { $cn.Close(); $cn.Dispose() }
 
+# 3. referência
+if ($Referencia) {
+    $cr = Open-BancoLeitura $Referencia
+    try { $contRef = Get-ContagensDoBanco $cr; $esqRef = Get-VersaoEsquemaBanco $cr } finally { $cr.Close(); $cr.Dispose() }
+    $log.L('')
+    $log.L('--- comparação com a referência ---')
+    if ($esqRef -ne $esquema) { [void]$divergencias.Add('esquema: backup ' + $esquema + ', referência ' + $esqRef) }
+    foreach ($k in $contRef.Keys) {
+        $obtido = if ($contagens.Contains($k)) { [int]$contagens[$k] } else { -1 }
+        if ($obtido -ne [int]$contRef[$k]) { [void]$divergencias.Add($k + ': backup ' + $obtido + ', referência ' + $contRef[$k]) }
+    }
+    if ($divergencias.Count -eq 0) { $log.L('  contagens e esquema iguais aos da referência.') }
+}
+
 $log.L('')
-$log.L('Compare com o esperado. Se bater, o backup serve.')
-$log.L('A cópia de teste pode ser apagada depois de conferida: ela não é backup nem produção.')
+if ($divergencias.Count -gt 0) {
+    $log.L('DIVERGÊNCIA - o backup NÃO foi aprovado:')
+    foreach ($d in $divergencias) { $log.L('  - ' + $d) }
+    $log.L('A cópia de teste pode ser apagada: ela não é backup nem produção.')
+    $log.Salvar(); exit 1
+}
+$log.L('RESTAURAÇÃO APROVADA. A cópia de teste pode ser apagada depois de conferida: ela não é backup nem produção.')
 $log.Salvar()
+exit 0

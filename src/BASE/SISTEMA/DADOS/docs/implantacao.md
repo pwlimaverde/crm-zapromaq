@@ -1,101 +1,119 @@
-# Implantação na rede — roteiro (Fase 8)
+# Implantação na rede - roteiro da versão 1.6 (ciclo 004, preparação da rede)
 
-Roteiro para trocar a versão 1.4 (legado, `MIGRACAO-CRM`) pela estrutura nova.
-Feito **fora do horário de uso**, com todos os vendedores com o CRM fechado.
-Tempo estimado: 1 h, mais a ida às estações. Cada passo tem a conferência que
-libera o seguinte — não pule conferência.
+Roteiro para levar a `develop` (spec 003 + ciclo 004) para a rede, onde o banco está no
+**esquema 1.0 e ainda não recebeu nenhuma migração** (001, 002 e 003 vão juntas). A versão da rede
+é a 1.5; a publicação nova é a **1.6**. Feito **fora do horário de uso**, com todos fora do CRM e do
+Claude Desktop. Cada passo tem a conferência que libera o seguinte: não pule conferência.
 
 Legenda: 🖥 = numa estação com Excel 2019 · 🌐 = na pasta da rede
 
-## 0. Antes do dia
+Regra que vale em tudo: **o banco de produção só é alterado pelo `MONTAR-FRONTEND.bat`** (cópia,
+migração na cópia, conferências, troca). `APLICAR-MIGRACOES.bat` e a ferramenta `aplicar_migracoes`
+recusam migração estrutural no banco de produção, e `CRIAR-BANCO-TESTE`, `TESTAR-MCP` e
+`criar-banco-demo -Recriar` recusam banco que não seja TESTE. Mesmo assim, **não rode scripts de
+teste na rede**.
 
-- [ ] Idas à estação nº 1 e nº 2 feitas (PLANO 2.10 e 4.11): build conferido e
-      calibração visual aprovada.
-- [ ] Definido onde fica o `INICIAR-CRM.bat` das estações (pendência P01): ele
-      **não pode** ficar na raiz de `BASE` (só `crm_zapromaq.accdb`,
-      `CRM_Zapromaq.xlsm`, `SISTEMA\` e `IA\`). Sugestão: a pasta onde já está hoje,
-      apontando para o novo caminho de `BASE\CRM_Zapromaq.xlsm`.
-- [ ] Repositório sincronizado com a rede (`docs\sincronizar-rede.md`) e com
-      `verificar.py` sem problemas.
+## 0. Na máquina de desenvolvimento 🖥
 
-## 1. Backup da produção atual (8.1) 🌐
+1. `powershell -File agent-config\ferramentas\empacotar-base.ps1` gera `dist\BASE-v<versão>-<data>-<commit>.zip`.
+   Levar esse arquivo.
 
-1. Copiar a pasta de produção inteira (legado) para
-   `...\BACKUP-ANTES-DA-V1.5-AAAAMMDD\` — `.accdb`, `.xlsm`, fontes e scripts.
-2. Conferir: o `.accdb` copiado abre (tamanho igual ao original) e não existe
-   `.laccdb` ao lado do original (ninguém com o banco aberto).
+## 1. Janela de implantação 🌐
 
-## 2. Pasta nova na rede (8.2) 🌐
+1. Todos fecham o CRM **e o Claude Desktop**.
+2. Conferir que `BASE\crm_zapromaq.laccdb` não existe.
 
-1. Copiar a pasta `BASE` do repositório para a rede **sem** `crm_zapromaq.accdb`
-   e **sem** `CRM_Zapromaq.xlsm` (não existem no repositório) e sem
-   `SISTEMA\DADOS\execucao\` (é gerada na rede).
-2. **Mover** (não copiar) o `.accdb` de produção para a raiz da `BASE` nova, com o
-   nome `crm_zapromaq.accdb`. Mover garante que ninguém continue gravando no antigo.
-3. 🖥 `SISTEMA\DADOS\testes\CHECAR-AMBIENTE.bat` a partir da rede: provedor
-   ACE, Excel 64 bits, área útil da tela.
-4. 🖥 `SISTEMA\DADOS\banco\APLICAR-MIGRACOES.bat`: aplica as migrações que faltam
-   (a 002 reativa os cadastros criados inativos pelo defeito A01). Conferir no
-   log que `config.versao_esquema` ficou na versão esperada.
+## 2. Conferência de divergência 🌐
 
-## 3. Front na rede (8.3) 🖥
+1. Abrir `BASE\SISTEMA\DADOS\execucao\dev\alteracoes.log` e procurar `BASE\IA\**\*.bak-*`.
+2. Se houver qualquer item com data posterior a 04/10/2026, **não extrair**: compactar a BASE da rede
+   e trazê-la para o desenvolvimento (`docs\sincronizar-rede.md`). A versão da rede tem prioridade.
 
-1. `SISTEMA\MONTAR-FRONTEND.bat -Teste` → abrir
-   `SISTEMA\DADOS\execucao\teste\CRM_Zapromaq.xlsm`: Alt+F8 › `AbrirCalibracao`
-   (confere o visual) e uma consulta em cada aba.
-   Antes disso, o teste automático faz o mesmo sem abrir a tela:
-   `powershell -File SISTEMA\DADOS\testes\testar-uso.ps1` (grades, Painel,
-   "Ver tudo" com filtro, relatório e PDFs em `execucao\teste\uso-*.pdf`).
-   Se a montagem falhar na compilação:
-   `powershell -File SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1` diz o
-   módulo, a linha e a mensagem.
-2. `SISTEMA\MONTAR-FRONTEND.bat` (publicação): monta, compila, roda o autoteste
-   e só então grava `BASE\CRM_Zapromaq.xlsm` e sobe a versão para **1.5**.
-3. Conferir `Início!B7` do arquivo publicado:
-   `Ambiente: PRODUCAO   |   Versao 1.5   |   Publicada em dd/MM/yyyy HH:mm`.
-4. Atualizar o `INICIAR-CRM.bat` das estações para o caminho novo
-   (`\\servidor\...\BASE\CRM_Zapromaq.xlsm`).
-5. Em **cada** estação: abrir pelo atalho de sempre. Conferir que copiou a 1.5
-   para `Documentos\CRM Zapromaq\`, que as grades carregam e que a ficha abre.
-6. Com duas estações abertas, gravar numa e ver a linha mudar na outra em até
-   30 s (PLANO 6.5).
-7. Na aba Painel, **Exportar relatório**: confere que a pasta sai em
-   `Documentos\CRM Zapromaq\Relatorios\<data-hora>\` com os CSVs, o
-   `painel.pdf` e o `LEIA-ME.txt`.
+## 3. Backup independente 🌐
 
-## 4. IA (8.4) 🖥
+1. Copiar a pasta `BASE` **inteira** (`.accdb`, `.xlsm`, `VERSAO-FRONT.txt`, `crm_zapromaq.ico`,
+   `execucao\`) para `...\01 - CONTROLE\BACKUP-ANTES-DA-1.6-AAAAMMDD\`.
+2. Conferir que o tamanho do `.accdb` copiado é igual ao original.
 
-Em cada máquina com Claude Desktop, **a partir da pasta da rede**:
+## 4. Extração 🌐
 
-1. `IA\INSTALAR-MCP.bat` (grava o caminho UNC na configuração do Claude Desktop).
-2. Fechar o Claude Desktop por completo e abrir; conferir em **+ › Conectores**
-   `crm-zapromaq` com 11 ferramentas; pedir *"situação do banco do CRM"*.
-3. Instalar a skill (`IA\LEIA-ME.md`, passo 6).
-4. Só na máquina de quem mantém o sistema: `IA\INSTALAR-MCP-DEV.bat`
-   (`crm-zapromaq-dev`, 15 ferramentas).
+1. Extrair o `.zip` **por cima** da `BASE`, respondendo "Substituir". **Nunca apagar a BASE antes.**
 
-## 5. Backups (8.5 e 8.6) 🖥
+## 5. Ambiente 🖥
 
-1. Remover o agendamento antigo (Agendador de Tarefas do usuário: tarefas do
-   legado, que apontam para o caminho velho).
-2. `SISTEMA\DADOS\operacao\AGENDAR-BACKUPS.bat` a partir da rede (sem
-   administrador; roda com o usuário logado, 09:00, 12:30 e 16:00, seg-sex, por padrão;
-   retenção: mês corrente e anterior).
-3. `SISTEMA\DADOS\operacao\FAZER-BACKUP.bat` uma vez agora; conferir o arquivo em
-   `SISTEMA\DADOS\execucao\backup\`.
-4. `SISTEMA\DADOS\operacao\TESTAR-RESTAURACAO.bat`: restaura o último backup numa
-   cópia e confere que abre e tem as tabelas. **Backup não testado não é backup.**
+1. `SISTEMA\DADOS\testes\CHECAR-AMBIENTE.bat`: Excel 2019 64 bits, ACE, acesso ao VBA.
 
-## Voltar atrás (se algo der errado)
+## 6. Backup restaurável 🖥
 
-Até o passo 3.4 as estações continuam usando a 1.4: basta mover o `.accdb` de volta
-para a pasta antiga. Depois do 3.4: devolver o `.accdb` à pasta antiga, restaurar o
-`INICIAR-CRM.bat` anterior e pedir aos vendedores que reabram. Dados gravados na
-1.5 continuam no banco (o esquema novo só acrescenta, não remove).
+1. `SISTEMA\DADOS\operacao\TESTAR-RESTAURACAO.bat -Backup "<BACKUP-ANTES-DA-1.6...>\crm_zapromaq.accdb" -Referencia "BASE\crm_zapromaq.accdb"`.
+2. Tem de terminar em "RESTAURAÇÃO APROVADA" (código 0). Se reprovar, **parar**. Backup sem manifesto
+   (como este, copiado à mão) é conferido pela abertura da cópia restaurada e pela comparação com a
+   referência.
+
+## 7. Ensaio 🖥
+
+1. `SISTEMA\MONTAR-FRONTEND.bat -Ensaio` (precisa do banco fechado; não precisa de Excel; nunca troca o banco).
+2. Esperado: `ENSAIO APROVADO`, esquema 1.0 -> 1.1 na cópia, migrações 001, 002 e 003 registradas na
+   cópia, hash do banco de produção igual antes e depois.
+3. Ler `SISTEMA\DADOS\execucao\ensaio\relatorio-*.txt`: unificações de listas, valores incluídos como
+   inativos, contagens e tempo. **Esse relatório tem dado real: não vai para o repositório.**
+4. Se o tempo do ensaio pela rede for alto, planejar a janela com folga.
+
+## 8. Publicação 🖥
+
+1. `SISTEMA\MONTAR-FRONTEND.bat` (sem `-Teste`, sem `-Ensaio`).
+2. Esperado: `PRONTO. CRM 1.6 publicado; banco no esquema 1.1 ...`. O teste de uso da publicação é só de
+   leitura e confere que a cópia do banco não mudou.
+
+## 9. Conferências 🖥
+
+1. `VERSAO-FRONT.txt`: linha 1 = `1.6`; linha 2 = `Ambiente: PRODUCAO   |   Versao 1.6   |   Publicada em dd/MM/yyyy HH:mm`.
+2. No log `execucao\logs\build-*.txt`: a linha `Inicio!B7 = ...` é idêntica à linha 2 e aparece
+   `config.versao_front = 1.6`.
+3. Na estação piloto, pelo `INICIAR-CRM`: instala a 1.6; `Início!B7` igual à linha 2; as grades carregam; a ficha abre.
+
+## 10. Claude Desktop 🖥
+
+1. Reabrir e reinstalar `IA\instrucoes\crm-zapromaq.zip`.
+2. `crm_status` deve mostrar `versao_servidor_mcp 1.5.0`, `versao_esquema 1.1`, `gravacao_liberada true`
+   e `atualizacao_pendente false`. Com o banco ainda no 1.0 o conector responde só o `crm_status`, com
+   `atualizacao_pendente true`; as outras ferramentas dizem "banco aguardando atualização".
+
+## 11. Backups da rotina 🖥
+
+1. `SISTEMA\DADOS\operacao\AGENDAR-BACKUPS.bat`, depois `FAZER-BACKUP.bat`, depois `TESTAR-RESTAURACAO.bat`.
+
+## 12. Itens 🖥 da spec 003 e do ciclo 004
+
+1. Telas em 1366x768: `frmListas`, Visitas, `frmPlanejamento` e a aba Planejamentos; abrir o CSV do
+   roteiro no Excel 2019.
+2. Anotar: `[IO.File]::Replace` no compartilhamento funcionou; os nomes das estações apareceram na
+   mensagem de trava quando havia alguém conectado; tempos de cópia e de migração pela rede.
+
+## 13. De volta ao desenvolvimento
+
+1. Registrar no `PLANO.md` o resultado da Fase 8.
+2. `git flow release start 1.6`, depois `finalizar-branch.ps1 -Branch release/1.6 -Enviar` (main + tag `v1.6`).
+   A `main` ainda não tem tag da 1.5: registrar no CHANGELOG qual commit gerou a 1.5 na rede, se for identificado.
+
+## Se algo falhar
+
+- **Ensaio ou passos 1 a 10 da montagem:** nada foi alterado. Corrigir a causa e repetir.
+- **Passo 11 (troca do banco):** a mensagem diz que nada foi trocado. Se disser que a produção não
+  conferiu, fechar todos e copiar `execucao\backup\antes-da-publicacao\<data-hora>\crm_zapromaq.accdb`
+  para a raiz.
+- **Passo 12 antes do `VERSAO-FRONT.txt`:** a montagem devolve sozinha o `.xlsm` anterior, o
+  `VERSAO.txt` e o banco. O log diz o que foi devolvido. O `VERSAO-FRONT.txt` é gravado por último:
+  depois dele a publicação vale (ponto de não retorno).
+- **Problema depois de publicado:**
+  - preferir corrigir para frente (hotfix 1.7): a migração só acrescenta e o front 1.5 recusa gravar no 1.1;
+  - volta total só se ninguém gravou ainda: todos fecham; copiar da pasta `antes-da-publicacao` o banco
+    e o `.xlsm`, e restaurar o `VERSAO-FRONT.txt` do backup do passo 3. Em cada estação que já tinha a
+    1.6, apagar `Documentos\CRM Zapromaq\CRM_Zapromaq.xlsm`: o `INICIAR-CRM` reinstala quando não há cópia local;
+  - se já houve gravação no 1.1, não voltar o banco; corrigir para frente.
 
 ## Depois
 
-- Acompanhar os logs em `SISTEMA\DADOS\execucao\logs\` e `IA\logs\` na primeira
-  semana.
-- Ajustes pequenos: MCP de desenvolvimento na rede; mudanças maiores: repositório.
-  Em ambos os casos, a regra de sincronização (`docs\sincronizar-rede.md`).
+- Acompanhar os logs em `SISTEMA\DADOS\execucao\logs\` e `IA\logs\` na primeira semana.
+- Ajustes pequenos: MCP de desenvolvimento na rede; mudanças maiores: repositório. Em ambos os casos,
+  a regra de sincronização (`docs\sincronizar-rede.md`).
