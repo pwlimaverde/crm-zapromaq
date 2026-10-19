@@ -50,6 +50,12 @@ function Invoke-ListarAlteracoes($a) {
 
 function Invoke-VerLog($a) {
     $tipo = [string]$a.tipo
+    # o backup não escreve em execucao\logs: o log dele é o consolidado execucao\backup\backup.log
+    if ($tipo -eq 'backup') {
+        $bl = Join-Path $script:PastaDados 'execucao\backup\backup.log'
+        if (-not (Test-Path -LiteralPath $bl)) { throw 'Nenhum log de backup ainda (execucao\backup\backup.log).' }
+        return [ordered]@{ arquivo = 'backup.log'; conteudo = (Get-Final ([System.IO.File]::ReadAllText($bl)) 80) }
+    }
     $arq = Get-ChildItem -LiteralPath (Join-Path $script:PastaDados 'execucao\logs') -Filter ($tipo + '-*.txt') -ErrorAction SilentlyContinue |
            Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $arq) { throw ('Nenhum log de ' + $tipo + ' ainda.') }

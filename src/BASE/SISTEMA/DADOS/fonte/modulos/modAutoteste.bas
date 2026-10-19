@@ -39,6 +39,13 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     ThisWorkbook.Worksheets(modConfig.ABA_CONFIG).Range("B2").Value = cfgB2
     Confere "CaminhoConfigurado com B2", modConfig.CaminhoConfigurado(), True
 
+    ' ---- alerta de backup (spec 006)
+    Confere "Backup: instante do nome", modBackupAviso.InstanteDoNome("crm_diario_20261018-081530_EST1.accdb.validado"), DateSerial(2026, 10, 18) + TimeSerial(8, 15, 30)
+    Confere "Backup: nome fora do padrao", modBackupAviso.InstanteDoNome("lixo.validado"), CDate(0)
+    Confere "Backup: 30 h nao alerta", modBackupAviso.Atrasado(DateSerial(2026, 10, 17) + TimeSerial(0, 0, 0), DateSerial(2026, 10, 18) + TimeSerial(6, 0, 0)), False
+    Confere "Backup: 40 h alerta", modBackupAviso.Atrasado(DateSerial(2026, 10, 16) + TimeSerial(14, 0, 0), DateSerial(2026, 10, 18) + TimeSerial(6, 0, 0)), True
+    Confere "Backup: nenhum validado alerta", modBackupAviso.Atrasado(0, Now), True
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"

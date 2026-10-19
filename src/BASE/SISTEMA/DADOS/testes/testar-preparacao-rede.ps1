@@ -334,6 +334,94 @@ try {
         Conferir 'relatório confere conector, pasta IA e OneDrive' ($tx -match 'Conector MCP' -and $tx -match 'Pasta IA' -and $tx -match 'OneDrive') $tx
     }
 
+    Write-Host '--- 006: trava de backup com dono e sessão'
+    $b7 = NovaBaseTemporaria 'base-006'
+    $pastaT = Join-Path $b7 'trava-teste'
+    New-Item -ItemType Directory -Path $pastaT -Force | Out-Null
+    $libComum = Join-Path $dados 'lib\Comum.ps1'; $libAtu = Join-Path $dados 'lib\AtualizacaoBanco.ps1'
+    $filho = Start-Process -FilePath $ps -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+        ('. "' + $libComum + '"; . "' + $libAtu + '"; $t = Enter-TravaBackup "' + $pastaT + '" "teste"; if ($t.ok) { Start-Sleep -Seconds 12 }; Exit-TravaBackup $t'))
+    $esperou = 0; while (-not (Test-Path -LiteralPath (Join-Path $pastaT 'backup.lock')) -and $esperou -lt 40) { Start-Sleep -Milliseconds 500; $esperou++ }
+    $t2 = Enter-TravaBackup $pastaT 'teste'
+    Conferir 'segunda sessão com a trava ocupada é recusada, citando o dono' (-not $t2.ok -and $t2.motivo -match [string]$filho.Id) $t2.motivo
+    try { Stop-Process -Id $filho.Id -Force } catch { }
+    Start-Sleep -Milliseconds 800
+    $t3 = Enter-TravaBackup $pastaT 'teste'
+    Conferir 'trava abandonada (processo morto na mesma estação) é recuperada' ($t3.ok -and $t3.recuperada -eq $true) $t3.motivo
+    Exit-TravaBackup $t3
+    Conferir 'Exit-TravaBackup remove a trava' (-not (Test-Path -LiteralPath (Join-Path $pastaT 'backup.lock')))
+    [IO.File]::WriteAllText((Join-Path $pastaT 'backup.lock'), (ConvertTo-Json @{ estacao = 'OUTRA-ESTACAO'; usuario = 'x'; pid = 4; sessao = 'a'; tipo = 'teste'; inicio = (Get-Date).ToString('o') }))
+    $t4 = Enter-TravaBackup $pastaT 'teste'
+    Conferir 'trava recente de outra estação é respeitada' (-not $t4.ok -and $t4.motivo -match 'OUTRA-ESTACAO') $t4.motivo
+    [IO.File]::WriteAllText((Join-Path $pastaT 'backup.lock'), (ConvertTo-Json @{ estacao = 'OUTRA-ESTACAO'; usuario = 'x'; pid = 4; sessao = 'a'; tipo = 'teste'; inicio = (Get-Date).AddHours(-3).ToString('o') }))
+    $t5 = Enter-TravaBackup $pastaT 'teste'
+    Conferir 'trava de outra estação com mais de 60 min é recuperada' ($t5.ok -and $t5.recuperada) $t5.motivo
+    Exit-TravaBackup $t5
+
+    Write-Host '--- 006: backup com nome único, arquivo temporário promovido, manifesto, validado e log por execução'
+    $banco7 = Join-Path $b7 'crm_zapromaq.accdb'
+    & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $raizBase 'IA\teste\criar-banco-teste.ps1') -Banco $banco7 -Recriar | Out-Null
+    $hProd7 = Get-HashArquivo $banco7
+    $bkp7 = Join-Path $b7 'SISTEMA\DADOS\execucao\backup'
+    $fazer = Join-Path $b7 'SISTEMA\DADOS\operacao\scripts\backup-banco.ps1'
+    $r1 = Executar $fazer @('-Modo', 'Diario')
+    $r2 = Executar $fazer @('-Modo', 'Diario')
+    $copias7 = @(Get-ChildItem -LiteralPath $bkp7 -Filter 'crm_diario_*.accdb' -File)
+    Conferir 'dois backups seguidos terminam com 0' ($r1.codigo -eq 0 -and $r2.codigo -eq 0) ($r1.saida + $r2.saida)
+    Conferir 'nomes únicos (AAAAMMDD-HHMMSS) mesmo no mesmo minuto' ($copias7.Count -eq 2 -and $copias7[0].Name -match '^crm_diario_\d{8}-\d{6}_' ) (($copias7 | ForEach-Object { $_.Name }) -join ',')
+    Conferir 'nenhum .tmp sobrou' (@(Get-ChildItem -LiteralPath $bkp7 -Filter '*.tmp' -File).Count -eq 0)
+    Conferir 'cada cópia tem manifesto e marca de validado' (@($copias7 | Where-Object { (Test-Path -LiteralPath ($_.FullName + '.manifesto.json')) -and (Test-Path -LiteralPath ($_.FullName + '.validado')) }).Count -eq 2)
+    Conferir 'um log por execução em execucao\backup\logs' (@(Get-ChildItem -LiteralPath (Join-Path $bkp7 'logs') -Filter 'backup-*.log' -File -ErrorAction SilentlyContinue).Count -ge 2)
+    Conferir 'o backup.log consolidado existe' (Test-Path -LiteralPath (Join-Path $bkp7 'backup.log'))
+    Conferir 'o banco ficou igual depois dos backups (hash)' ((Get-HashArquivo $banco7) -eq $hProd7)
+
+    Write-Host '--- 006: retenção nunca apaga o último backup validado'
+    $pr = Join-Path $tmp 'retencao'
+    New-Item -ItemType Directory -Path $pr -Force | Out-Null
+    $velhoV = Join-Path $pr 'crm_diario_20260101-080000_EST1.accdb'
+    $velhoN = Join-Path $pr 'crm_diario_20260102-080000_EST1.accdb'
+    $novoN = Join-Path $pr ('crm_periodico_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '_EST1.accdb')
+    foreach ($f in $velhoV, $velhoN, $novoN) { [IO.File]::WriteAllText($f, 'x'); [IO.File]::WriteAllText(($f + '.manifesto.json'), '{}') }
+    [IO.File]::WriteAllText(($velhoV + '.validado'), (ConvertTo-Json @{ validado_utc = '2026-01-01T11:00:00Z' }))
+    $null = Executar $fazer @('-PastaTeste', $pr)
+    Conferir 'o único validado fica, mesmo velho, enquanto o novo não foi validado' (Test-Path -LiteralPath $velhoV)
+    Conferir 'o velho não validado sai, com o manifesto dele' (-not (Test-Path -LiteralPath $velhoN) -and -not (Test-Path -LiteralPath ($velhoN + '.manifesto.json')))
+    [IO.File]::WriteAllText(($novoN + '.validado'), (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }))
+    $null = Executar $fazer @('-PastaTeste', $pr)
+    Conferir 'com um validado novo, o velho validado sai (e a marca dele)' (-not (Test-Path -LiteralPath $velhoV) -and -not (Test-Path -LiteralPath ($velhoV + '.validado')) -and (Test-Path -LiteralPath $novoN))
+
+    Write-Host '--- 006: último backup validado e alerta (RPO 24 h, alerta 36 h)'
+    $pa = Join-Path $tmp 'alerta'
+    New-Item -ItemType Directory -Path $pa -Force | Out-Null
+    $al = Get-AlertaBackup $pa
+    Conferir 'sem nenhum backup validado: alerta' ($al.alerta -eq $true -and $null -eq $al.ultimo)
+    $fa = Join-Path $pa 'crm_diario_20261010-080000_EST1.accdb'
+    [IO.File]::WriteAllText(($fa + '.validado'), (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().AddHours(-10).ToString('yyyy-MM-ddTHH:mm:ssZ') }))
+    $al = Get-AlertaBackup $pa
+    Conferir 'validado há 10 h: sem alerta' ($al.alerta -eq $false -and $al.horas -ge 9 -and $al.horas -lt 11) ($al | ConvertTo-Json -Compress)
+    [IO.File]::WriteAllText(($fa + '.validado'), (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().AddHours(-40).ToString('yyyy-MM-ddTHH:mm:ssZ') }))
+    $al = Get-AlertaBackup $pa
+    Conferir 'validado há 40 h: alerta' ($al.alerta -eq $true -and $al.mensagem -match '36')
+    $res = ChamarMcp $banco7 'crm_status' ([ordered]@{})
+    $st = $res.content[0].text | ConvertFrom-Json
+    Conferir 'crm_status traz ultimo_backup_validado e alerta_backup=false depois do backup' ($st.alerta_backup -eq $false -and [string]$st.ultimo_backup_validado.arquivo -match '^crm_diario_') ($res.content[0].text)
+    $res = ChamarMcp $ref8 'crm_status' ([ordered]@{})
+    $st = $res.content[0].text | ConvertFrom-Json
+    Conferir 'crm_status sem backup validado: alerta_backup=true' ($st.alerta_backup -eq $true)
+
+    Write-Host '--- 006: geração da base (config.geracao_base)'
+    $cnG = Open-BancoLeitura $banco7
+    try { $g1 = [string](Invoke-Escalar $cnG "SELECT valor FROM config WHERE chave='geracao_base'" @() $null) } finally { $cnG.Close(); $cnG.Dispose() }
+    Conferir 'banco novo nasce com geracao_base' ($g1 -match '^[0-9a-f]{32}$') $g1
+    $ren = Join-Path $b7 'SISTEMA\DADOS\operacao\scripts\renovar-geracao.ps1'
+    $r = Executar $ren @('-Banco', $banco7)
+    $cnG = Open-BancoLeitura $banco7
+    try { $g2 = [string](Invoke-Escalar $cnG "SELECT valor FROM config WHERE chave='geracao_base'" @() $null) } finally { $cnG.Close(); $cnG.Dispose() }
+    Conferir 'renovar-geracao.ps1 troca a geração da base' ($r.codigo -eq 0 -and $g2 -match '^[0-9a-f]{32}$' -and $g2 -ne $g1) $r.saida
+    $abertoG = Open-Banco $banco7
+    try { $r = Executar $ren @('-Banco', $banco7) } finally { $abertoG.Close(); $abertoG.Dispose() }
+    Conferir 'renovar-geracao.ps1 recusa banco em uso' ($r.codigo -ne 0 -and $r.saida -match 'conectado') $r.saida
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 

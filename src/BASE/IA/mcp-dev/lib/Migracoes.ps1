@@ -45,7 +45,22 @@ function Invoke-EstadoSistema($a) {
     $vf = Join-Path (Split-Path -Parent (Split-Path -Parent $script:PastaDados)) 'VERSAO-FRONT.txt'
     if (Test-Path -LiteralPath $vf) { $publicada = (Get-Content -LiteralPath $vf -TotalCount 1).Trim() }
     $pend = @(Get-Migracoes | Where-Object { -not $_.aplicada } | ForEach-Object { $_.arquivo })
+    # último backup validado (marca <backup>.validado) e alerta acima de 36 h
+    $ultimoBkp = $null; $alertaBkp = $true
+    $pb = Join-Path $script:PastaDados 'execucao\backup'
+    if (Test-Path -LiteralPath $pb) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $pb -Filter 'crm_*.validado' -File -ErrorAction SilentlyContinue)) {
+            try {
+                $j = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                $d = [datetime]::Parse([string]$j.validado_utc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal).ToLocalTime()
+                if ($null -eq $ultimoBkp -or $d -gt $ultimoBkp.instante) { $ultimoBkp = [pscustomobject]@{ arquivo = ($f.Name -replace '\.validado$', ''); instante = $d } }
+            } catch { }
+        }
+    }
+    if ($ultimoBkp) { $alertaBkp = (((Get-Date) - $ultimoBkp.instante).TotalHours -gt 36) }
     return [ordered]@{
+        ultimo_backup_validado = $(if ($ultimoBkp) { [ordered]@{ arquivo = $ultimoBkp.arquivo; validado_em = $ultimoBkp.instante.ToString('yyyy-MM-dd HH:mm:ss') } } else { $null })
+        alerta_backup = $alertaBkp
         versao_proxima_publicacao = $versaoArq
         versao_publicada_na_raiz = $publicada
         versao_front_no_banco = $b.versao_front

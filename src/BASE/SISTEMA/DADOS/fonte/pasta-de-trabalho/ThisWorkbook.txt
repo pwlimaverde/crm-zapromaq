@@ -68,6 +68,9 @@ Private Sub Workbook_Open()
 
     modConfig.ConferirVersaoCopia
 
+    ' alerta se nao ha backup validado recente (spec 006)
+    modBackupAviso.AvisarSeAtrasado
+
     ' atualizacao automatica das grades (log_alteracoes)
     modFeed.Iniciar
 End Sub

@@ -112,6 +112,8 @@ try {
     $pares = @(@('versao_esquema', '1.0'), @('ambiente', $Ambiente), @('criado_em', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')))
     # banco de TESTE criado por este script é de homologação: os testes que gravam exigem essa marca (spec 005)
     if ($Ambiente -eq 'TESTE') { $pares += , @('homologacao', '1') }
+    # geração da base: renovada sempre que o arquivo do banco é substituído (publicação, restauração) - spec 006
+    $pares += , @('geracao_base', [guid]::NewGuid().ToString('N'))
     foreach ($par in $pares) {
         $p1.Value = $par[0]; $p2.Value = $par[1]; [void]$cmd.ExecuteNonQuery()
     }
