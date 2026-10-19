@@ -30,7 +30,7 @@ if (-not $SoLeitura) {
     if ([string]::IsNullOrWhiteSpace($bancoAlvo) -or -not (Test-Path -LiteralPath $bancoAlvo)) {
         Write-Host ('RECUSADO: o banco de Config!B2 não foi encontrado (' + $bancoAlvo + '). O teste completo só roda sobre banco de TESTE. Nada foi alterado.'); exit 2
     }
-    $motivoTrava = Assert-PodeSubstituirBanco $bancoAlvo
+    $motivoTrava = Assert-BancoDeHomologacao $bancoAlvo
     if ($motivoTrava) {
         Write-Host ('RECUSADO: o teste de uso completo grava no banco e só roda sobre banco de TESTE (config.ambiente = PRODUCAO ou ilegível). ' + $motivoTrava + ' Use -SoLeitura para conferir sem gravar.'); exit 2
     }

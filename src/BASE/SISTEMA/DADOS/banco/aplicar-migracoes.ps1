@@ -41,7 +41,7 @@ if ($CopiaDeTrabalho) {
     foreach ($sub in @('publicacao', 'ensaio')) {
         if ($cheio.StartsWith($pastaExec + $sub + '\', [StringComparison]::OrdinalIgnoreCase)) { $dentro = $true }
     }
-    $ehProducao = ($cheio -ieq [System.IO.Path]::GetFullPath((Get-CaminhoBanco $raiz)))
+    $ehProducao = (Test-MesmoCaminho $cheio (Get-CaminhoBanco $raiz))   # UNC, letra e relativo contam como o mesmo arquivo
     if (-not $dentro -or $ehProducao) {
         $log.L(''); $log.L('RECUSADO: -CopiaDeTrabalho exige um banco dentro de execucao\publicacao ou execucao\ensaio e diferente do banco de produção. Nada foi alterado.')
         $log.Salvar(); exit 3

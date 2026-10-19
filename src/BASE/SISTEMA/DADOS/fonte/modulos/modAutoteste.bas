@@ -30,6 +30,15 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     End If
     Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.1"
 
+    ' ---- caminho do banco sem fallback silencioso (spec 005): sem Config!B2 nao se inventa caminho
+    Dim cfgB2 As Variant
+    cfgB2 = ThisWorkbook.Worksheets(modConfig.ABA_CONFIG).Range("B2").Value
+    ThisWorkbook.Worksheets(modConfig.ABA_CONFIG).Range("B2").Value = ""
+    Confere "CaminhoBanco sem B2 nao inventa caminho", modConfig.CaminhoBanco(), ""
+    Confere "CaminhoConfigurado sem B2", modConfig.CaminhoConfigurado(), False
+    ThisWorkbook.Worksheets(modConfig.ABA_CONFIG).Range("B2").Value = cfgB2
+    Confere "CaminhoConfigurado com B2", modConfig.CaminhoConfigurado(), True
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"

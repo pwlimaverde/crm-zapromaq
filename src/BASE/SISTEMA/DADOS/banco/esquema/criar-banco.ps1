@@ -109,7 +109,10 @@ try {
     $cmd.CommandText = 'INSERT INTO config (chave, valor) VALUES (?, ?)'
     $p1 = $cmd.Parameters.Add('p1', [System.Data.OleDb.OleDbType]::VarWChar, 40)
     $p2 = $cmd.Parameters.Add('p2', [System.Data.OleDb.OleDbType]::VarWChar, 255)
-    foreach ($par in @(@('versao_esquema', '1.0'), @('ambiente', $Ambiente), @('criado_em', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')))) {
+    $pares = @(@('versao_esquema', '1.0'), @('ambiente', $Ambiente), @('criado_em', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')))
+    # banco de TESTE criado por este script é de homologação: os testes que gravam exigem essa marca (spec 005)
+    if ($Ambiente -eq 'TESTE') { $pares += , @('homologacao', '1') }
+    foreach ($par in $pares) {
         $p1.Value = $par[0]; $p2.Value = $par[1]; [void]$cmd.ExecuteNonQuery()
     }
     $cmd.Dispose()

@@ -21,18 +21,29 @@ $script:ChaveVersao = 'io.modelcontextprotocol/protocolVersion'
 if (-not (Get-Variable -Name AntesDaFerramenta -Scope Script -ErrorAction SilentlyContinue)) { $script:AntesDaFerramenta = $null }
 
 # ------------------------------------------------------------------ log
-# Arquivo de log: IA\logs\<prefixo>-AAAAMMDD.log ($script:PrefixoLog, padrão 'mcp').
+# Diagnóstico (spec 005): um arquivo POR ESTAÇÃO, IA\logs\<prefixo>-<ESTACAO>-AAAAMMDD.log, e cada linha traz
+# [ESTACAO\usuário técnico] e, nas chamadas, o nome da ferramenta. Assim, vários usuários na mesma pasta de
+# rede não misturam nem sobrescrevem os logs, e dá para saber quem (qual estação/conta) chamou o quê.
+# Guardados por 90 dias (os mais antigos saem na abertura).
 $script:ArquivoLog = $null
+$script:IdentidadeLog = $env:COMPUTERNAME + '\' + $env:USERNAME
 function Initialize-LogMcp([string]$raizIA, [string]$prefixo) {
     $pastaLogs = Join-Path $raizIA 'logs'
     try {
         if (-not (Test-Path $pastaLogs)) { New-Item -ItemType Directory -Path $pastaLogs | Out-Null }
-        $script:ArquivoLog = Join-Path $pastaLogs ($prefixo + '-' + (Get-Date -Format 'yyyyMMdd') + '.log')
+        $estacao = ($env:COMPUTERNAME -replace '[^A-Za-z0-9_-]', '_')
+        $script:ArquivoLog = Join-Path $pastaLogs ($prefixo + '-' + $estacao + '-' + (Get-Date -Format 'yyyyMMdd') + '.log')
+        $corte = (Get-Date).AddDays(-90)
+        Get-ChildItem -LiteralPath $pastaLogs -Filter ($prefixo + '-*.log') -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $corte } | Remove-Item -Force -ErrorAction SilentlyContinue
     } catch { }
 }
+$script:FerramentaAtual = ''
 
 function Write-Diag([string]$texto) {
-    $linha = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [' + $PID + '] ' + $texto
+    $quem = $script:IdentidadeLog
+    if ($script:FerramentaAtual) { $quem += ' ' + $script:FerramentaAtual }
+    $linha = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [' + $PID + '] [' + $quem + '] ' + $texto
     try { [Console]::Error.WriteLine($linha) } catch { }
     if ($script:ArquivoLog) { try { Add-Content -Path $script:ArquivoLog -Value $linha -Encoding UTF8 } catch { } }
 }
@@ -149,6 +160,7 @@ function Invoke-Ferramenta($params) {
     $a = $null
     if ($params.PSObject.Properties.Name -contains 'arguments') { $a = $params.arguments }
     $inicio = Get-Date
+    $script:FerramentaAtual = $nome
     try {
         # erro de validação volta como erro DE FERRAMENTA, para o modelo ler e corrigir
         Test-Argumentos $f.inputSchema $a
@@ -166,7 +178,7 @@ function Invoke-Ferramenta($params) {
         $m = $_.Exception.Message
         Write-Diag ('ERRO ' + $nome + ': ' + $m)
         return [ordered]@{ content = @([ordered]@{ type = 'text'; text = $m }); isError = $true }
-    }
+    } finally { $script:FerramentaAtual = '' }
 }
 
 function Invoke-Metodo($msg) {

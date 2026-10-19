@@ -54,6 +54,24 @@ function ConvertTo-CaminhoUNC([string]$caminho) {
     return $cheio
 }
 
+# Forma canônica de um caminho para COMPARAR: absoluto, sem prefixo \\?\, sem ponto nem barra final,
+# unidade mapeada vista como UNC, \\<esta máquina>\X$ visto como X:\. Compara-se sem diferença de caixa.
+function Get-CaminhoCanonico([string]$caminho) {
+    $c = $caminho -replace '^\\\\\?\\', ''
+    # relativo é relativo à pasta ATUAL DO POWERSHELL (o .NET usa a do processo, que pode ser outra)
+    if (-not [System.IO.Path]::IsPathRooted($c)) { $c = Join-Path (Get-Location).ProviderPath $c }
+    $c = [System.IO.Path]::GetFullPath($c)
+    $m =[regex]::Match($c, '^\\\\(localhost|127\.0\.0\.1|' + [regex]::Escape($env:COMPUTERNAME) + ')\\([A-Za-z])\$(\\.*)?$', 'IgnoreCase')
+    if ($m.Success) { $c = $m.Groups[2].Value.ToUpperInvariant() + ':' + $m.Groups[3].Value }
+    $c = ConvertTo-CaminhoUNC $c
+    return $c.TrimEnd('\').ToUpperInvariant()
+}
+
+# Dois caminhos (UNC, letra, relativo, com ou sem caixa) apontam para o mesmo arquivo ou pasta?
+function Test-MesmoCaminho([string]$a, [string]$b) {
+    return ((Get-CaminhoCanonico $a) -eq (Get-CaminhoCanonico $b))
+}
+
 function Get-CaminhoBanco([string]$raiz) { return (Join-Path $raiz $script:NomeBanco) }
 function Get-CaminhoFront([string]$raiz) { return (Join-Path $raiz $script:NomeFront) }
 
@@ -169,6 +187,29 @@ function Assert-PodeSubstituirBanco([string]$caminho) {
     }
     if ($amb -ne 'TESTE') {
         return ('RECUSADO: ' + $caminho + ' está com config.ambiente = ' + $amb + '; só se substitui banco com ambiente TESTE. Nada foi apagado.')
+    }
+    return ''
+}
+
+# Pasta dos bancos de homologação (execucao\homologacao): onde o desenvolvimento cria e destrói bancos fictícios.
+function Get-PastaHomologacao([string]$raiz) { return (Get-PastaExecucao $raiz 'homologacao') }
+
+# Banco de HOMOLOGAÇÃO = config.ambiente = TESTE **e** config.homologacao = 1 (declarado por quem criou o banco:
+# criar-banco.ps1 -Ambiente TESTE, ou o MONTAR-FRONTEND -Teste). Todo teste que GRAVA exige isso: ambiente TESTE
+# sozinho já foi escrito num banco de verdade por engano. Devolve o motivo; vazio = é de homologação.
+function Assert-BancoDeHomologacao([string]$caminho) {
+    $motivo = Assert-PodeSubstituirBanco $caminho
+    if ($motivo) { return $motivo }
+    if (-not (Test-Path -LiteralPath $caminho)) { return ('RECUSADO: o banco ' + $caminho + ' não existe.') }
+    $cn = $null
+    try {
+        $cn = Open-BancoLeitura $caminho
+        $v = Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='homologacao'" @() $null
+    } catch { return ('RECUSADO: não foi possível ler config.homologacao de ' + $caminho) }
+    finally { if ($cn) { $cn.Dispose() } }
+    if ([string]$v -ne '1') {
+        return ('RECUSADO: ' + $caminho + ' está com ambiente TESTE mas sem config.homologacao = 1 (banco criado antes da spec 005 ou não declarado como de homologação). ' +
+                'Recrie-o com criar-banco-teste.ps1 ou rode MONTAR-FRONTEND.bat -Teste, que declara a homologação. Nada foi gravado.')
     }
     return ''
 }

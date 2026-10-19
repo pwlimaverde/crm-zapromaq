@@ -96,6 +96,28 @@ $teste = Join-Path (Get-PastaExecucao $raiz 'logs') ('.teste-escrita-' + $PID)
 try { Set-Content -LiteralPath $teste -Value 'ok'; Remove-Item -LiteralPath $teste -Force; Item 'Permissão de escrita em execucao\' $true '' }
 catch { Item 'Permissão de escrita em execucao\' $false $_.Exception.Message }
 
+# ---------------------------------------------------------------- conector, pasta IA e OneDrive (spec 005)
+$pastaIA = Join-Path $raiz 'IA'
+Item 'Pasta IA (conector MCP)' (Test-Path -LiteralPath (Join-Path $pastaIA 'mcp\servidor.ps1')) (Join-Path $pastaIA 'mcp\servidor.ps1')
+$cfgClaude = Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'
+if (Test-Path -LiteralPath $cfgClaude) {
+    $txtCfg = ''
+    try { $txtCfg = Get-Content -LiteralPath $cfgClaude -Raw -Encoding UTF8 } catch { }
+    $achou = ($txtCfg -match 'crm-zapromaq')
+    Item 'Conector MCP no Claude Desktop' $achou $(if ($achou) { 'crm-zapromaq registrado em ' + $cfgClaude } else { 'crm-zapromaq NÃO está em ' + $cfgClaude + ' (rode IA\INSTALAR-MCP.bat a partir da pasta da rede)' })
+    if ($achou -and $txtCfg -match '"([^"]*servidor\.ps1)"') {
+        $alvo = $Matches[1] -replace '\\\\', '\'
+        Item 'Caminho do conector existe' (Test-Path -LiteralPath $alvo) $alvo
+    }
+} else {
+    $log.L('  INFO    ' + 'Conector MCP no Claude Desktop'.PadRight(36) + 'Claude Desktop não instalado nesta máquina (' + $cfgClaude + ' não existe)')
+}
+# Documents dentro do OneDrive: a cópia local do front (Documentos\CRM Zapromaq) passa a ser sincronizada
+# e pode ficar travada ou duplicada; o CRM roda de Documentos por decisão de projeto, então só se avisa.
+$docs = [Environment]::GetFolderPath('MyDocuments')
+$noOneDrive = ($docs -match 'OneDrive') -or ($env:OneDrive -and $docs.StartsWith($env:OneDrive, [StringComparison]::OrdinalIgnoreCase))
+Item 'Documentos fora do OneDrive' (-not $noOneDrive) $(if ($noOneDrive) { $docs + ' está no OneDrive: a sincronização pode travar ou duplicar o .xlsm local' } else { $docs })
+
 $log.L('')
 $log.L($(if ($pendencias -eq 0) { 'RESULTADO: ambiente pronto.' } else { 'RESULTADO: ' + $pendencias + ' ponto(s) de atenção acima.' }))
 $log.Salvar()
