@@ -171,6 +171,17 @@ try {
     Conferir 'arquivo listado e ausente é recusado' ((Test-Manifesto $tmpM) -match 'a.txt') (Test-Manifesto $tmpM)
 } finally { Remove-Item -LiteralPath $tmpM -Recurse -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- caminho canônico: UNC x letra x relativo (spec 005)'
+Conferir 'mesmo caminho ignora caixa' (Test-MesmoCaminho 'C:\Temp\Dados\crm.accdb' 'c:\temp\DADOS\CRM.ACCDB')
+Conferir 'mesmo caminho ignora barra final e ponto' (Test-MesmoCaminho 'C:\Temp\Dados\' 'C:\Temp\.\Dados')
+Conferir 'caminhos diferentes' (-not (Test-MesmoCaminho 'C:\Temp\Dados\a.accdb' 'C:\Temp\Dados\b.accdb'))
+Push-Location ([System.IO.Path]::GetTempPath())
+try { $relT = 'crm-x.accdb'; Conferir 'relativo = absoluto' (Test-MesmoCaminho $relT (Join-Path ([System.IO.Path]::GetTempPath()) 'crm-x.accdb')) } finally { Pop-Location }
+Conferir 'compartilhamento administrativo da própria máquina = letra' (Test-MesmoCaminho ('\\localhost\C$\Temp\Dados\crm.accdb') 'C:\Temp\Dados\crm.accdb')
+Conferir ('\\' + $env:COMPUTERNAME + '\C$ = letra') (Test-MesmoCaminho ('\\' + $env:COMPUTERNAME + '\C$\Temp\Dados\crm.accdb') 'C:\Temp\Dados\crm.accdb')
+Conferir 'UNC de outro servidor não é a letra local' (-not (Test-MesmoCaminho '\\servidor\C$\Temp\Dados\crm.accdb' 'C:\Temp\Dados\crm.accdb'))
+Conferir 'prefixo \\?\ é ignorado' (Test-MesmoCaminho '\\?\C:\Temp\Dados\crm.accdb' 'C:\Temp\Dados\crm.accdb')
+
 Write-Host '--- troca sem janela (spec 004, F6): .novo pronto ANTES da última conferência'
 $tmpT = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-troca-' + $PID)
 New-Item -ItemType Directory -Path $tmpT -Force | Out-Null

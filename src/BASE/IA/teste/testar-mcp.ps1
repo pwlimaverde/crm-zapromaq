@@ -83,7 +83,7 @@ $script:CaminhoBanco = Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accd
 if (Test-Path -LiteralPath $script:CaminhoBanco) {
     $env:CRM_TRAVA_COMUM = Join-Path (Split-Path -Parent $raizIA) 'SISTEMA\DADOS\lib\Comum.ps1'
     $env:CRM_TRAVA_BANCO = $script:CaminhoBanco
-    $motivoTrava = (& $ps -NoProfile -ExecutionPolicy Bypass -Command '. $env:CRM_TRAVA_COMUM; Assert-PodeSubstituirBanco $env:CRM_TRAVA_BANCO' 2>&1 | Out-String).Trim()
+    $motivoTrava = (& $ps -NoProfile -ExecutionPolicy Bypass -Command '. $env:CRM_TRAVA_COMUM; Assert-BancoDeHomologacao $env:CRM_TRAVA_BANCO' 2>&1 | Out-String).Trim()
     Remove-Item Env:CRM_TRAVA_COMUM, Env:CRM_TRAVA_BANCO -ErrorAction SilentlyContinue
     if ($motivoTrava) {
         Write-Host ('RECUSADO: o testar-mcp grava no banco e só roda em banco de TESTE. ' + $motivoTrava) -ForegroundColor Red

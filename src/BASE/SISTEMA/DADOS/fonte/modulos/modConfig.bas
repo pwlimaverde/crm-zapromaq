@@ -45,10 +45,10 @@ Private mConfig As Object
 Private mConfigLidaEm As Date
 Private Const VALIDADE_CONFIG_MIN As Long = 5
 
-' Usado apenas se a aba Config nao existir ou estiver vazia.
-' O build grava o caminho UNC real em Config!B2.
-Private Const CAMINHO_PADRAO As String = _
-    "\\servidor\COMERCIAL\1 - COMERCIAL ZAPROMAQ\01 - CRM\01 - CONTROLE\BASE\crm_zapromaq.accdb"
+' O build grava o caminho UNC real em Config!B2. NAO existe caminho de reserva: um
+' fallback silencioso apontaria uma planilha de teste ou copiada para o banco de
+' producao sem ninguem perceber. Sem Config!B2 devolve vazio e quem usa recusa
+' (modDB.BancoOK explica a causa).
 
 '----------------------------------------------------------
 Public Function CaminhoBanco() As String
@@ -56,8 +56,11 @@ Public Function CaminhoBanco() As String
     On Error Resume Next
     v = CStr(ThisWorkbook.Worksheets(ABA_CONFIG).Range("B2").Value)
     On Error GoTo 0
-    If Trim$(v) = "" Then v = CAMINHO_PADRAO
-    CaminhoBanco = v
+    CaminhoBanco = Trim$(v)
+End Function
+
+Public Function CaminhoConfigurado() As Boolean
+    CaminhoConfigurado = (Len(CaminhoBanco()) > 0)
 End Function
 
 Public Function Ambiente() As String

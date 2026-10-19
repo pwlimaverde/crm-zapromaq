@@ -424,6 +424,7 @@ End Function
 Public Function BancoOK(Optional ByVal silencioso As Boolean = False) As Boolean
     Dim cn As Object
     On Error GoTo falhou
+    If Not modConfig.CaminhoConfigurado() Then GoTo falhou
     If Dir(modConfig.CaminhoBanco()) = "" Then GoTo falhou
     Set cn = NovaConexao()
     cn.Close
@@ -434,7 +435,7 @@ falhou:
     BancoOK = False
     If Not silencioso Then
         MsgBox "Nao foi possivel acessar o banco de dados." & vbCrLf & vbCrLf & _
-               "Caminho: " & modConfig.CaminhoBanco() & vbCrLf & vbCrLf & _
+               "Caminho: " & IIf(modConfig.CaminhoConfigurado(), modConfig.CaminhoBanco(), "(nao configurado: Config!B2 esta vazio; use a copia publicada pelo MONTAR-FRONTEND)") & vbCrLf & vbCrLf & _
                "Ultima consulta bem-sucedida: " & modConfig.UltimaConsulta() & vbCrLf & vbCrLf & _
                "Verifique a rede e o caminho na aba Config.", vbExclamation, "CRM Zapromaq"
     End If

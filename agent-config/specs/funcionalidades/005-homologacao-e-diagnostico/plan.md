@@ -1,15 +1,11 @@
-# Plano: Homologação e diagnóstico mínimo (rascunho)
+# Plano: Homologação e diagnóstico mínimo (ciclo 005)
 
 Spec: [SPEC.md](SPEC.md)
 
-## Fatias (teste que falha primeiro, depois prova)
+1. Caminho canônico (`Test-MesmoCaminho`) - teste em `testar-build-lib`.
+2. Marca de homologação (`Assert-BancoDeHomologacao`, `criar-banco`, `testar-mcp`, `testar-uso`, `-Teste`) - `testar-preparacao-rede`.
+3. `CaminhoBanco` sem fallback - `Confere` no `modAutoteste`.
+4. Diagnóstico por estação - `testar-preparacao-rede`.
+5. `checar-ambiente` - `testar-preparacao-rede`.
 
-- execucao\homologacao\ e config.homologacao, obrigatórios para testes que gravam (tpr)
-- equivalência de caminho canônico UNC x letra x relativo (tbl)
-- CaminhoBanco sem fallback silencioso (Confere no modAutoteste)
-- diagnóstico do MCP com estação, usuário técnico e ferramenta, um arquivo por estação (testar-mcp)
-- checar-ambiente grava o relatório e verifica conector, IA e OneDrive (tbl)
-
-## Depende de
-
-004
+Checkpoint: `verificar-tudo -Completo`.

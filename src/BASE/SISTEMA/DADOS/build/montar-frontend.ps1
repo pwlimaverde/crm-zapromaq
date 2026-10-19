@@ -141,6 +141,13 @@ try {
     $prep = Invoke-PreparacaoDoBanco $bancoArq (Get-PastaExecucao $raiz 'publicacao') $pastaBkp $totalMunicipios $log
     if (-not $prep.ok) { Parar-NoPasso $prep.passo $prep.motivo }
     $log.L('  cópia pronta: ' + $prep.copia)
+    # -Teste (só roda com ambiente TESTE, passo 2) declara a homologação NA CÓPIA: os testes que gravam exigem
+    # config.homologacao = 1. Bancos de teste antigos, de antes da spec 005, ganham a marca por aqui.
+    if ($Teste) {
+        $cnH = Open-Banco $prep.copia
+        try { Set-ConfigBanco $cnH 'homologacao' '1' $null } finally { $cnH.Close(); $cnH.Dispose() }
+        $log.L('  homologação declarada na cópia (config.homologacao = 1)')
+    }
 
     # parte visual gerada (fundos, modTema) em dia com fonte\layout? senão, gera agora
     $velhos = @(Get-VisualDesatualizado $dados)

@@ -294,6 +294,46 @@ try {
     $st = $res.content[0].text | ConvertFrom-Json
     Conferir 'banco 1.1: crm_status normal, sem atualização pendente e gravação liberada' ($st.atualizacao_pendente -eq $false -and $st.gravacao_liberada -eq $true -and $st.versao_esquema -eq '1.1') ($res.content[0].text)
 
+    Write-Host '--- 005: homologação declarada (config.homologacao) e pasta execucao\homologacao'
+    $cnH = Open-BancoLeitura $teste
+    try { $hom = [string](Invoke-Escalar $cnH "SELECT valor FROM config WHERE chave='homologacao'" @() $null) } finally { $cnH.Close(); $cnH.Dispose() }
+    Conferir 'banco TESTE criado agora nasce com config.homologacao = 1' ($hom -eq '1') $hom
+    Conferir 'banco de homologação é aceito pela trava' ((Assert-BancoDeHomologacao $teste) -eq '')
+    Conferir 'banco PRODUCAO não é de homologação' ((Assert-BancoDeHomologacao $prod) -match 'PRODUCAO')
+    $semHom = Join-Path $tmp 'teste-sem-homologacao.accdb'
+    Copy-Item -LiteralPath $teste -Destination $semHom
+    $cnH = Open-Banco $semHom
+    try { [void](Invoke-Comando $cnH "DELETE FROM config WHERE chave='homologacao'" @() $null) } finally { $cnH.Close(); $cnH.Dispose() }
+    Conferir 'TESTE sem config.homologacao não é de homologação' ((Assert-BancoDeHomologacao $semHom) -match 'homologacao')
+    $b5 = NovaBaseTemporaria 'base-005'
+    $bancoB5 = Join-Path $b5 'crm_zapromaq.accdb'
+    Copy-Item -LiteralPath $semHom -Destination $bancoB5
+    $hb5 = Get-HashArquivo $bancoB5
+    $r = Executar (Join-Path $b5 'IA\teste\testar-mcp.ps1') @()
+    Conferir 'testar-mcp recusa TESTE sem homologação declarada' ($r.codigo -ne 0 -and $r.saida -match 'homologacao') $r.saida
+    Conferir 'banco sem homologação ficou igual (hash)' ((Get-HashArquivo $bancoB5) -eq $hb5)
+    Conferir 'Get-PastaHomologacao cria execucao\homologacao' ((Get-PastaHomologacao $b5) -and (Test-Path -LiteralPath (Join-Path $b5 'SISTEMA\DADOS\execucao\homologacao')))
+
+    Write-Host '--- 005: diagnóstico do conector (estação, usuário técnico, ferramenta; um arquivo por estação)'
+    $res = ChamarMcp $ref8 'crm_status' ([ordered]@{})
+    $logs = Join-Path $raizBase 'IA\logs'
+    $arqDiag = Join-Path $logs ('mcp-' + $env:COMPUTERNAME + '-' + (Get-Date -Format 'yyyyMMdd') + '.log')
+    Conferir 'existe um arquivo de diagnóstico por estação (mcp-<ESTACAO>-AAAAMMDD.log)' (Test-Path -LiteralPath $arqDiag) $arqDiag
+    if (Test-Path -LiteralPath $arqDiag) {
+        $ult = @(Get-Content -LiteralPath $arqDiag -Tail 30 -Encoding UTF8)
+        Conferir 'a linha do diagnóstico traz estação\usuário e a ferramenta' (@($ult | Where-Object { $_ -match [regex]::Escape($env:COMPUTERNAME + '\' + $env:USERNAME) -and $_ -match 'crm_status' }).Count -ge 1) ($ult -join "`n")
+    }
+
+    Write-Host '--- 005: checar-ambiente (relatório, conector, IA, OneDrive)'
+    $b6 = NovaBaseTemporaria 'base-005b'
+    $r = Executar (Join-Path $b6 'SISTEMA\DADOS\testes\checar-ambiente.ps1') @()
+    $relAmb = @(Get-ChildItem -LiteralPath (Join-Path $b6 'SISTEMA\DADOS\execucao\logs') -Filter 'ambiente-*.txt' -ErrorAction SilentlyContinue)
+    Conferir 'checar-ambiente grava o relatório em execucao\logs' ($relAmb.Count -eq 1) $r.saida
+    if ($relAmb.Count -eq 1) {
+        $tx = Get-Content -LiteralPath $relAmb[0].FullName -Raw -Encoding UTF8
+        Conferir 'relatório confere conector, pasta IA e OneDrive' ($tx -match 'Conector MCP' -and $tx -match 'Pasta IA' -and $tx -match 'OneDrive') $tx
+    }
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 
