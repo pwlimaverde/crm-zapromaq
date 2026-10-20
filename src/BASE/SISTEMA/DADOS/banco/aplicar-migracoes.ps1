@@ -94,7 +94,7 @@ if ($estrutural -and -not $CopiaDeTrabalho) {
         $log.Salvar(); exit 3
     }
 }
-$ocupado = Test-Path -LiteralPath ([System.IO.Path]::ChangeExtension($Banco, 'laccdb'))
+$ocupado = Test-BancoEmUso $Banco
 if ($estrutural -and $ocupado) {
     $log.L(''); $log.L('ABORTADO: há migração estrutural e o banco está em uso (.laccdb). Peça para todos fecharem o CRM.')
     $log.Salvar(); exit 2

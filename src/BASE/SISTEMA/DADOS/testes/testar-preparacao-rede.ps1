@@ -390,7 +390,9 @@ try {
     $null = Executar $fazer @('-PastaTeste', $pr)
     Conferir 'com um validado novo, o velho validado sai (e a marca dele)' (-not (Test-Path -LiteralPath $velhoV) -and -not (Test-Path -LiteralPath ($velhoV + '.validado')) -and (Test-Path -LiteralPath $novoN))
 
-    Write-Host '--- 006: último backup validado e alerta (RPO 24 h, alerta 36 h)'
+    # A regra do aviso mudou no ciclo 007 (seção 5.3: por janela, não mais 36 h); os casos com hora fixa estão em
+    # testar-recuperacao.ps1. Aqui fica o que não depende da hora.
+    Write-Host '--- 006: último backup validado e aviso (forma)'
     $pa = Join-Path $tmp 'alerta'
     New-Item -ItemType Directory -Path $pa -Force | Out-Null
     $al = Get-AlertaBackup $pa
@@ -398,13 +400,10 @@ try {
     $fa = Join-Path $pa 'crm_diario_20261010-080000_EST1.accdb'
     [IO.File]::WriteAllText(($fa + '.validado'), (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().AddHours(-10).ToString('yyyy-MM-ddTHH:mm:ssZ') }))
     $al = Get-AlertaBackup $pa
-    Conferir 'validado há 10 h: sem alerta' ($al.alerta -eq $false -and $al.horas -ge 9 -and $al.horas -lt 11) ($al | ConvertTo-Json -Compress)
-    [IO.File]::WriteAllText(($fa + '.validado'), (ConvertTo-Json @{ validado_utc = (Get-Date).ToUniversalTime().AddHours(-40).ToString('yyyy-MM-ddTHH:mm:ssZ') }))
-    $al = Get-AlertaBackup $pa
-    Conferir 'validado há 40 h: alerta' ($al.alerta -eq $true -and $al.mensagem -match '36')
+    Conferir 'validado há 10 h: o último validado e as horas aparecem' ($null -ne $al.ultimo -and $al.horas -ge 9 -and $al.horas -lt 11) ($al | ConvertTo-Json -Compress)
     $res = ChamarMcp $banco7 'crm_status' ([ordered]@{})
     $st = $res.content[0].text | ConvertFrom-Json
-    Conferir 'crm_status traz ultimo_backup_validado e alerta_backup=false depois do backup' ($st.alerta_backup -eq $false -and [string]$st.ultimo_backup_validado.arquivo -match '^crm_diario_') ($res.content[0].text)
+    Conferir 'crm_status traz ultimo_backup_validado e o aviso por janela' ($st.alerta_backup -is [bool] -and $null -ne $st.mensagem_backup -and [string]$st.ultimo_backup_validado.arquivo -match '^crm_diario_') ($res.content[0].text)
     $res = ChamarMcp $ref8 'crm_status' ([ordered]@{})
     $st = $res.content[0].text | ConvertFrom-Json
     Conferir 'crm_status sem backup validado: alerta_backup=true' ($st.alerta_backup -eq $true)

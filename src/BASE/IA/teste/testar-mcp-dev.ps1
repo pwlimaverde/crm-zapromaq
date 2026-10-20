@@ -124,7 +124,8 @@ try {
     $r = Chamar 'ver_log' ([ordered]@{ tipo = 'backup' })
     Conferir 'ver_log backup lê o backup.log consolidado' ((-not $r.isError) -and $r.content[0].text -match 'crm_diario_x') $r.content[0].text
     $e = Dados (Chamar 'estado_sistema' ([ordered]@{}))
-    Conferir 'estado_sistema traz o último backup validado e alerta_backup=false' ($e.alerta_backup -eq $false -and [string]$e.ultimo_backup_validado.arquivo -match '^crm_diario_') ($e | ConvertTo-Json -Compress)
+    # aviso por janela (ciclo 007): o resultado depende da hora; aqui só a forma (a regra tem casos fixos em testar-recuperacao)
+    Conferir 'estado_sistema traz o último backup validado e o aviso por janela (alerta, motivos, mensagem)' ($e.alerta_backup -is [bool] -and $null -ne $e.mensagem_backup -and [string]$e.ultimo_backup_validado.arquivo -match '^crm_diario_') ($e | ConvertTo-Json -Compress)
     $m = Dados (Chamar 'listar_migracoes' ([ordered]@{}))
     Conferir 'listar_migracoes vê as migrações existentes' (@($m.migracoes).Count -ge 2) (@($m.migracoes | ForEach-Object { $_.arquivo }) -join ',')
     $r = Chamar 'criar_migracao' ([ordered]@{ nome = 'teste-perigo'; descricao = 'teste'; sql = (Lista 'DROP TABLE clientes') })

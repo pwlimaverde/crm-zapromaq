@@ -211,8 +211,16 @@ function Invoke-Transacao([scriptblock]$bloco) {
                 (P 'texto' 'IA')) $this.Tx
             try { [void]$c.ExecuteNonQuery() } finally { $c.Dispose() }
         }
-        $resultado = & $bloco $ctx
-        $tx.Commit()
+        try {
+            $resultado = & $bloco $ctx
+            $tx.Commit()
+        } catch {
+            # DEV-03: durante a cópia exclusiva do backup o ACE abre só leitura e a escrita falha; quem pediu
+            # recebe a mensagem controlada, não o erro cru do motor
+            $controlada = Get-MensagemEscritaRecusada (Get-MensagemInterna $_.Exception) (Test-BackupEmCurso)
+            if ($controlada) { throw $controlada }
+            throw
+        }
         $tx = $null
         return $resultado
     } finally {
@@ -240,6 +248,27 @@ function Get-MotivoEsquemaNaoSuportado {
     return ("Banco aguardando atualizacao: ele esta no esquema " + $v + " e este conector exige o esquema " +
             ($script:EsquemasSuportados -join ', ') + '. A atualizacao do banco e feita pela montagem (MONTAR-FRONTEND.bat) na estacao de implantacao; ' +
             'enquanto isso so o crm_status responde. Nada foi lido nem gravado.')
+}
+
+# Mensagem original de um erro lançado dentro de método de objeto ("Exceção ao chamar ..." embrulha).
+function Get-MensagemInterna([System.Exception]$ex) {
+    while ($ex -is [System.Management.Automation.MethodInvocationException] -and $null -ne $ex.InnerException) { $ex = $ex.InnerException }
+    return $ex.Message
+}
+
+# DEV-03: a cópia exclusiva do backup deixa a marca execucao\backup\copiando.txt enquanto segura o arquivo.
+function Test-BackupEmCurso {
+    $marca = Join-Path (Split-Path -Parent $script:CaminhoBanco) 'SISTEMA\DADOS\execucao\backup\copiando.txt'
+    return (Test-Path -LiteralPath $marca)
+}
+
+# DEV-03: erro de escrita com o backup segurando o arquivo vira a mensagem controlada (vazio = não é o caso).
+# Mesma regra de modDB.MensagemEscritaRecusada (front).
+function Get-MensagemEscritaRecusada([string]$erro, [bool]$backupEmCurso) {
+    if (-not $backupEmCurso) { return '' }
+    if ($erro -notmatch 'atualiz|updat|bloquead|locked|em uso|in use|somente leitura|read-only') { return '' }
+    return ('Cópia de segurança (backup) do banco em andamento: gravação recusada, nada foi gravado. ' +
+            'A leitura continua normal; tente gravar de novo em um ou dois minutos.')
 }
 
 # DEV-08: motivo para recusar uma escrita (vazio = pode gravar). Mesma regra de modDB.MotivoRecusaEscrita (front).

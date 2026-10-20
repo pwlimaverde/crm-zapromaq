@@ -344,10 +344,35 @@ End Sub
 
 Public Function ExecutarEm(ByVal cn As Object, ByVal sql As String, _
                            Optional ByVal params As Variant) As Long
-    Dim cmd As Object, n As Long
+    Dim cmd As Object, n As Long, msg As String
+    On Error GoTo falhou
     Set cmd = NovoComando(cn, sql, params)
     cmd.Execute n
     ExecutarEm = n
+    Exit Function
+falhou:
+    Dim nErr As Long, sErr As String, sOrig As String
+    nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
+    ' DEV-03: com o backup segurando o arquivo, o ACE abriu so leitura e a
+    ' gravacao falhou antes de gravar: quem pediu recebe a mensagem controlada
+    msg = MensagemEscritaRecusada(sErr, modBackupAviso.BackupEmCurso())
+    If msg <> "" Then Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.ExecutarEm", msg
+    Err.Raise nErr, sOrig, sErr
+End Function
+
+'----------------------------------------------------------
+' DEV-03: erro de escrita durante a copia exclusiva do backup
+' vira a mensagem controlada ("" = nao e o caso). Mesma regra de
+' Get-MensagemEscritaRecusada (conector, Banco.ps1).
+'----------------------------------------------------------
+Public Function MensagemEscritaRecusada(ByVal erro As String, ByVal backupEmCurso As Boolean) As String
+    Dim s As String
+    If Not backupEmCurso Then Exit Function
+    s = LCase$(erro)
+    If InStr(s, "atualiz") = 0 And InStr(s, "updat") = 0 And InStr(s, "bloquead") = 0 And InStr(s, "locked") = 0 _
+       And InStr(s, "em uso") = 0 And InStr(s, "in use") = 0 And InStr(s, "somente leitura") = 0 And InStr(s, "read-only") = 0 Then Exit Function
+    MensagemEscritaRecusada = "C" & ChrW$(243) & "pia de seguran" & ChrW$(231) & "a (backup) do banco em andamento: grava" & _
+        ChrW$(231) & ChrW$(227) & "o recusada, nada foi gravado. A leitura continua normal; tente gravar de novo em um ou dois minutos."
 End Function
 
 Public Function ConsultarEm(ByVal cn As Object, ByVal sql As String, _

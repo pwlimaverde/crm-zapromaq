@@ -118,6 +118,29 @@ try {
     Conferir 'C06 inativa que é outra gravada no registro é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Descartado' })
 } finally { Set-AtivoEtapa 'Perdido' $true }
 
+Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
+Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
+Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
+Conferir 'erro de outro tipo com backup em curso não é traduzido' ((Get-MensagemEscritaRecusada 'Violação de chave' $true) -eq '')
+
+Write-Host '--- DEV-03: aviso por janela (seção 5.3) - os mesmos casos de testar-recuperacao.ps1 e do modAutoteste'
+function CJ([string]$quando, [string]$tipo, [bool]$val) { return [pscustomobject]@{ instante = [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null); tipo = $tipo; validado = $val } }
+function AJ([string]$quando) { return [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null) }
+$casosJ = @(
+    @{ n = 'J1'; agora = '2026-10-19 10:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true), (CJ '2026-10-19 09:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J2'; agora = '2026-10-19 10:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true)); motivos = 1 }
+    @{ n = 'J3'; agora = '2026-10-19 09:20'; copias = @((CJ '2026-10-16 16:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J4'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true), (CJ '2026-10-19 09:05' 'periodico' $true), (CJ '2026-10-19 12:35' 'periodico' $true), (CJ '2026-10-19 16:10' 'periodico' $true)); motivos = 1 }
+    @{ n = 'J5'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-19 16:10' 'diario' $true)); motivos = 0 }
+    @{ n = 'J6'; agora = '2026-10-19 08:00'; copias = @((CJ '2026-10-15 16:05' 'diario' $true)); motivos = 2 }
+    @{ n = 'J7'; agora = '2026-10-24 11:00'; copias = @((CJ '2026-10-23 16:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J8'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-19 16:10' 'diario' $false)); motivos = 1 }
+)
+foreach ($k in $casosJ) {
+    $av = Get-AvisoBackupJanela (AJ $k.agora) $k.copias
+    Conferir ('aviso de backup ' + $k.n + ': ' + $k.motivos + ' motivo(s)') (@($av.motivos).Count -eq $k.motivos -and $av.alerta -eq ($k.motivos -gt 0)) ($av | ConvertTo-Json -Compress)
+}
+
 Write-Host '--- regras de lista da Fase 2 (C03, C04, C05): puras, sem servidor'
 Conferir 'C05 UF de uma das 27 passa' (Test-UFValida 'sp')
 Conferir 'C05 UF fora das 27 é recusada' (-not (Test-UFValida 'XX'))

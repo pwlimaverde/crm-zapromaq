@@ -521,9 +521,45 @@ def verificar_contrato_conector():
         falha('Contrato do conector', 'instalar-mcp.ps1 anuncia %s ferramentas; o catálogo tem %d' % (q[-1] if q else '?', len(catalogo)))
 
 
+def bloco_ps(txt, nome):
+    # texto da função PowerShell "function nome" até a chave que fecha (contagem simples de chaves)
+    i = txt.find('function ' + nome)
+    if i < 0:
+        return None
+    j = txt.find('{', i)
+    prof = 0
+    for k in range(j, len(txt)):
+        prof += (txt[k] == '{') - (txt[k] == '}')
+        if prof == 0:
+            return txt[i:k + 1].replace('\r\n', '\n')
+    return None
+
+
+def verificar_espelho_backup():
+    # Ciclo 007: o aviso de backup por janela existe em SISTEMA\DADOS\lib\Backup.ps1 e, copiado, no conector
+    # (que não depende de SISTEMA em tempo de execução). As cópias têm de ser idênticas.
+    lib = os.path.join(DADOS, 'lib', 'Backup.ps1')
+    con = os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1')
+    if not (os.path.isfile(lib) and os.path.isfile(con)):
+        return
+    a = open(lib, encoding='utf-8-sig').read()
+    b = open(con, encoding='utf-8-sig').read()
+    for nome in ('Test-DiaUtil', 'Get-InicioJanela', 'Get-CopiasBackup', 'Get-AvisoBackupJanela'):
+        x, y = bloco_ps(a, nome), bloco_ps(b, nome)
+        if x is None or y is None or x != y:
+            falha('Espelho do backup', nome + ': Backup.ps1 e Ferramentas.ps1 diferentes (ou ausente)')
+    for const in ('JanelasBackup', 'JanelaEncerraMin', 'JanelaContaMin', 'FimDoDiaUtil'):
+        rx = r'^\$script:' + const + r' = (.*)$'
+        x = re.findall(rx, a, re.M)
+        y = re.findall(rx, b, re.M)
+        if not x or x != y:
+            falha('Espelho do backup', '$script:' + const + ' diferente entre Backup.ps1 e Ferramentas.ps1')
+
+
 def main():
     vba = fontes_vba()
     verificar_contrato_conector()
+    verificar_espelho_backup()
     verificar_textos_de_etapa(vba)
     verificar_migracao_003()
     verificar_casos_regra()

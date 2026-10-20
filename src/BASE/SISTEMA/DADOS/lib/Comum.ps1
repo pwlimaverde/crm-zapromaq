@@ -226,6 +226,16 @@ function Set-ConfigBanco($cn, [string]$chave, [string]$valor, $tx) {
     }
 }
 
+# O banco está em uso (.laccdb presente)? O .laccdb pode demorar alguns instantes para sumir depois do último
+# Close: espera até $esperarMs antes de decidir (ciclo 007: o ensaio recusava a própria cópia recém-fechada).
+# Continua conservador: .laccdb que não some (resto de queda) conta como em uso.
+function Test-BancoEmUso([string]$banco, [int]$esperarMs = 3000) {
+    $laccdb = [System.IO.Path]::ChangeExtension($banco, 'laccdb')
+    $limite = (Get-Date).AddMilliseconds($esperarMs)
+    while ((Test-Path -LiteralPath $laccdb) -and (Get-Date) -lt $limite) { Start-Sleep -Milliseconds 200 }
+    return (Test-Path -LiteralPath $laccdb)
+}
+
 # ------------------------------------------------------------------ manutenção (DEV-08)
 # config.manutencao = 'estação|usuário|PID|início|motivo'. Preenchida, o front (modDB.AbrirTransacao) e o conector
 # (Invoke-Transacao) recusam toda gravação; a leitura continua. Quem liga é quem mexe no banco (montagem,

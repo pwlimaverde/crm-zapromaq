@@ -42,9 +42,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     ' ---- alerta de backup (spec 006)
     Confere "Backup: instante do nome", modBackupAviso.InstanteDoNome("crm_diario_20261018-081530_EST1.accdb.validado"), DateSerial(2026, 10, 18) + TimeSerial(8, 15, 30)
     Confere "Backup: nome fora do padrao", modBackupAviso.InstanteDoNome("lixo.validado"), CDate(0)
-    Confere "Backup: 30 h nao alerta", modBackupAviso.Atrasado(DateSerial(2026, 10, 17) + TimeSerial(0, 0, 0), DateSerial(2026, 10, 18) + TimeSerial(6, 0, 0)), False
-    Confere "Backup: 40 h alerta", modBackupAviso.Atrasado(DateSerial(2026, 10, 16) + TimeSerial(14, 0, 0), DateSerial(2026, 10, 18) + TimeSerial(6, 0, 0)), True
-    Confere "Backup: nenhum validado alerta", modBackupAviso.Atrasado(0, Now), True
+    Confere "Backup: nome antigo HHMM", modBackupAviso.InstanteDoNome("crm_diario_20261018-0815_EST1.accdb"), DateSerial(2026, 10, 18) + TimeSerial(8, 15, 0)
+    Confere "Backup: tipo do nome", modBackupAviso.TipoDoNome("crm_periodico_20261018-081530_EST1.accdb"), "periodico"
+    ' aviso por janela (ciclo 007): os mesmos casos J1 a J8 de testar-recuperacao.ps1 e testar-mcp.ps1
+    Confere "Backup J1 em dia", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 10:00"), Array(J("2026-10-16 16:05"), J("2026-10-19 09:05")), Array("diario", "diario"), Array(True, True))), 0
+    Confere "Backup J2 janela das 9h sem copia", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 10:00"), Array(J("2026-10-16 16:05")), Array("diario"), Array(True))), 1
+    Confere "Backup J3 janela ainda aberta", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 09:20"), Array(J("2026-10-16 16:05")), Array("diario"), Array(True))), 0
+    Confere "Backup J4 so simples no dia", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 17:00"), Array(J("2026-10-16 16:05"), J("2026-10-19 09:05"), J("2026-10-19 12:35"), J("2026-10-19 16:10")), Array("diario", "periodico", "periodico", "periodico"), Array(True, True, True, True))), 1
+    Confere "Backup J5 completa validada", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 17:00"), Array(J("2026-10-19 16:10")), Array("diario"), Array(True))), 0
+    Confere "Backup J6 estacao desligada na sexta", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 08:00"), Array(J("2026-10-15 16:05")), Array("diario"), Array(True))), 2
+    Confere "Backup J7 sabado", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-24 11:00"), Array(J("2026-10-23 16:05")), Array("diario"), Array(True))), 0
+    Confere "Backup J8 completa sem validar", QtdMotivos(modBackupAviso.MotivosAviso(J("2026-10-19 17:00"), Array(J("2026-10-19 16:10")), Array("diario"), Array(False))), 1
+    Confere "Backup sem copia nenhuma avisa", (modBackupAviso.MotivosAviso(J("2026-10-19 17:00"), Empty, Empty, Empty) <> ""), True
 
     ' ---- DEV-08: guarda no ponto de escrita (mesma regra de Get-MotivoRecusaEscrita do conector)
     Confere "DEV-08 sem manutencao e esquema certo grava", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, ""), ""
@@ -52,6 +61,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "DEV-08 manutencao cita o dono", (InStr(modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "EST-X|ana|12|2026-10-19 10:00|montagem"), "EST-X\ana") > 0), True
     Confere "DEV-08 manutencao em branco nao recusa", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "   "), ""
     Confere "DEV-08 esquema diferente recusa", (modDB.MotivoRecusaEscrita("1.0", "") <> ""), True
+    ' ---- DEV-03: mensagem controlada durante a copia exclusiva do backup
+    Confere "DEV-03 backup em curso + consulta atualizavel", (InStr(modDB.MensagemEscritaRecusada("A opera" & ChrW$(231) & ChrW$(227) & "o deve usar uma consulta atualiz" & ChrW$(225) & "vel.", True), "backup") > 0), True
+    Confere "DEV-03 sem backup segue o erro normal", modDB.MensagemEscritaRecusada("A operacao deve usar uma consulta atualizavel.", False), ""
+    Confere "DEV-03 outro erro nao e traduzido", modDB.MensagemEscritaRecusada("Violacao de chave", True), ""
 
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
@@ -319,6 +332,15 @@ Private Function CamposDaGrade(ByVal tabela As String, ByVal completo As Boolean
         s = s & "," & modSchema.Parte(CStr(c), 0) & ":" & modSchema.Parte(CStr(c), 1)
     Next c
     CamposDaGrade = s & ","
+End Function
+
+' "2026-10-19 10:00" -> data e hora (casos de backup por janela)
+Private Function J(ByVal s As String) As Date
+    J = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2))) + TimeSerial(CInt(Mid$(s, 12, 2)), CInt(Mid$(s, 15, 2)), 0)
+End Function
+
+Private Function QtdMotivos(ByVal m As String) As Long
+    If m = "" Then QtdMotivos = 0 Else QtdMotivos = UBound(Split(m, "; ")) + 1
 End Function
 
 ' CStr(Null) e erro: o relato da falha nao pode quebrar o autoteste.
