@@ -24,28 +24,66 @@ if (-not (Get-Variable -Name AntesDaFerramenta -Scope Script -ErrorAction Silent
 # Diagnóstico (spec 005): um arquivo POR ESTAÇÃO, IA\logs\<prefixo>-<ESTACAO>-AAAAMMDD.log, e cada linha traz
 # [ESTACAO\usuário técnico] e, nas chamadas, o nome da ferramenta. Assim, vários usuários na mesma pasta de
 # rede não misturam nem sobrescrevem os logs, e dá para saber quem (qual estação/conta) chamou o quê.
-# Guardados por 90 dias (os mais antigos saem na abertura).
+# Retenção (seção 5.3, ciclo 007): mês corrente e o anterior, pela DATA DO NOME (não pela data de modificação).
+# Cada linha (DEV-06 parte A): instante com fuso, PID, estação\usuário técnico ([Environment]), versão do
+# servidor, ferramenta, registro (só códigos), texto/erro nativo. Sem conteúdo comercial.
+# Falha ao gravar o diagnóstico não bloqueia a operação: conta em $script:DiagFalhas e aparece no crm_status.
 $script:ArquivoLog = $null
-$script:IdentidadeLog = $env:COMPUTERNAME + '\' + $env:USERNAME
+$script:IdentidadeLog = [Environment]::MachineName + '\' + [Environment]::UserName
+$script:DiagFalhas = 0
+$script:DiagUltimaFalha = ''
+$script:RegistroAtual = ''
+
+# Arquivos de log a apagar: <prefixo>-<ESTACAO>-AAAAMMDD.log com data anterior ao 1º dia do mês anterior.
+function Get-LogsVencidos([string]$pastaLogs, [string]$prefixo, [datetime]$agora) {
+    $corte = (Get-Date -Year $agora.Year -Month $agora.Month -Day 1).Date.AddMonths(-1)
+    return @(Get-ChildItem -LiteralPath $pastaLogs -Filter ($prefixo + '-*.log') -File -ErrorAction SilentlyContinue | Where-Object {
+        $d = [datetime]::MinValue
+        ($_.Name -match '-(\d{8})\.log$') -and [datetime]::TryParseExact($Matches[1], 'yyyyMMdd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$d) -and $d -lt $corte
+    })
+}
+
 function Initialize-LogMcp([string]$raizIA, [string]$prefixo) {
     $pastaLogs = Join-Path $raizIA 'logs'
     try {
         if (-not (Test-Path $pastaLogs)) { New-Item -ItemType Directory -Path $pastaLogs | Out-Null }
-        $estacao = ($env:COMPUTERNAME -replace '[^A-Za-z0-9_-]', '_')
+        $estacao = ([Environment]::MachineName -replace '[^A-Za-z0-9_-]', '_')
         $script:ArquivoLog = Join-Path $pastaLogs ($prefixo + '-' + $estacao + '-' + (Get-Date -Format 'yyyyMMdd') + '.log')
-        $corte = (Get-Date).AddDays(-90)
-        Get-ChildItem -LiteralPath $pastaLogs -Filter ($prefixo + '-*.log') -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $corte } | Remove-Item -Force -ErrorAction SilentlyContinue
-    } catch { }
+        Get-LogsVencidos $pastaLogs $prefixo (Get-Date) | Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { $script:DiagFalhas++; $script:DiagUltimaFalha = 'pasta de logs: ' + $_.Exception.Message }
 }
 $script:FerramentaAtual = ''
 
 function Write-Diag([string]$texto) {
-    $quem = $script:IdentidadeLog
+    $quem = $script:IdentidadeLog + ' v' + $script:VersaoServidor
     if ($script:FerramentaAtual) { $quem += ' ' + $script:FerramentaAtual }
-    $linha = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [' + $PID + '] [' + $quem + '] ' + $texto
+    if ($script:RegistroAtual) { $quem += ' ' + $script:RegistroAtual }
+    $linha = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff zzz') + ' [' + $PID + '] [' + $quem + '] ' + $texto
     try { [Console]::Error.WriteLine($linha) } catch { }
-    if ($script:ArquivoLog) { try { Add-Content -Path $script:ArquivoLog -Value $linha -Encoding UTF8 } catch { } }
+    if ($script:ArquivoLog) {
+        # várias sessões (Claude e Codex) na mesma estação escrevem no mesmo arquivo: compartilhado e com nova tentativa
+        $bytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes($linha + "`r`n")
+        foreach ($espera in @(0, 30, 80, 150, 300)) {
+            if ($espera) { Start-Sleep -Milliseconds $espera }
+            try {
+                $fs = New-Object System.IO.FileStream($script:ArquivoLog, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+                try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
+                return
+            } catch { $ultima = $_.Exception.Message }
+        }
+        $script:DiagFalhas++
+        $script:DiagUltimaFalha = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $ultima
+    }
+}
+
+# Só os códigos do registro (nada de conteúdo comercial): codigo, codigo_cliente, codigo_contato, ids.
+function Get-RegistroDosArgumentos($a) {
+    if ($null -eq $a) { return '' }
+    $partes = @()
+    foreach ($n in @('codigo', 'codigo_cliente', 'id_cliente', 'codigo_contato', 'id_contato', 'id', 'id_planejamento')) {
+        if ($a.PSObject.Properties.Name -contains $n -and $null -ne $a.$n) { $partes += ($n + '=' + [string]$a.$n) }
+    }
+    return ($partes -join ',')
 }
 
 # ------------------------------------------------------------------ E/S
@@ -161,6 +199,8 @@ function Invoke-Ferramenta($params) {
     if ($params.PSObject.Properties.Name -contains 'arguments') { $a = $params.arguments }
     $inicio = Get-Date
     $script:FerramentaAtual = $nome
+    $script:RegistroAtual = ''
+    try { $script:RegistroAtual = Get-RegistroDosArgumentos $a } catch { }
     try {
         # erro de validação volta como erro DE FERRAMENTA, para o modelo ler e corrigir
         Test-Argumentos $f.inputSchema $a
@@ -180,9 +220,10 @@ function Invoke-Ferramenta($params) {
         $ex = $_.Exception
         while ($ex -is [System.Management.Automation.MethodInvocationException] -and $null -ne $ex.InnerException) { $ex = $ex.InnerException }
         $m = $ex.Message
-        Write-Diag ('ERRO ' + $nome + ': ' + $m)
+        # erro nativo: tipo e código (HRESULT) junto da mensagem
+        Write-Diag ('ERRO ' + $nome + ': ' + $m + ' [' + $ex.GetType().Name + ' 0x' + ('{0:X8}' -f $ex.HResult) + ']')
         return [ordered]@{ content = @([ordered]@{ type = 'text'; text = $m }); isError = $true }
-    } finally { $script:FerramentaAtual = '' }
+    } finally { $script:FerramentaAtual = ''; $script:RegistroAtual = '' }
 }
 
 function Invoke-Metodo($msg) {

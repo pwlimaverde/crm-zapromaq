@@ -294,6 +294,7 @@ Public Function AbrirTransacao() As Object
     motivo = MotivoRecusaEscrita(esq, man)
     If motivo <> "" Then
         Desfazer cn
+        modDiag.Registrar "gravacao", "inicio", "", ERRO_ESCRITA_RECUSADA, motivo, "recusada"
         Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.AbrirTransacao", motivo
     End If
     Set AbrirTransacao = cn
@@ -328,9 +329,29 @@ Public Function MotivoRecusaEscrita(ByVal esquema As String, ByVal manutencao As
 End Function
 
 Public Sub Confirmar(ByVal cn As Object)
+    On Error GoTo falhou
     cn.CommitTrans
     cn.Close
+    Exit Sub
+falhou:
+    Dim nErr As Long, sErr As String, sOrig As String
+    nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
+    modDiag.Registrar "gravacao", "commit", "", nErr, sErr
+    Err.Raise nErr, sOrig, sErr
 End Sub
+
+' "UPDATE clientes SET ..." -> "UPDATE clientes" (diagnostico sem dado)
+Public Function OperacaoDoSql(ByVal sql As String) As String
+    Dim palavras As Variant, s As String
+    s = Trim$(Replace(Replace(sql, vbCr, " "), vbLf, " "))
+    palavras = Split(s, " ")
+    If UBound(palavras) < 0 Then Exit Function
+    Select Case UCase$(palavras(0))
+        Case "UPDATE": If UBound(palavras) >= 1 Then OperacaoDoSql = "UPDATE " & palavras(1)
+        Case "INSERT", "DELETE": If UBound(palavras) >= 2 Then OperacaoDoSql = UCase$(palavras(0)) & " " & palavras(2)
+        Case Else: OperacaoDoSql = UCase$(palavras(0))
+    End Select
+End Function
 
 Public Sub Desfazer(ByVal cn As Object)
     On Error Resume Next
@@ -356,6 +377,8 @@ falhou:
     ' DEV-03: com o backup segurando o arquivo, o ACE abriu so leitura e a
     ' gravacao falhou antes de gravar: quem pediu recebe a mensagem controlada
     msg = MensagemEscritaRecusada(sErr, modBackupAviso.BackupEmCurso())
+    ' DEV-06A: so o verbo e a tabela do SQL (os valores sao parametros, nunca entram no texto)
+    modDiag.Registrar "gravacao", OperacaoDoSql(sql), "", nErr, sErr, IIf(msg <> "", "recusada (backup)", "erro")
     If msg <> "" Then Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.ExecutarEm", msg
     Err.Raise nErr, sOrig, sErr
 End Function

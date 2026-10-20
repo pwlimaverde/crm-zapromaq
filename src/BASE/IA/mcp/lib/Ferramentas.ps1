@@ -243,6 +243,8 @@ function Invoke-CrmStatus($a) {
         versao_conector     = $script:VersaoServidor
         capacidades         = @($script:Ferramentas | ForEach-Object { [string]$_.name } | Sort-Object)
         quantidade_ferramentas = @($script:Ferramentas).Count
+        # DEV-06 parte A: falha ao gravar o diagnóstico aparece aqui, sem bloquear nada
+        diagnostico         = [ordered]@{ arquivo = $script:ArquivoLog; falhas = $script:DiagFalhas; ultima_falha = $script:DiagUltimaFalha }
     }
 }
 

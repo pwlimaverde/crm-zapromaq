@@ -66,6 +66,17 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "DEV-03 sem backup segue o erro normal", modDB.MensagemEscritaRecusada("A operacao deve usar uma consulta atualizavel.", False), ""
     Confere "DEV-03 outro erro nao e traduzido", modDB.MensagemEscritaRecusada("Violacao de chave", True), ""
 
+    ' ---- DEV-06A: diagnostico do front (arquivo por estacao e mes, retencao, linha sem dado comercial)
+    Confere "diag nome do arquivo", modDiag.NomeArquivoDiag("EST1", DateSerial(2026, 10, 19)), "front-EST1-202610.log"
+    Confere "diag mes corrente fica", modDiag.DeveApagarDiag("front-EST1-202610.log", "EST1", DateSerial(2026, 10, 19)), False
+    Confere "diag mes anterior fica", modDiag.DeveApagarDiag("front-EST1-202609.log", "EST1", DateSerial(2026, 10, 19)), False
+    Confere "diag dois meses atras sai", modDiag.DeveApagarDiag("front-EST1-202608.log", "EST1", DateSerial(2026, 10, 19)), True
+    Confere "diag virada de ano", modDiag.DeveApagarDiag("front-EST1-202511.log", "EST1", DateSerial(2026, 1, 5)), True
+    Confere "diag de outra estacao nao e apagado", modDiag.DeveApagarDiag("front-EST2-202601.log", "EST1", DateSerial(2026, 10, 19)), False
+    Confere "diag linha numa so linha", (InStr(modDiag.LinhaDiag(DateSerial(2026, 10, 19), "EST1", "ana", "1.6", "frmCRM", "salvar", "clientes:12", 3021, "erro" & vbCrLf & "x", "erro"), vbLf) = 0), True
+    Confere "diag operacao do SQL sem valores", modDB.OperacaoDoSql("UPDATE clientes SET empresa=? WHERE id=?"), "UPDATE clientes"
+    Confere "diag operacao INSERT", modDB.OperacaoDoSql("INSERT INTO log_alteracoes (a) VALUES (?)"), "INSERT log_alteracoes"
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"

@@ -100,7 +100,7 @@ try {
     function ChamarMcp([string]$banco, [string]$ferramenta, $argumentos) {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $ps
-        $psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $b3 'IA\mcp\servidor.ps1') + '" -Banco "' + $banco + '"'
+        $psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path (Split-Path -Parent $banco) 'IA\mcp\servidor.ps1') + '" -Banco "' + $banco + '"'
         $psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
         $psi.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false); $psi.CreateNoWindow = $true
         $p = [System.Diagnostics.Process]::Start($psi)
@@ -168,6 +168,35 @@ try {
     Conferir 'uma única captura na janela' ($copias4.Count -eq 1 -and (Get-CopiaDaJanela $pastaBkp4 '20261019-0900') -ne '') (($copias4 | ForEach-Object { $_.Name }) -join ',')
     Conferir 'os outros três registram "janela atendida", cada um no seu log' ($atendidas -eq 3 -and $logs4.Count -eq 4) ('atendidas=' + $atendidas + ' logs=' + $logs4.Count)
     Conferir 'nenhum .tmp, trava ou marca sobrou' (@(Get-ChildItem -LiteralPath $pastaBkp4 -File | Where-Object { $_.Name -match '\.tmp$|^backup\.lock$|^copiando\.txt$' }).Count -eq 0)
+
+    Write-Host '--- DEV-06 parte A: diagnóstico do conector (retenção pelo nome, falha de escrita no crm_status)'
+    $b5 = NovaBase 'base-diag'
+    $banco5 = Join-Path $b5 'crm_zapromaq.accdb'
+    $logs5 = Join-Path $b5 'IA\logs'
+    if (Test-Path -LiteralPath $logs5) { Remove-Item -LiteralPath $logs5 -Recurse -Force }
+    New-Item -ItemType Directory -Path $logs5 -Force | Out-Null
+    $est = ([Environment]::MachineName -replace '[^A-Za-z0-9_-]', '_')
+    $mesAtual = (Get-Date -Day 1).Date
+    $vencido = Join-Path $logs5 ('mcp-' + $est + '-' + $mesAtual.AddMonths(-2).ToString('yyyyMMdd') + '.log')
+    $anterior = Join-Path $logs5 ('mcp-' + $est + '-' + $mesAtual.AddMonths(-1).ToString('yyyyMMdd') + '.log')
+    foreach ($f in $vencido, $anterior) { [IO.File]::WriteAllText($f, 'x') }
+    (Get-Item -LiteralPath $vencido).LastWriteTime = Get-Date   # a data que vale é a do NOME
+    $st = (ChamarMcp $banco5 'crm_status' ([ordered]@{})).content[0].text | ConvertFrom-Json
+    Conferir 'retenção: arquivo de dois meses atrás sai (pela data do nome)' (-not (Test-Path -LiteralPath $vencido))
+    Conferir 'retenção: o do mês anterior fica' (Test-Path -LiteralPath $anterior)
+    Conferir 'crm_status traz diagnostico sem falhas' ($null -ne $st.diagnostico -and [int]$st.diagnostico.falhas -eq 0 -and [string]$st.diagnostico.arquivo -match ('mcp-' + $est)) ($st.diagnostico | ConvertTo-Json -Compress)
+    $hoje5 = Join-Path $logs5 ('mcp-' + $est + '-' + (Get-Date -Format 'yyyyMMdd') + '.log')
+    $linhas5 = @(Get-Content -LiteralPath $hoje5 -Encoding UTF8)
+    Conferir 'linha do diagnóstico: instante com fuso, estação\usuário, versão e ferramenta' (@($linhas5 | Where-Object { $_ -match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2} \[\d+\] \[.+\\.+ v\d+\.\d+\.\d+ crm_status\]' }).Count -ge 1) ($linhas5 -join ' | ')
+    $res = ChamarMcp $banco5 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' })
+    $linhas5 = @(Get-Content -LiteralPath $hoje5 -Encoding UTF8)
+    Conferir 'linha do diagnóstico traz o código do registro' (@($linhas5 | Where-Object { $_ -match 'obter_atendimento codigo=AT-0001-0001' }).Count -ge 1) ($linhas5 -join ' | ')
+    Set-ItemProperty -LiteralPath $hoje5 -Name IsReadOnly -Value $true
+    try {
+        $res = ChamarMcp $banco5 'crm_status' ([ordered]@{})
+        $st = $res.content[0].text | ConvertFrom-Json
+        Conferir 'diagnóstico sem poder gravar: a operação responde e o crm_status mostra a falha' ((-not $res.isError) -and [int]$st.diagnostico.falhas -ge 1 -and [string]$st.diagnostico.ultima_falha -ne '') ($st.diagnostico | ConvertTo-Json -Compress)
+    } finally { Set-ItemProperty -LiteralPath $hoje5 -Name IsReadOnly -Value $false }
 
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
