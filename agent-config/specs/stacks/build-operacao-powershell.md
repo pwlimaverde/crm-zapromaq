@@ -111,4 +111,16 @@ banco antigo: `-Recriar`. Mudança no
 - `backup-banco.ps1`: trava `backup.lock` com dono (exit 4 se ocupado; abandonada é recuperada), nome com segundos,
   `.tmp` promovido após conferência, manifesto + restauração descartável e marca `.validado`, logs por execução.
   A retenção nunca apaga o último validado. `config.geracao_base` é renovada na publicação e por `renovar-geracao.ps1`.
-- Alerta: front (`modBackupAviso`) e conector (`crm_status`) avisam se o último validado passou de 36 h.
+- Alerta: front (`modBackupAviso`) e conector (`crm_status`) avisam pela regra por janela (ciclo 007; antes, 36 h).
+
+## Recuperação e publicação (ciclo 007)
+
+- Backup completo com exclusividade durante toda a captura (`Enter-CopiaExclusiva`, FileShare.Read, cópia pelo
+  fluxo, manifesto no mesmo corte); cópia simples sem bloquear quem grava (`consistencia = nao-verificada`).
+- Agendado: janela `AAAAMMDD-HHMM`; disparos simultâneos esperam a trava e registram "janela atendida".
+- Aviso por janela (seção 5.3) substitui as 36 h: `Get-AvisoBackupJanela` (casos J1-J8).
+- `backup.log` compartilhado: escrita com compartilhamento e nova tentativa. Em função que roda dentro de outro
+  script, nada de `$x++` em variável de nome comum (PowerShell 5.1 não compila se o chamador tiver `$x` de outro tipo).
+- `Test-BancoEmUso` espera o `.laccdb` do último Close sumir (até 3 s) antes de decidir.
+- Volta: `MONTAR-FRONTEND.bat -Volta -Motivo`; manifesto de release em `execucao\releases` (`build\lib\Release.ps1`).
+- Testes: `testar-recuperacao.ps1` (ACE), `testar-build-lib.ps1`, `testar-publicacao-copia.ps1` (volta, Excel).

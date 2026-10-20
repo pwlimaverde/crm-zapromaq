@@ -1,6 +1,6 @@
 # Spec: Recuperação, manutenção e contrato do conector (ciclo 007)
 
-> Situação: aprovada em 19/10/2026 (plano revisado de 19/10/2026, seção 5, Etapa 1)
+> Concluída em 19/10/2026 - feature/recuperacao-e-contrato (plano revisado de 19/10/2026, seção 5, Etapa 1)
 
 ## Objetivo
 
@@ -17,14 +17,14 @@ A publicação 1.6 não é feita aqui (depende do banco real e da estação): fi
 
 ## Critérios de aceite
 
-- [ ] DEV-07: `testar-mcp` falha se faltar ou sobrar ferramenta em relação à lista exata (41); cada ferramenta tem título, descrição, `inputSchema` e `annotations`; `crm_status` devolve `versao_conector`, `capacidades` (nomes do catálogo) e `quantidade_ferramentas`; `instalar-mcp.ps1` anuncia a mesma contagem do catálogo (verificar.py).
-- [ ] DEV-08: com `config.manutencao` preenchida, toda gravação do conector é recusada com "manutenção" e nada muda (hash); leitura continua; no front, `modDB.AbrirTransacao` confere esquema e manutenção **dentro** da transação e recusa (mensagem pura `modDB.MotivoRecusaEscrita`, `Confere`); a ficha mantém a digitação (caminho de erro existente). O `aplicar-migracoes` (no lugar) liga o sinal com dono e desliga no fim; migração estrutural interrompida deixa o sinal ligado (falha segura) até `-LiberarManutencao`. A montagem **não** grava o sinal na produção (contrato D22: falha antes do passo 11 deixa a produção byte a byte igual); ali a proteção é a trava livre + hash H0 + esquema conferido no ponto de escrita (ficha aberta antes da troca não grava no esquema novo).
-- [ ] DEV-03: o backup segura o arquivo do banco com `FileShare.Read` durante a cópia inteira (cópia feita pelo próprio fluxo aberto); com o arquivo seguro, uma conexão ACE abre só leitura e a gravação falha — o conector devolve a mensagem controlada "cópia de segurança em andamento… nada foi gravado" (marca `execucao\backup\copiando.txt`), e o front traduz o mesmo erro (`modDB.MensagemEscritaRecusada`, `Confere`).
-- [ ] DEV-03: quatro disparos simultâneos `-Modo Agendado` para a mesma janela geram **uma** captura; os demais registram "janela atendida" e saem com 0; nenhum arquivo sobrescrito; logs por execução íntegros.
-- [ ] DEV-03: aviso por janela (seção 5.3), igual em `lib\Backup.ps1` (estado do sistema), no `crm_status` e no front (`modBackupAviso`): (a) a última janela encerrada (9h, 12h30, 16h, seg-sex; encerrada 30 min depois do início) sem nenhuma cópia; (b) dia útil cujas 16h30 já passaram sem cópia **completa validada** (cópia simples não apaga o aviso b). Estação desligada num dia útil → aviso no próximo acesso.
-- [ ] DEV-06A: o front grava `EXECUCAO\logs\front-<ESTACAO>-AAAAMM.log` com instante, estação, usuário técnico, versão, tela/operação, registro, erro nativo e resultado, sem conteúdo comercial; apaga os próprios arquivos anteriores ao mês anterior; falha de escrita não bloqueia. O conector guarda só o mês corrente e o anterior (pelo nome) e o `crm_status` informa `diagnostico.falhas` e `diagnostico.ultima_falha`.
-- [ ] DEV-04: `MONTAR-FRONTEND.bat -Volta -Motivo "<texto>"` publica o conteúdo do pacote extraído (versão do `MANIFESTO.json`) como **nova versão maior**, recusa sem motivo, sem pacote, com pacote de versão ≥ publicada, ou com esquema esperado pela fonte diferente do banco; toda publicação grava `execucao\releases\release-<versão>.json` com commit, versões do front, conector e esquema, migrações aplicadas, hashes do `.xlsm` e dos scripts de `build\` e `operacao\`, tipo (`publicacao`|`volta`) e motivo. Prova: `testar-build-lib`.
-- [ ] DEV-05: `IA\mcp\publicar-conector.ps1` copia `servidor.ps1`, `lib\` e a skill para `IA\conector\versoes\<versão>\` (temporária → conferida → renomeada; pasta existente com conteúdo diferente é recusada) e só promove o ponteiro `IA\conector\ATUAL.txt` (troca atômica) depois do `testar-mcp` num banco de homologação temporário; `-Voltar <versão>` reaponta e recusa versão que não suporta o esquema do banco; `IA\mcp\lancador.ps1` (registrado pelo instalador) lê o ponteiro uma vez e carrega a pasta; sem ponteiro, carrega `IA\mcp\servidor.ps1`. `crm_status` informa `pasta_conector`. Prova: `testar-conector-versoes.ps1`.
+- [x] DEV-07: `testar-mcp` falha se faltar ou sobrar ferramenta em relação à lista exata (41); cada ferramenta tem título, descrição, `inputSchema` e `annotations`; `crm_status` devolve `versao_conector`, `capacidades` (nomes do catálogo) e `quantidade_ferramentas`; `instalar-mcp.ps1` anuncia a mesma contagem do catálogo (verificar.py).
+- [x] DEV-08: com `config.manutencao` preenchida, toda gravação do conector é recusada com "manutenção" e nada muda (hash); leitura continua; no front, `modDB.AbrirTransacao` confere esquema e manutenção **dentro** da transação e recusa (mensagem pura `modDB.MotivoRecusaEscrita`, `Confere`); a ficha mantém a digitação (caminho de erro existente). O `aplicar-migracoes` (no lugar) liga o sinal com dono e desliga no fim; migração estrutural interrompida deixa o sinal ligado (falha segura) até `-LiberarManutencao`. A montagem **não** grava o sinal na produção (contrato D22: falha antes do passo 11 deixa a produção byte a byte igual); ali a proteção é a trava livre + hash H0 + esquema conferido no ponto de escrita (ficha aberta antes da troca não grava no esquema novo).
+- [x] DEV-03: o backup segura o arquivo do banco com `FileShare.Read` durante a cópia inteira (cópia feita pelo próprio fluxo aberto); com o arquivo seguro, uma conexão ACE abre só leitura e a gravação falha — o conector devolve a mensagem controlada "cópia de segurança em andamento… nada foi gravado" (marca `execucao\backup\copiando.txt`), e o front traduz o mesmo erro (`modDB.MensagemEscritaRecusada`, `Confere`).
+- [x] DEV-03: quatro disparos simultâneos `-Modo Agendado` para a mesma janela geram **uma** captura; os demais registram "janela atendida" e saem com 0; nenhum arquivo sobrescrito; logs por execução íntegros.
+- [x] DEV-03: aviso por janela (seção 5.3), igual em `lib\Backup.ps1` (estado do sistema), no `crm_status` e no front (`modBackupAviso`): (a) a última janela encerrada (9h, 12h30, 16h, seg-sex; encerrada 30 min depois do início) sem nenhuma cópia; (b) dia útil cujas 16h30 já passaram sem cópia **completa validada** (cópia simples não apaga o aviso b). Estação desligada num dia útil → aviso no próximo acesso.
+- [x] DEV-06A: o front grava `EXECUCAO\logs\front-<ESTACAO>-AAAAMM.log` com instante, estação, usuário técnico, versão, tela/operação, registro, erro nativo e resultado, sem conteúdo comercial; apaga os próprios arquivos anteriores ao mês anterior; falha de escrita não bloqueia. O conector guarda só o mês corrente e o anterior (pelo nome) e o `crm_status` informa `diagnostico.falhas` e `diagnostico.ultima_falha`.
+- [x] DEV-04: `MONTAR-FRONTEND.bat -Volta -Motivo "<texto>"` publica o conteúdo do pacote extraído (versão do `MANIFESTO.json`) como **nova versão maior**, recusa sem motivo, sem pacote, com pacote de versão ≥ publicada, ou com esquema esperado pela fonte diferente do banco; toda publicação grava `execucao\releases\release-<versão>.json` com commit, versões do front, conector e esquema, migrações aplicadas, hashes do `.xlsm` e dos scripts de `build\` e `operacao\`, tipo (`publicacao`|`volta`) e motivo. Prova: `testar-build-lib`.
+- [x] DEV-05: `IA\mcp\publicar-conector.ps1` copia `servidor.ps1`, `lib\` e a skill para `IA\conector\versoes\<versão>\` (temporária → conferida → renomeada; pasta existente com conteúdo diferente é recusada) e só promove o ponteiro `IA\conector\ATUAL.txt` (troca atômica) depois do `testar-mcp` num banco de homologação temporário; `-Voltar <versão>` reaponta e recusa versão que não suporta o esquema do banco; `IA\mcp\lancador.ps1` (registrado pelo instalador) lê o ponteiro uma vez e carrega a pasta; sem ponteiro, carrega `IA\mcp\servidor.ps1`. `crm_status` informa `pasta_conector`. Prova: `testar-conector-versoes.ps1`.
 
 ## Stacks tocadas
 
@@ -79,3 +79,17 @@ Itens 🖥: publicação 1.6 pela exceção da seção 4; ensaio de restauraçã
 ## Questões em aberto
 
 Nenhuma: RPO/RTO e responsável pelo alerta são da gestão (item 🖥); cópia fora do servidor é da TI.
+
+## Itens 🖥 (estação de implantação)
+
+1. Publicação 1.6 pela exceção da seção 4 do plano: todos os clientes e conectores fechados, acesso exclusivo
+   comprovado, cópia validada imediatamente antes (`FAZER-BACKUP.bat` + `TESTAR-RESTAURACAO.bat`), `MONTAR-FRONTEND.bat -Ensaio`,
+   depois `MONTAR-FRONTEND.bat`; conferir `execucao\releases\release-1.6.json` (commit do pacote, esquema 1.1, migrações 001-003).
+2. `IA\PUBLICAR-CONECTOR.bat` e, em cada estação com IA, `IA\INSTALAR-MCP.bat` (registra o lançador); `crm_status`
+   com `pasta_conector` em `IA\conector\versoes\1.6.0` e 41 ferramentas.
+3. Ensaio de restauração cronometrado (manual em `docs\implantacao.md` §11) e RPO/RTO definidos pela gestão.
+4. Aviso de backup: abrir o front com a pasta de backup sem a cópia da última janela e ver a mensagem; `crm_status` com `motivos_backup`.
+5. Exclusividade: durante `FAZER-BACKUP.bat -Modo Diario`, tentar salvar uma ficha e ver "Cópia de segurança em andamento" (a ficha mantém o que foi digitado).
+6. Manutenção: `config.manutencao` ligada por `aplicar-migracoes` num banco TESTE; tentar salvar na ficha e no Claude Desktop e ver a recusa.
+7. Diagnóstico: forçar um erro de gravação (ex.: banco TESTE só leitura) e conferir `execucao\logs\front-<ESTACAO>-AAAAMM.log`.
+8. Volta do front e do conector ensaiadas numa cópia da BASE (`-Volta -Motivo`; `PUBLICAR-CONECTOR.bat -Voltar`).

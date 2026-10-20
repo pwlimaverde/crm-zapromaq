@@ -1,3 +1,23 @@
+## Conector 1.6.0 — contrato, manutenção, backup e publicação por versão (ciclo 007)
+
+**Nota de mudança (DEV-07).** Nenhuma ferramenta sai nem muda parâmetro; o catálogo continua com
+**41 ferramentas**, agora testado contra a lista exata (`testar-mcp.ps1`, `$script:FerramentasEsperadas`).
+- `crm_status` (aditivo): `versao_conector`, `capacidades` (nomes do catálogo), `quantidade_ferramentas`,
+  `pasta_conector`, `diagnostico` (`arquivo`, `falhas`, `ultima_falha`) e `motivos_backup`. `alerta_backup`
+  segue a regra por janela da seção 5.3 (9h, 12h30, 16h; dia útil sem cópia completa validada) — não mais 36 h.
+- Erros novos em toda gravação: "Sistema em manutenção (...): gravação recusada, nada foi gravado" quando
+  `config.manutencao` está ligada; "Cópia de segurança (backup) do banco em andamento: gravação recusada,
+  nada foi gravado" durante a cópia exclusiva. As skills devem tratá-los como "tente depois", sem repetir sozinhas.
+- Mensagens de erro chegam sem o embrulho "Exceção ao chamar ...".
+- Diagnóstico (`IA\logs\mcp-<ESTACAO>-AAAAMMDD.log`): mês corrente e anterior (pela data do nome); cada linha
+  traz versão, ferramenta, código do registro e tipo/HRESULT do erro.
+
+**Publicação por versão (DEV-05).** O cliente passa a registrar `mcp\lancador.ps1` (reinstale com
+`INSTALAR-MCP.bat` / `INSTALAR-CLAUDE-E-CODEX.bat`). Para publicar: `PUBLICAR-CONECTOR.bat` (copia para
+`conector\versoes\<versão>`, roda o `testar-mcp` num banco de homologação temporário e troca `conector\ATUAL.txt`).
+Para voltar: `PUBLICAR-CONECTOR.bat -Voltar <versão> -Motivo "..."` (recusa versão adulterada ou que não
+suporta o esquema do banco). Histórico em `conector\historico.log`. Sem ponteiro, o lançador usa `mcp\`.
+
 ## Visitas, planejamentos, municípios e listas — esquema 1.1 (spec 003)
 
 O conector de dados passa de 25 para **41 ferramentas** (`instalar-mcp.ps1` anuncia 41).

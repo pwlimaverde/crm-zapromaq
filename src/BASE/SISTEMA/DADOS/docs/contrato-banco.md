@@ -30,6 +30,8 @@ este contrato. Qualquer terceiro cliente futuro segue as mesmas regras.
 | Versão do **esquema** | `config.versao_esquema` | Front grava só se for exatamente a esperada (`modConfig.VERSAO_ESQUEMA`); a IA grava só se estiver na lista que conhece. Mudou a estrutura → migração em `banco\migracoes` + publicar front **e** IA juntos. |
 | Versão do **registro** | coluna `versao` | Todo `UPDATE` de campo do vendedor é `... SET ..., versao=versao+1 WHERE id=? AND versao=?`. Zero linhas = alguém alterou depois da leitura: **não sobrescrever**, avisar e reler. |
 | Versão do **front** | `config.versao_front` | Gravada pelo build ao publicar; a cópia local compara e avisa se ficou para trás. |
+| **Manutenção** (ciclo 007, DEV-08) | `config.manutencao` | `estação\|usuário\|PID\|início\|motivo`. Preenchida, front (`modDB.AbrirTransacao`) e conector (`Invoke-Transacao`, antes da 1ª escrita) recusam **toda** gravação, conferindo dentro da transação junto com o esquema; a leitura continua. Liga/desliga: `aplicar-migracoes.ps1` (no lugar); `-LiberarManutencao` desliga à mão. |
+| **Backup em curso** (ciclo 007, DEV-03) | arquivo `SISTEMA\DADOS\execucao\backup\copiando.txt` | Enquanto existe, a cópia completa segura o `.accdb` (`FileShare.Read`): o ACE abre só leitura e a gravação falha antes de gravar; front e conector mostram "cópia de segurança em andamento… nada foi gravado". |
 
 Campos `ctx_*` são escritos só pela IA e nunca pelo formulário: não entram no
 controle de versão (não há conflito possível entre os dois).

@@ -141,3 +141,10 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 
 `agent-config/doc_dev/planejamento/referencias/` 01-vba-msforms, 02-vba-linguagem,
 03-vbe-modelo-extensibilidade, 04-excel-modelo-objetos, 05-excel-ribbon-customui, 14-office-2019.
+
+## Ponto de escrita e diagnóstico (ciclo 007)
+
+- `modDB.AbrirTransacao` confere esquema e `config.manutencao` dentro da transação (`MotivoRecusaEscrita`) e preserva `gCampos`.
+- `modDB.ExecutarEm` troca o erro de escrita durante o backup pela mensagem controlada (`MensagemEscritaRecusada`)
+  e registra a falha no diagnóstico (`modDiag`, `execucao\logs\front-<ESTACAO>-AAAAMM.log`, sem dado comercial).
+- `modBackupAviso.MotivosAviso`: regra por janela, os mesmos casos J1-J8 do PowerShell.

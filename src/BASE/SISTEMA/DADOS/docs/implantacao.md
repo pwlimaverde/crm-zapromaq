@@ -74,14 +74,24 @@ teste na rede**.
 
 ## 10. Claude Desktop 🖥
 
-1. Reabrir e reinstalar `IA\instrucoes\crm-zapromaq.zip`.
-2. `crm_status` deve mostrar `versao_servidor_mcp 1.5.0`, `versao_esquema 1.1`, `gravacao_liberada true`
-   e `atualizacao_pendente false`. Com o banco ainda no 1.0 o conector responde só o `crm_status`, com
+1. `IA\PUBLICAR-CONECTOR.bat` (ciclo 007): copia o conector para `IA\conector\versoes\<versão>`, roda o
+   `testar-mcp` num banco de homologação temporário e troca o ponteiro `IA\conector\ATUAL.txt`.
+2. Em cada estação com IA: `IA\INSTALAR-MCP.bat` (ou `INSTALAR-CLAUDE-E-CODEX.bat`) uma vez, para registrar o
+   lançador fixo `IA\mcp\lancador.ps1`; reabrir e reinstalar `IA\instrucoes\crm-zapromaq.zip`.
+3. `crm_status` deve mostrar `versao_conector` igual à do ponteiro, `pasta_conector` em `IA\conector\versoes\...`,
+   `quantidade_ferramentas 41`, `versao_esquema 1.1`, `gravacao_liberada true` e `atualizacao_pendente false`. Com o banco ainda no 1.0 o conector responde só o `crm_status`, com
    `atualizacao_pendente true`; as outras ferramentas dizem "banco aguardando atualização".
 
 ## 11. Backups da rotina 🖥
 
 1. `SISTEMA\DADOS\operacao\AGENDAR-BACKUPS.bat`, depois `FAZER-BACKUP.bat`, depois `TESTAR-RESTAURACAO.bat`.
+2. **Manual de restauração cronometrado (DEV-03):** com cronômetro, restaurar a última cópia validada numa
+   pasta de homologação (`TESTAR-RESTAURACAO.bat`) e anotar aqui: tempo total, instante do corte recuperado
+   (`instante_local` do `.manifesto.json`) e perda potencial (tempo desde o corte). A gestão define RPO, RTO e
+   quem responde ao aviso de backup; cópia fora do servidor é pedido à TI (ou limitação aceita, registrada).
+3. Exclusividade (ciclo 007): durante a cópia completa (segundos), quem tentar gravar recebe "Cópia de
+   segurança em andamento… nada foi gravado"; ler continua normal. Aviso no Início e no `crm_status` quando
+   uma janela (9h, 12h30, 16h) termina sem cópia ou o dia útil termina sem cópia completa validada.
 
 ## 12. Itens 🖥 da spec 003 e do ciclo 004
 
@@ -106,6 +116,11 @@ teste na rede**.
   `VERSAO.txt` e o banco. O log diz o que foi devolvido. O `VERSAO-FRONT.txt` é gravado por último:
   depois dele a publicação vale (ponto de não retorno).
 - **Problema depois de publicado:**
+  - **volta do front (DEV-04, ciclo 007):** extrair por cima da BASE o pacote da versão boa e rodar
+    `SISTEMA\MONTAR-FRONTEND.bat -Volta -Motivo "<por que>"`: publica aquele conteúdo como versão NOVA, maior
+    (as estações recebem pelo atalho), e registra em `execucao\releases\release-<versão>.json`. É recusada se o
+    front antigo esperar outro esquema (o banco não volta de esquema sobre gravações novas);
+  - **volta do conector (DEV-05):** `IA\PUBLICAR-CONECTOR.bat -Voltar <versão> -Motivo "..."`;
   - preferir corrigir para frente (hotfix 1.7): a migração só acrescenta e o front 1.5 recusa gravar no 1.1;
   - volta total só se ninguém gravou ainda: todos fecham; copiar da pasta `antes-da-publicacao` o banco
     e o `.xlsm`, e restaurar o `VERSAO-FRONT.txt` do backup do passo 3. Em cada estação que já tinha a

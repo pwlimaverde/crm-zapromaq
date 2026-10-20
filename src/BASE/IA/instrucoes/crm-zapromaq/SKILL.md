@@ -23,6 +23,12 @@ ao banco. O MCP de desenvolvimento `crm-zapromaq-dev` não é necessário para u
 
 Chame `crm_status`. Se `gravacao_liberada` vier `false`, o banco está numa versão
 de esquema que este conector não conhece: faça só leituras e avise o usuário.
+`capacidades` lista as ferramentas desta versão (`versao_conector`): não use ferramenta que não
+esteja ali. `alerta_backup` = `true` com `motivos_backup`: avise o usuário (backup atrasado).
+
+Se uma gravação voltar **"Sistema em manutenção"** ou **"Cópia de segurança (backup) do banco
+em andamento"**, nada foi gravado: avise o usuário e tente de novo só quando ele pedir (o
+backup leva segundos; a manutenção, o tempo da atualização). Não repita sozinho em laço.
 
 ## Ler
 
