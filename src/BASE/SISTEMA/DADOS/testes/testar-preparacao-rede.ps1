@@ -284,7 +284,8 @@ try {
     $st = $res.content[0].text | ConvertFrom-Json
     Conferir 'banco 1.0: crm_status responde, com atualizacao_pendente=true e gravacao_liberada=false' (-not $res.isError -and $st.atualizacao_pendente -eq $true -and $st.gravacao_liberada -eq $false) ($res.content[0].text)
     Conferir 'crm_status informa esquemas_suportados = 1.1' (@($st.esquemas_suportados) -join ',' -eq '1.1') (@($st.esquemas_suportados) -join ',')
-    Conferir 'crm_status informa versao_servidor_mcp 1.5.0' ($st.versao_servidor_mcp -eq '1.5.0') $st.versao_servidor_mcp
+    $versaoFonte = ([regex]::Match([IO.File]::ReadAllText((Join-Path $raizBase 'IA\mcp\servidor.ps1')), "(?m)^\`$script:VersaoServidor = '([^']+)'")).Groups[1].Value
+    Conferir ('crm_status informa versao_servidor_mcp da fonte (' + $versaoFonte + ')') ($st.versao_servidor_mcp -eq $versaoFonte -and $versaoFonte -ne '') $st.versao_servidor_mcp
     $res = ChamarMcp $v10 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' })
     Conferir 'banco 1.0: leitura recusada com a mensagem do esquema 1.0' ($res.isError -eq $true -and $res.content[0].text -match 'esquema 1\.0') ($res.content[0].text)
     $res = ChamarMcp $v10 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = 1; tentativas = 2; autor = 'tpr' })
