@@ -175,7 +175,11 @@ function Invoke-Ferramenta($params) {
         $json = ConvertTo-Json -InputObject $resultado -Depth 20
         return [ordered]@{ content = @([ordered]@{ type = 'text'; text = $json }); isError = $false }
     } catch {
-        $m = $_.Exception.Message
+        # erro lançado dentro de método de objeto ($ctx.Executar...) vem embrulhado em "Exceção ao chamar ...":
+        # a IA precisa ler a mensagem original
+        $ex = $_.Exception
+        while ($ex -is [System.Management.Automation.MethodInvocationException] -and $null -ne $ex.InnerException) { $ex = $ex.InnerException }
+        $m = $ex.Message
         Write-Diag ('ERRO ' + $nome + ': ' + $m)
         return [ordered]@{ content = @([ordered]@{ type = 'text'; text = $m }); isError = $true }
     } finally { $script:FerramentaAtual = '' }

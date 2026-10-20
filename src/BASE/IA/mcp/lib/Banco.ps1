@@ -180,14 +180,29 @@ function Invoke-Transacao([scriptblock]$bloco) {
             $c = New-Comando $this.Cn $sql $params $this.Tx
             try { return (ConvertFrom-ValorBanco $c.ExecuteScalar()) } finally { $c.Dispose() }
         }
+        $ctx | Add-Member -NotePropertyName Conferida -NotePropertyValue $false
+        # DEV-08: antes da PRIMEIRA escrita, dentro da transação, confere manutenção e esquema. Leitura em
+        # transação (candidatos, roteiro) continua liberada durante a manutenção.
+        $ctx | Add-Member -MemberType ScriptMethod -Name ConferirEscrita -Value {
+            if ($this.Conferida) { return }
+            $c = New-Comando $this.Cn "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao')" @() $this.Tx
+            try { $linhas = Read-Linhas $c } finally { $c.Dispose() }
+            $esq = ''; $man = ''
+            foreach ($l in $linhas) { if ($l.chave -eq 'versao_esquema') { $esq = [string]$l.valor } else { $man = [string]$l.valor } }
+            $motivo = Get-MotivoRecusaEscrita $esq $man
+            if ($motivo) { throw $motivo }
+            $this.Conferida = $true
+        }
         $ctx | Add-Member -MemberType ScriptMethod -Name Executar -Value {
             param($sql, $params)
+            $this.ConferirEscrita()
             $c = New-Comando $this.Cn $sql $params $this.Tx
             try { return $c.ExecuteNonQuery() } finally { $c.Dispose() }
         }
         $ctx | Add-Member -MemberType ScriptMethod -Name Log -Value {
             param($tabela, $idRegistro, $campo, $antigo, $novo, $acao)
-            $sql = 'INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo,' +
+            $this.ConferirEscrita()
+            $sql ='INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo,' +
                    ' acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)'
             $c = New-Comando $this.Cn $sql @(
                 (P 'texto' $tabela), (P 'inteiro' $idRegistro), (P 'texto' $campo),
@@ -225,6 +240,21 @@ function Get-MotivoEsquemaNaoSuportado {
     return ("Banco aguardando atualizacao: ele esta no esquema " + $v + " e este conector exige o esquema " +
             ($script:EsquemasSuportados -join ', ') + '. A atualizacao do banco e feita pela montagem (MONTAR-FRONTEND.bat) na estacao de implantacao; ' +
             'enquanto isso so o crm_status responde. Nada foi lido nem gravado.')
+}
+
+# DEV-08: motivo para recusar uma escrita (vazio = pode gravar). Mesma regra de modDB.MotivoRecusaEscrita (front).
+# config.manutencao = 'estação|usuário|PID|início|motivo', ligada pela montagem/migrações enquanto mexem no banco.
+function Get-MotivoRecusaEscrita([string]$esquema, [string]$manutencao) {
+    if (-not [string]::IsNullOrWhiteSpace($manutencao)) {
+        $p = $manutencao.Split('|')
+        $quem = if ($p.Count -ge 5) { ' (' + $p[4] + ', por ' + $p[0] + '\' + $p[1] + ' desde ' + $p[3] + ')' } else { '' }
+        return ('Sistema em manutenção' + $quem + ': gravação recusada, nada foi gravado. Tente de novo quando a manutenção terminar.')
+    }
+    if ($script:EsquemasSuportados -notcontains $esquema) {
+        return ("Gravação bloqueada: o banco está no esquema '" + $esquema + "' e este conector conhece " +
+                ($script:EsquemasSuportados -join ', ') + '. Nada foi gravado. Atualize a pasta IA junto com o sistema.')
+    }
+    return ''
 }
 
 function Assert-EsquemaGravavel {

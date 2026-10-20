@@ -510,6 +510,25 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         # Devolve ao estado inicial o que muda o resultado dos testes acima, para o teste
         # poder rodar de novo no mesmo banco (sem isto, a 2a execução falhava: o AT-0001-0001
         # deixava de estar atrasado e a cidade do cliente 2 já estava normalizada).
+        Write-Host '--- manutenção (DEV-08): config.manutencao recusa gravação no ponto de escrita; leitura continua'
+        Conferir 'motivo puro: sem manutenção e esquema 1.1 grava' ((Get-MotivoRecusaEscrita '1.1' '') -eq '')
+        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita '1.1' 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
+        Conferir 'motivo puro: esquema desconhecido recusa' ((Get-MotivoRecusaEscrita '0.9' '') -match 'esquema')
+        $atM = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        Executa-Visita "INSERT INTO config (chave, valor) VALUES ('manutencao', ?)" @((P 'texto' 'EST-TESTE|teste|1|2026-10-19 10:00|migração de teste'))
+        try {
+            $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = 7; autor = 'teste' })
+            Conferir 'manutenção ligada: gravação recusada com a mensagem de manutenção' ($res.isError -and $res.content[0].text -match 'manutenção') $res.content[0].text
+            Conferir 'a mensagem chega limpa (sem "Exceção ao chamar")' ($res.content[0].text -notmatch 'chamar') $res.content[0].text
+            $res = Chamar 'criar_cliente' ([ordered]@{ empresa = 'EMPRESA MANUTENCAO TESTE'; autor = 'teste' })
+            Conferir 'manutenção ligada: criação também recusada' ($res.isError -and $res.content[0].text -match 'manutenção') $res.content[0].text
+            $atM2 = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+            Conferir 'manutenção ligada: leitura continua e o registro não mudou (versão igual)' ([int]$atM2.versao -eq [int]$atM.versao)
+            Conferir 'manutenção ligada: nada foi criado' ([int](Invoke-Valor "SELECT COUNT(*) FROM clientes WHERE empresa='EMPRESA MANUTENCAO TESTE'" @()) -eq 0)
+        } finally { Executa-Visita "DELETE FROM config WHERE chave='manutencao'" }
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = [int]$atM.tentativas; observacoes_acrescentar = 'depois da manutenção'; autor = 'teste' })
+        Conferir 'manutenção desligada: gravação volta a funcionar' (-not $res.isError) $res.content[0].text
+
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao; autor = 'teste' })

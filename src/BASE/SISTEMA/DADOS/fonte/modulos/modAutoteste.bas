@@ -46,6 +46,13 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Backup: 40 h alerta", modBackupAviso.Atrasado(DateSerial(2026, 10, 16) + TimeSerial(14, 0, 0), DateSerial(2026, 10, 18) + TimeSerial(6, 0, 0)), True
     Confere "Backup: nenhum validado alerta", modBackupAviso.Atrasado(0, Now), True
 
+    ' ---- DEV-08: guarda no ponto de escrita (mesma regra de Get-MotivoRecusaEscrita do conector)
+    Confere "DEV-08 sem manutencao e esquema certo grava", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, ""), ""
+    Confere "DEV-08 manutencao recusa", (InStr(modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "EST-X|ana|12|2026-10-19 10:00|montagem"), "manuten") > 0), True
+    Confere "DEV-08 manutencao cita o dono", (InStr(modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "EST-X|ana|12|2026-10-19 10:00|montagem"), "EST-X\ana") > 0), True
+    Confere "DEV-08 manutencao em branco nao recusa", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "   "), ""
+    Confere "DEV-08 esquema diferente recusa", (modDB.MotivoRecusaEscrita("1.0", "") <> ""), True
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"
