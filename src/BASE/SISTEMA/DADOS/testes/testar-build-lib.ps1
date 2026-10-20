@@ -263,6 +263,32 @@ Write-Host '--- teste de uso no passo 10 (spec 004, F5)'
 Conferir 'publicação roda só o teste de leitura' ((@(Get-ExecucoesTesteDeUso $false) -join ',') -eq 'SoLeitura') (@(Get-ExecucoesTesteDeUso $false) -join ',')
 Conferir '-Teste roda a leitura e depois o completo' ((@(Get-ExecucoesTesteDeUso $true) -join ',') -eq 'SoLeitura,Completo') (@(Get-ExecucoesTesteDeUso $true) -join ',')
 
+Write-Host '--- DEV-04: volta como nova versão maior e manifesto de release (ciclo 007)'
+. (Join-Path $dados 'build\lib\Release.ps1')
+$pac = [pscustomobject]@{ versao = '1.5'; commit = 'abc1234' }
+Conferir 'volta sem motivo é recusada' ((Test-PedidoVolta '' $pac '1.6' '1.1' '1.1') -match 'motivo')
+Conferir 'volta sem pacote (MANIFESTO.json) é recusada' ((Test-PedidoVolta 'regressão na ficha' $null '1.6' '1.1' '1.1') -match 'pacote')
+Conferir 'volta para versão igual ou maior que a publicada é recusada' ((Test-PedidoVolta 'regressão na ficha' ([pscustomobject]@{ versao = '1.6'; commit = 'x' }) '1.6' '1.1' '1.1') -match 'anterior')
+Conferir 'volta com esquema da fonte diferente do banco é recusada (incompatível)' ((Test-PedidoVolta 'regressão na ficha' ([pscustomobject]@{ versao = '1.4'; commit = 'x' }) '1.6' '1.0' '1.1') -match 'esquema')
+Conferir 'volta válida passa' ((Test-PedidoVolta 'regressão na ficha' $pac '1.6' '1.1' '1.1') -eq '')
+Conferir 'esquema esperado pela fonte (modConfig.VERSAO_ESQUEMA)' ((Get-EsquemaDaFonte $dados) -match '^\d+\.\d+$') (Get-EsquemaDaFonte $dados)
+$raizReal = Split-Path -Parent (Split-Path -Parent $dados)
+Conferir 'versão do conector lida de IA\mcp\servidor.ps1' ((Get-VersaoConectorDaFonte $raizReal) -match '^\d+\.\d+\.\d+$') (Get-VersaoConectorDaFonte $raizReal)
+$tmpR = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-release-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpR -Force | Out-Null
+try {
+    $xl = Join-Path $tmpR 'CRM_Zapromaq.xlsm'; [IO.File]::WriteAllText($xl, 'xlsm-falso')
+    $m = New-ManifestoRelease -Versao '1.7' -Tipo 'volta' -Motivo 'regressão na ficha' -Pacote $pac -VersaoFront '1.7' -VersaoConector '1.6.0' -Esquema '1.1' -Migracoes @('001', '002', '003') -Xlsm $xl -Dados $dados -Raiz $raizReal
+    Conferir 'manifesto de release: versão, tipo, motivo e conteudo_de' ($m.versao -eq '1.7' -and $m.tipo -eq 'volta' -and $m.motivo -eq 'regressão na ficha' -and $m.conteudo_de -eq '1.5') ($m | ConvertTo-Json -Compress -Depth 4)
+    Conferir 'manifesto de release: commit das fontes, front, conector e esquema' ($m.commit -eq 'abc1234' -and $m.versao_front -eq '1.7' -and $m.versao_conector -eq '1.6.0' -and $m.esquema -eq '1.1')
+    Conferir 'manifesto de release: migrações e hash do .xlsm' ((@($m.migracoes) -join ',') -eq '001,002,003' -and $m.xlsm_sha256 -eq (Get-HashArquivo $xl))
+    Conferir 'manifesto de release: hashes dos scripts de build e operação' (@($m.scripts | Where-Object { $_.caminho -match '^SISTEMA\\DADOS\\(build|operacao)\\' }).Count -ge 5 -and @($m.scripts | Where-Object { $_.sha256 -notmatch '^[0-9a-f]{64}$' }).Count -eq 0)
+    $semPacote = New-ManifestoRelease -Versao '1.7' -Tipo 'publicacao' -Motivo '' -Pacote $null -VersaoFront '1.7' -VersaoConector '1.6.0' -Esquema '1.1' -Migracoes @() -Xlsm $xl -Dados $dados -Raiz $raizReal
+    Conferir 'sem pacote (desenvolvimento) o commit é declarado como desconhecido' ($semPacote.commit -match 'sem pacote' -and $null -eq $semPacote.conteudo_de)
+    $arq = Save-ManifestoRelease $m $tmpR
+    Conferir 'manifesto salvo em releases\release-<versão>.json' ((Split-Path -Leaf $arq) -eq 'release-1.7.json' -and ((Get-Content -LiteralPath $arq -Raw -Encoding UTF8 | ConvertFrom-Json).tipo -eq 'volta'))
+} finally { Remove-Item -LiteralPath $tmpR -Recurse -Force -ErrorAction SilentlyContinue }
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1
