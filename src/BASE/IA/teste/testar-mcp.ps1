@@ -8,16 +8,20 @@
   sem a opção  : roda também leituras e gravações no banco de teste,
                  incluindo o teste de conflito de versão.
 #>
-param([switch]$SoProtocolo)
+#  -Servidor <servidor.ps1> e -Banco <accdb>: testam outra pasta de conector (publicar-conector.ps1, DEV-05)
+#  contra outro banco de homologação; sem eles, IA\mcp\servidor.ps1 e o banco da raiz de BASE.
+param([switch]$SoProtocolo, [string]$Servidor = '', [string]$Banco = '')
 $ErrorActionPreference = 'Stop'
 
 $raizIA = Split-Path -Parent $PSScriptRoot
-$servidor = Join-Path $raizIA 'mcp\servidor.ps1'
+$servidor = if ($Servidor) { $Servidor } else { Join-Path $raizIA 'mcp\servidor.ps1' }
 $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $ps
-$psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $servidor + '"'
+$psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $servidor + '"' + $(if ($Banco) { ' -Banco "' + $Banco + '"' } else { '' })
+# servidor de uma pasta de versão encontra a pasta IA (logs) por aqui, como no lançador
+$psi.EnvironmentVariables['CRM_RAIZ_IA'] = $raizIA
 $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
@@ -87,7 +91,7 @@ Write-Host '--- valor inativo (C06, D-j): só o que já está gravado no registr
 . (Join-Path $raizIA 'mcp\lib\Protocolo.ps1')
 . (Join-Path $raizIA 'mcp\lib\Banco.ps1')
 . (Join-Path $raizIA 'mcp\lib\Ferramentas.ps1')
-$script:CaminhoBanco = Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb'
+$script:CaminhoBanco = if ($Banco) { $Banco } else { Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb' }
 # Trava (spec 004, F2): daqui em diante o teste GRAVA no banco. Só roda se config.ambiente = TESTE;
 # banco de PRODUCAO (ou que não se lê) é recusado antes de qualquer gravação. Fora de processo,
 # para não misturar as funções de SISTEMA\DADOS\lib\Comum.ps1 com as do conector.
