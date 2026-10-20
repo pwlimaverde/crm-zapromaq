@@ -500,8 +500,30 @@ def verificar_textos_de_etapa(vba):
                     break
 
 
+def verificar_contrato_conector():
+    # DEV-07: catálogo (Ferramentas.ps1), contrato do teste (testar-mcp.ps1) e o número que o instalador anuncia
+    # são o mesmo conjunto. Ferramenta nova sem constar no teste = contrato mudado sem nota de mudança.
+    cat = os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1')
+    tst = os.path.join(BASE, 'IA', 'teste', 'testar-mcp.ps1')
+    ins = os.path.join(BASE, 'IA', 'mcp', 'instalar-mcp.ps1')
+    if not all(os.path.isfile(p) for p in (cat, tst, ins)):
+        falha('Contrato do conector', 'Ferramentas.ps1, testar-mcp.ps1 ou instalar-mcp.ps1 ausente')
+        return
+    catalogo = set(re.findall(r"name = '([a-z_]+)'; title", open(cat, encoding='utf-8-sig').read()))
+    txt = open(tst, encoding='utf-8-sig').read()
+    m = re.search(r'\$script:FerramentasEsperadas = @\((.*?)\)', txt, re.S)
+    esperadas = set(re.findall(r"'([a-z_]+)'", m.group(1))) if m else set()
+    if catalogo != esperadas:
+        falha('Contrato do conector', 'catálogo x testar-mcp: só no catálogo %s; só no teste %s' %
+              (sorted(catalogo - esperadas), sorted(esperadas - catalogo)))
+    q = re.findall(r'\$qtdFerramentas = (\d+)', open(ins, encoding='utf-8-sig').read())
+    if len(q) < 2 or int(q[-1]) != len(catalogo):
+        falha('Contrato do conector', 'instalar-mcp.ps1 anuncia %s ferramentas; o catálogo tem %d' % (q[-1] if q else '?', len(catalogo)))
+
+
 def main():
     vba = fontes_vba()
+    verificar_contrato_conector()
     verificar_textos_de_etapa(vba)
     verificar_migracao_003()
     verificar_casos_regra()

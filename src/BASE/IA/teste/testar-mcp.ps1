@@ -31,6 +31,17 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 $script:falhas = 0
 $script:id = 0
+# DEV-07: o contrato do conector é ESTA lista. Mudou o catálogo? Muda aqui, com nota de mudança no IA\LEIA-ME.md
+# (ferramenta, parâmetro, resposta e erro) e VersaoServidor novo.
+$script:FerramentasEsperadas = @(
+    'abrir_atendimento', 'alterar_situacao_cliente', 'alterar_situacao_planejamento', 'alterar_situacao_visita',
+    'atendimentos_por_interacao', 'atendimentos_por_proxima_acao', 'atualizar_atendimento', 'atualizar_cadastro_cliente',
+    'atualizar_contato', 'atualizar_contexto_atendimento', 'atualizar_contexto_cliente', 'atualizar_planejamento',
+    'atualizar_visita', 'buscar_atendimentos', 'buscar_clientes', 'buscar_contatos', 'buscar_municipios',
+    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'exportar_base',
+    'exportar_roteiro', 'gerar_visitas', 'gerenciar_lista', 'gravar_meta', 'lancar_datas', 'lancar_resultados',
+    'listar_candidatos', 'listar_metas', 'listar_opcoes', 'listar_planejamentos', 'listar_visitas', 'obter_atendimento',
+    'obter_cliente', 'obter_contato', 'obter_planejamento', 'promover_cliente', 'resolver_cidade', 'ultimas_alteracoes')
 function Enviar($metodo, $params, [switch]$Notificacao) {
     $msg = [ordered]@{ jsonrpc = '2.0' }
     if (-not $Notificacao) { $script:id++; $msg['id'] = $script:id }
@@ -415,7 +426,13 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
     Conferir 'versão não suportada volta -32022 com a lista suportada' ($r.error.code -eq -32022 -and @($r.error.data.supported) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)
     $r = Enviar 'tools/list' (Moderno $null)
     Conferir 'tools/list moderno: resultType, ttlMs e cacheScope' ($r.result.resultType -eq 'complete' -and $r.result.ttlMs -ge 0 -and $r.result.cacheScope -eq 'public')
-    Conferir ('tools/list moderno: ' + @($r.result.tools).Count + ' ferramentas') (@($r.result.tools).Count -ge 11)
+    # DEV-07: contrato EXATO - ferramenta que some ou aparece sem constar aqui (e sem nota de mudança) quebra o teste
+    $nomesModerno = @($r.result.tools | ForEach-Object { [string]$_.name })
+    $faltam = @($script:FerramentasEsperadas | Where-Object { $nomesModerno -notcontains $_ })
+    $sobram = @($nomesModerno | Where-Object { $script:FerramentasEsperadas -notcontains $_ })
+    Conferir ('tools/list moderno: exatamente as ' + $script:FerramentasEsperadas.Count + ' ferramentas do contrato') ($faltam.Count -eq 0 -and $sobram.Count -eq 0 -and $nomesModerno.Count -eq $script:FerramentasEsperadas.Count) ('faltam: ' + ($faltam -join ',') + ' | sobram: ' + ($sobram -join ','))
+    $incompletas = @($r.result.tools | Where-Object { -not $_.title -or -not $_.description -or $null -eq $_.inputSchema -or $_.inputSchema.type -ne 'object' -or $null -eq $_.annotations -or $null -eq $_.annotations.readOnlyHint })
+    Conferir 'toda ferramenta tem título, descrição, inputSchema de objeto e annotations' ($incompletas.Count -eq 0) (($incompletas | ForEach-Object { $_.name }) -join ',')
     $r = Enviar 'tools/call' (Moderno ([ordered]@{ name = 'obter_atendimento'; arguments = [ordered]@{ codigo = 'XX' } }))
     Conferir 'tools/call moderno: erro de ferramenta com resultType' ($r.result.resultType -eq 'complete' -and $r.result.isError -eq $true)
     $r = Enviar 'metodo/inexistente' (Moderno $null)
@@ -433,7 +450,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
     Conferir 'ping' ($null -ne $r.result)
     $r = Enviar 'tools/list' ([ordered]@{})
     $nomes = @($r.result.tools | ForEach-Object { $_.name })
-    Conferir ('tools/list: ' + $nomes.Count + ' ferramentas') ($nomes.Count -ge 11)
+    Conferir ('tools/list legado: as mesmas ' + $script:FerramentasEsperadas.Count + ' ferramentas do contrato') ((@($nomes | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ',')) ($nomes -join ',')
     Conferir 'ferramentas de leitura marcadas como somente leitura' (@($r.result.tools | Where-Object { $_.name -like 'buscar_*' -and -not $_.annotations.readOnlyHint }).Count -eq 0)
     $r = Enviar 'metodo/inexistente' ([ordered]@{})
     Conferir 'método desconhecido volta erro -32601' ($r.error.code -eq -32601)
@@ -451,6 +468,8 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
         Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
+        # DEV-07: o consumidor (skill) descobre versão e capacidades pelo crm_status
+        Conferir 'crm_status traz versao_conector, capacidades (o catálogo) e quantidade_ferramentas' ($st.versao_conector -match '^\d+\.\d+\.\d+$' -and [int]$st.quantidade_ferramentas -eq $script:FerramentasEsperadas.Count -and ((@($st.capacidades | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ','))) ($res.content[0].text)
 
         $d = Dados (Chamar 'buscar_clientes' ([ordered]@{ texto = "d'angelo" }))
         Conferir 'busca com apóstrofo' ($d.quantidade -eq 1)

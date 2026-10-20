@@ -184,6 +184,10 @@ function Invoke-CrmStatus($a) {
         registros           = $cont
         ultimo_log_id       = Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @()
         versao_servidor_mcp = $script:VersaoServidor
+        # DEV-07: o consumidor (skill) confere versão e capacidades antes de usar uma ferramenta nova
+        versao_conector     = $script:VersaoServidor
+        capacidades         = @($script:Ferramentas | ForEach-Object { [string]$_.name } | Sort-Object)
+        quantidade_ferramentas = @($script:Ferramentas).Count
     }
 }
 
