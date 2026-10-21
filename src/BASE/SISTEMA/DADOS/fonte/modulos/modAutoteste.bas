@@ -136,6 +136,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C29 contato ativo da mesma empresa passa", modRegras.CriticarContatoDoAtendimento(True, True, 7, 7), ""
     Confere "DEV-11 empresa do contato gravado nao se troca", modCRM.BotaoVinculoAtivo("id_cliente", True, False, 5), False
 
+    ' ---- DEV-12: lote com as regras do cadastro (mesmos casos C30-C31 do conector)
+    Dim dL As Object
+    Set dL = CreateObject("Scripting.Dictionary")
+    dL("empresa") = "EMPRESA X": dL("uf") = "PR": dL("aderencia") = "2": dL("porte") = "": dL("cnpj") = "11222333000182"
+    dL("cidade") = "": dL("email") = "": dL("segmento") = "": dL("qualificacao") = ""
+    Confere "C30 lote: DV do CNPJ errado e erro", (InStr(modLote.CriticaCampos(dL), "verificador") > 0), True
+    dL("cnpj") = "11222333000181": dL("aderencia") = "1,5": dL("uf") = "XX"
+    Confere "C31 lote: nota fracionaria e erro", (InStr(modLote.CriticaCampos(dL), "inteira") > 0), True
+    Confere "C31 lote: UF fora da lista e erro", (InStr(modLote.CriticaCampos(dL), "UF fora") > 0), True
+    dL("aderencia") = "2": dL("uf") = "PR"
+    Confere "lote: linha certa passa", modLote.CriticaCampos(dL), ""
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"

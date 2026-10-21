@@ -162,6 +162,11 @@ Conferir 'C29 contato ativo da mesma empresa passa' ($null -eq (Test-ContatoDoAt
 $schemaCt = ($script:Ferramentas | Where-Object { $_.name -eq 'atualizar_contato' }).inputSchema.properties
 Conferir 'DEV-11 atualizar_contato não aceita mais codigo_cliente_destino (contato não é transferido)' (-not $schemaCt.Contains('codigo_cliente_destino'))
 
+Write-Host '--- DEV-12: as regras do lote valem no conector (mesmos casos C30-C31 do front)'
+Conferir 'C30 CNPJ com DV errado é recusado' (-not (Test-CnpjValido '11222333000182'))
+Conferir 'C31 nota fracionária é recusada' (Recusa { ConvertTo-Inteiro 'aderencia' 1.5 })
+Conferir 'C31 UF fora da lista é recusada' (-not (Test-UFValida 'XX'))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')

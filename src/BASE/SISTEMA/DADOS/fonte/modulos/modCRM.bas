@@ -557,13 +557,14 @@ Public Function CriarContato(ByVal idCliente As Long, ByVal d As Object, _
 End Function
 
 Public Function CriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
-                             ByRef codigoGerado As Long) As Long
+                             ByRef codigoGerado As Long, _
+                             Optional ByVal detalhe As String = "cadastro novo pelo formulário") As Long
     Dim tentativa As Long, duplicou As Boolean, novoId As Long
     ' Pre-cliente nao recebe numero: nao ha o que repetir. Cliente
     ' recebe MAX+1; so a colisao DESSE numero justifica nova tentativa.
     For tentativa = 1 To TENTATIVAS
         duplicou = False
-        novoId = TentarCriarCliente(d, comoCliente, codigoGerado, duplicou)
+        novoId = TentarCriarCliente(d, comoCliente, codigoGerado, duplicou, detalhe)
         If novoId > 0 Then CriarCliente = novoId: Exit Function
         If Not duplicou Then Exit Function
     Next tentativa
@@ -572,7 +573,8 @@ Public Function CriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
 End Function
 
 Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
-                                    ByRef codigoGerado As Long, ByRef duplicou As Boolean) As Long
+                                    ByRef codigoGerado As Long, ByRef duplicou As Boolean, _
+                                    ByVal detalhe As String) As Long
     Dim cn As Object, extras As Object
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
@@ -585,7 +587,7 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
         codigoGerado = 0
         extras("estagio") = "Pré-cliente"
     End If
-    TentarCriarCliente = InserirEm(cn, "clientes", d, extras, "cadastro novo pelo formulário")
+    TentarCriarCliente = InserirEm(cn, "clientes", d, extras, detalhe)
     modDB.Confirmar cn
     Exit Function
 falha:

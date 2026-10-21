@@ -52,7 +52,8 @@ Private Const COL_OBS As Long = 10
 Private Const COLUNAS As Long = 11
 
 Private mLinhas As Collection
-Private mSegmentos As Object      ' lista Segmento, lida UMA vez por conferencia
+Private mSegmentos As Object      ' listas Segmento e Qualificacao, lidas UMA vez por conferencia
+Private mLote As String           ' DEV-12: LOTE-AAAAMMDD-HHMMSS-<ESTACAO>, gravado no log de cada linha
 
 '==========================================================
 ' LEITURA E CONFERENCIA
@@ -64,6 +65,7 @@ Public Function Analisar(ByVal texto As String) As Long
     Dim d As Object
 
     Set mLinhas = New Collection
+    mLote = "LOTE-" & Format$(Now, "yyyymmdd-hhnnss") & "-" & modDiag.Estacao()
     If Trim$(texto) = "" Then Exit Function
 
     Set cnpjBase = CreateObject("Scripting.Dictionary")
@@ -136,8 +138,12 @@ Private Function Interpretar(ByVal bruta As String, ByVal numero As Long) As Obj
     d("email") = Texto(modValidacao.Normalizar("email", Pedaco(p, COL_EMAIL)))
     d("cnpj") = Texto(modValidacao.Normalizar("cnpj", Pedaco(p, COL_CNPJ)))
     d("observacoes") = Texto(modValidacao.Normalizar("observacoes", Pedaco(p, COL_OBS)))
+    ' seção 5.1: um e-mail por campo; os demais vão para as observações
+    d("observacoes") = Texto(modValidacao.ObservacoesComEmails(IIf(d("observacoes") = "", Null, d("observacoes")), _
+                                                                 modValidacao.EmailsAdicionais(Pedaco(p, COL_EMAIL))))
 
-    If (UBound(p) - LBound(p) + 1) < COLUNAS Then
+    ' DEV-12: exatamente 11 colunas (coluna a mais é dado deslocado, não sobra)
+    If (UBound(p) - LBound(p) + 1) <> COLUNAS Then
         Marcar d, "ERRO", "esperadas " & COLUNAS & " colunas, vieram " & _
                           (UBound(p) - LBound(p) + 1)
     End If
@@ -159,10 +165,10 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
                      ByRef cnpjLote As Object, ByRef nomeLote As Object)
     Dim c As String, n As String
 
-    If d("empresa") = "" Then Marcar d, "ERRO", "sem nome de empresa"
-    If d("uf") <> "" And Len(d("uf")) <> 2 Then Marcar d, "ERRO", "UF invalida: " & d("uf")
-    If Not NotaValida(d("aderencia")) Then Marcar d, "ERRO", "aderencia fora de 1 a 3"
-    If Not NotaValida(d("porte")) Then Marcar d, "ERRO", "porte fora de 1 a 3"
+    Dim erroCampos As String
+    ' DEV-12: as mesmas regras do cadastro pela ficha (C30, C31)
+    erroCampos = CriticaCampos(d)
+    If erroCampos <> "" Then Marcar d, "ERRO", erroCampos
 
     c = d("cnpj")
     n = NomeNormalizado(d("empresa"))
@@ -175,8 +181,6 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
         ElseIf cnpjLote.Exists(c) Then
             ' a primeira linha ja foi conferida: o estado dela e o final
             Marcar d, "DUPLICADO", MotivoRepetidoNoLote(CStr(cnpjLote(c)("linha")), CStr(cnpjLote(c)("status")))
-        ElseIf Not modValidacao.CNPJValido(c) Then
-            Marcar d, "SUSPEITO", "digito verificador do CNPJ nao fecha"
         End If
         ' guarda a LINHA (o dicionario), nao so o numero: o motivo de quem
         ' repetir depois precisa saber se ela entra ou comeca fora
@@ -209,10 +213,12 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
         End If
     End If
 
-    If d("status") = "OK" And d("segmento") <> "" Then
-        If Not NaLista("Segmento", d("segmento")) Then
-            Marcar d, "SUSPEITO", "segmento fora da lista: " & d("segmento")
-        End If
+    ' DEV-12: valor fora da lista não entra (a ficha também só aceita valor da lista)
+    If d("segmento") <> "" Then
+        If Not NaLista("Segmento", d("segmento")) Then Marcar d, "ERRO", "segmento fora da lista: " & d("segmento")
+    End If
+    If d("qualificacao") <> "" Then
+        If Not NaLista("Qualificacao", d("qualificacao")) Then Marcar d, "ERRO", "qualifica" & ChrW$(231) & ChrW$(227) & "o fora da lista: " & d("qualificacao")
     End If
 
     ' depois de TODAS as conferencias: o estado final decide se comeca fora
@@ -287,6 +293,34 @@ Private Function Peso(ByVal status As String) As Long
     End Select
 End Function
 
+'----------------------------------------------------------
+' DEV-12: críticas de campo da linha, as mesmas da ficha, sem banco
+' (C30 DV do CNPJ, C31 nota inteira e UF da lista; tamanhos do banco).
+' Devolve "" ou os motivos separados por "; ".
+'----------------------------------------------------------
+Public Function CriticaCampos(ByVal d As Object) As String
+    Dim m As String
+    If CStr(d("empresa")) = "" Then m = m & "; sem nome de empresa"
+    If CStr(d("uf")) <> "" Then
+        If Not modListas.UFValida(CStr(d("uf"))) Then m = m & "; UF fora da lista: " & d("uf")
+    End If
+    If Not NotaValida(CStr(d("aderencia"))) Then m = m & "; aderência deve ser inteira de 1 a 3"
+    If Not NotaValida(CStr(d("porte"))) Then m = m & "; porte deve ser inteiro de 1 a 3"
+    If CStr(d("cnpj")) <> "" Then
+        If Len(CStr(d("cnpj"))) <> 14 Then
+            m = m & "; CNPJ com " & Len(CStr(d("cnpj"))) & " dígitos"
+        ElseIf Not modValidacao.CNPJValido(CStr(d("cnpj"))) Then
+            m = m & "; dígito verificador do CNPJ não fecha"
+        End If
+    End If
+    If Len(CStr(d("empresa"))) > 120 Then m = m & "; empresa passa de 120 caracteres"
+    If Len(CStr(d("cidade"))) > 60 Then m = m & "; cidade passa de 60 caracteres"
+    If Len(CStr(d("email"))) > 120 Then m = m & "; e-mail passa de 120 caracteres"
+    If Len(CStr(d("segmento"))) > 60 Then m = m & "; segmento passa de 60 caracteres"
+    If Len(CStr(d("qualificacao"))) > 40 Then m = m & "; qualificação passa de 40 caracteres"
+    If m <> "" Then CriticaCampos = Mid$(m, 3)
+End Function
+
 ' Nota 1 a 3, INTEIRA (DEV-09): "1,5" era arredondada por CLng e entrava como 2.
 Public Function NotaValida(ByVal v As String) As Boolean
     Dim conv As Variant
@@ -299,19 +333,25 @@ End Function
 ' A lista e lida UMA vez por conferencia (CarregarSegmentos), nao
 ' uma vez por linha: a 26 ms por ida a rede, 200 linhas seriam 5 s.
 Private Sub CarregarSegmentos()
-    Dim d As Variant, i As Long
+    Dim d As Variant, i As Long, tipo As Variant
+    ' Segmento e Qualificação: chave "tipo|valor" (o tipo separa as duas listas)
     Set mSegmentos = CreateObject("Scripting.Dictionary")
-    d = modCRM.ObterLista("Segmento")
-    If IsEmpty(d) Then Exit Sub
-    For i = 1 To UBound(d, 1)
-        mSegmentos(LCase$(modDB.Nz(d(i, 1)))) = True
-    Next i
+    For Each tipo In Array("Segmento", "Qualificacao")
+        d = modCRM.ObterLista(CStr(tipo))
+        If Not IsEmpty(d) Then
+            mSegmentos(CStr(tipo)) = True
+            For i = 1 To UBound(d, 1)
+                mSegmentos(CStr(tipo) & "|" & LCase$(modDB.Nz(d(i, 1)))) = True
+            Next i
+        End If
+    Next tipo
 End Sub
 
+' Lista vazia (não cadastrada) não recusa nada: é o mesmo critério do conector.
 Private Function NaLista(ByVal tipo As String, ByVal valor As String) As Boolean
     If mSegmentos Is Nothing Then NaLista = True: Exit Function
-    If mSegmentos.Count = 0 Then NaLista = True: Exit Function
-    NaLista = mSegmentos.Exists(LCase$(valor))
+    If Not mSegmentos.Exists(tipo) Then NaLista = True: Exit Function
+    NaLista = mSegmentos.Exists(tipo & "|" & LCase$(valor))
 End Function
 
 '----------------------------------------------------------
@@ -448,9 +488,19 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
             d("porte") = NuloNumero(Valor(i, "porte"))
             d("observacoes") = Nulo(Valor(i, "observacoes"))
 
+            ' DEV-12: o MESMO validador da ficha, logo antes do INSERT
+            Dim critica As String
+            critica = modValidacao.CriticarCliente(d)
+            If critica <> "" Then
+                falhas = falhas & "linha " & Valor(i, "linha") & ": " & critica & vbCrLf
+                mLinhas(i)("status") = "ERRO"
+                mLinhas(i)("motivo") = critica
+                GoTo proximaLinha
+            End If
             On Error Resume Next
             Err.Clear
-            novo = modCRM.CriarCliente(d, False, cod)
+            ' identificador do lote e da linha no log: o reprocessamento da mesma colagem é rastreável
+            novo = modCRM.CriarCliente(d, False, cod, "lote " & mLote & " linha " & Valor(i, "linha"))
             If Err.Number <> 0 Then
                 falhas = falhas & "linha " & Valor(i, "linha") & ": " & Err.Description & vbCrLf
                 mLinhas(i)("status") = "ERRO"
@@ -463,6 +513,7 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
             End If
             On Error GoTo 0
         End If
+proximaLinha:
     Next i
     Application.Cursor = -4143                    ' xlDefault
 
