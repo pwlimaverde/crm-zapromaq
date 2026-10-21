@@ -601,6 +601,19 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = [int]$atM.tentativas; observacoes_acrescentar = 'depois da manutenção'; autor = 'teste' })
         Conferir 'manutenção desligada: gravação volta a funcionar' (-not $res.isError) $res.content[0].text
 
+        Write-Host '--- DEV-15: reativar a empresa reativa só a empresa; ação com versão antiga é recusada'
+        $c15 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
+        $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'desativar'; autor = 'teste' }))
+        Conferir 'desativar a empresa desativa os contatos (cascata)' ($r15.gravado -and [int]$r15.contatos_desativados -ge 1) ($r15 | ConvertTo-Json -Compress)
+        $res = Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'reativar'; autor = 'teste' })
+        Conferir 'DEV-15 ação com a versão antiga é recusada (conflito)' ($res.isError -and $res.content[0].text -match 'Conflito') $res.content[0].text
+        $c15b = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
+        $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15b.versao; acao = 'reativar'; autor = 'teste' }))
+        $ct15 = Dados (Chamar 'obter_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002' }))
+        Conferir 'DEV-15 reativar a empresa não reativa os contatos' ($r15.gravado -and [int]$r15.contatos_reativados -eq 0 -and [int]$r15.contatos_inativos -ge 1 -and $ct15.ativo -eq $false) ($r15 | ConvertTo-Json -Compress)
+        $res = Chamar 'atualizar_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002'; versao = [int]$ct15.versao; ativo = $true; autor = 'teste' })
+        Conferir 'o contato volta um a um (atualizar_contato ativo=true)' (-not $res.isError) $res.content[0].text
+
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao; autor = 'teste' })

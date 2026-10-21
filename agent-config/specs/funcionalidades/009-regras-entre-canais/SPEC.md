@@ -36,7 +36,7 @@
   C29 contato de outra empresa ou inativo é recusado no atendimento;
   C30 lote: CNPJ com DV inválido é ERRO;
   C31 lote/nota fracionária e UF fora da lista são ERRO;
-  C32 reativar a empresa não reativa os contatos.
+  e, sem número de caso (só o conector tem o fluxo testável sem tela), reativar a empresa não reativa os contatos (DEV-15).
 - [ ] Ficha: `retomar_em` recusado ao salvar fora de Perdido/Descartado (C26); `dt_entrada` nasce com a data do lançamento nos três canais.
 - [ ] Conector: `atualizar_contato` sem `codigo_cliente_destino` (nota de mudança); `alterar_situacao_cliente`
   reativa só a empresa; transições e avisos iguais ao front; normalização da seção 5.1 em todo texto.

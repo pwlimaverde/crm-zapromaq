@@ -1472,9 +1472,11 @@ function Invoke-SituacaoCliente($a) {
             }
             'reativar' {
                 if ([bool]$cli.ativo) { throw 'A empresa já está ativa.' }
+                # DEV-15 (seção 5.2): reativar a empresa reativa SÓ a empresa; contato volta um a um (atualizar_contato ativo=true)
                 [void](Set-AtivoEm $ctx 'clientes' 'id=?' $id $true 'REATIVACAO' '')
-                $nCt = Set-AtivoEm $ctx 'contatos' 'id_cliente=?' $id $true 'REATIVACAO' 'cascata da reativação do cliente'
-                return [ordered]@{ gravado = $true; empresa = $cli.empresa; ativo = $true; contatos_reativados = $nCt }
+                $inativos = [int]$ctx.Valor('SELECT COUNT(*) FROM contatos WHERE id_cliente=? AND ativo=False', @((P 'inteiro' $id)))
+                return [ordered]@{ gravado = $true; empresa = $cli.empresa; ativo = $true; contatos_reativados = 0; contatos_inativos = $inativos
+                                   aviso = $(if ($inativos -gt 0) { [string]$inativos + ' contato(s) continuam inativos: reative um a um (atualizar_contato ativo=true) só quem ainda trabalha na empresa.' } else { $null }) }
             }
             'excluir_pre_cliente' {
                 if ($null -ne $cli.codigo_cliente) { throw 'Cliente com código nunca é excluído: use acao=desativar.' }
@@ -2289,7 +2291,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'alterar_situacao_cliente'; title = 'Desativar, reativar ou excluir empresa'; handler = 'Invoke-SituacaoCliente'; annotations = $script:Gravacao
-        description = ('desativar: a empresa e seus contatos ficam inativos (atendimentos em aberto continuam no funil). reativar: volta com os contatos inativos. ' +
+        description = ('desativar: a empresa e seus contatos ficam inativos (atendimentos em aberto continuam no funil). reativar: reativa SÓ a empresa; os contatos continuam inativos e voltam um a um por atualizar_contato (ativo=true). ' +
                        'excluir_pre_cliente: apaga de vez um pré-cliente sem contato nem atendimento (cliente com código nunca é excluído). Leia antes com obter_cliente e passe a "versao"; confirme com o usuário.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('acao', 'versao'); properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }

@@ -1295,7 +1295,7 @@ Private Sub Salvar()
         n = modCRM.Atualizar(mTabela, d, mID, mVersao)
         Me.MousePointer = fmMousePointerDefault
         If n = 0 Then
-            TratarConflito
+            TratarConflito d
             Exit Sub
         End If
         If n = 2 Then
@@ -1355,32 +1355,67 @@ End Function
 '----------------------------------------------------------
 ' Conflito: mostra a diferenca e NAO sobrescreve.
 '----------------------------------------------------------
-Private Sub TratarConflito()
+Private Sub TratarConflito(ByVal dDig As Object)
+    ' DEV-15: conflito mostra, POR CAMPO, o valor lido, o atual e o digitado, e
+    ' permite manter a digitação: o que só a outra pessoa mudou vem do banco; o
+    ' que só você mudou fica; o que os dois mudaram fica com o seu, listado.
     Dim d As Variant, nomes As Variant, quem As String, quando As String
+    Dim i As Long, spec As Variant, campo As String, tipo As String
+    Dim lidoV As Variant, atualV As Variant, digV As Variant, lista As String, ambos As String
 
-    d = modDB.Consultar("SELECT alterado_por, alterado_em, versao FROM " & mTabela & " WHERE id=?", _
-                        Array(modDB.P(modDB.adInteger, mID)))
+    d = modDB.Consultar("SELECT * FROM " & mTabela & " WHERE id=?", Array(modDB.P(modDB.adInteger, mID)))
     If IsEmpty(d) Then
         MsgBox "Este registro foi excluído por outro usuário enquanto você editava." & vbCrLf & vbCrLf & _
                "Nada foi gravado.", vbExclamation, "CRM Zapromaq"
         Buscar: ModoLeitura
         Exit Sub
     End If
+    nomes = modDB.gCampos
+    quem = modDB.Nz(ValorPorNome(d, nomes, "alterado_por"), "outro usuário")
+    quando = IIf(IsNull(ValorPorNome(d, nomes, "alterado_em")), "", Format$(ValorPorNome(d, nomes, "alterado_em"), "dd/mm/yyyy hh:nn"))
 
-    quem = modDB.Nz(d(1, 1), "outro usuário")
-    quando = IIf(IsNull(d(1, 2)), "", Format$(d(1, 2), "dd/mm/yyyy hh:nn"))
+    For i = LBound(mCampos) To UBound(mCampos)
+        spec = Split(mCampos(i), "|")
+        campo = CStr(spec(0)): tipo = CStr(spec(2))
+        If spec(6) = "1" And dDig.Exists(campo) Then
+            lidoV = Lido(campo): atualV = ValorPorNome(d, nomes, campo): digV = dDig(campo)
+            If Not modRegras.MesmoValor(lidoV, atualV) Then
+                lista = lista & "- " & spec(1) & ": lido " & TextoConflito(lidoV) & " | agora " & TextoConflito(atualV) & _
+                        " | você " & TextoConflito(digV) & vbCrLf
+                If Not modRegras.MesmoValor(lidoV, digV) Then ambos = ambos & IIf(ambos = "", "", ", ") & spec(1)
+            End If
+        End If
+    Next i
 
     If MsgBox("Este registro foi alterado por " & quem & " em " & quando & _
-              ", depois que você abriu para editar." & vbCrLf & vbCrLf & _
-              "Nada foi gravado, para não apagar o trabalho dele." & vbCrLf & vbCrLf & _
-              "Recarregar a versão atual? (o que você digitou será perdido)", _
+              ", depois que você abriu para editar. Nada foi gravado." & vbCrLf & vbCrLf & _
+              IIf(lista = "", "(nenhum campo da ficha mudou; só a versão)", lista) & vbCrLf & _
+              "Sim = recarregar a versão atual (perde o que você digitou)." & vbCrLf & _
+              "Não = manter o que você digitou e trazer só o que a outra pessoa mudou" & _
+              IIf(ambos = "", "", " (nos campos " & ambos & " fica o seu valor)") & "; depois confira e salve de novo.", _
               vbYesNo + vbExclamation, "CRM Zapromaq  -  edição simultânea") = vbYes Then
         Buscar
         ModoLeitura
-    Else
-        lblStatus.Caption = "NÃO GRAVADO - registro alterado por " & quem & ". Anote o que precisa e recarregue."
+        Exit Sub
     End If
+    ' manter: o que você não mexeu passa a ser o atual; a versão lida passa a ser a atual
+    For i = LBound(mCampos) To UBound(mCampos)
+        spec = Split(mCampos(i), "|")
+        campo = CStr(spec(0)): tipo = CStr(spec(2))
+        If spec(6) = "1" And dDig.Exists(campo) Then
+            atualV = ValorPorNome(d, nomes, campo)
+            If modRegras.MesmoValor(Lido(campo), dDig(campo)) Then DefinirValor campo, tipo, atualV
+            mLidos(campo) = atualV
+        End If
+    Next i
+    mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
+    lblStatus.Caption = "NÃO GRAVADO - alterado por " & quem & ". Sua digitação foi mantida sobre a versão " & mVersao & ": confira e salve."
 End Sub
+
+Private Function TextoConflito(ByVal v As Variant) As String
+    If IsNull(v) Or IsEmpty(v) Then TextoConflito = "(vazio)": Exit Function
+    TextoConflito = """" & Left$(modDB.TextoLog(v), 40) & """"
+End Function
 
 '----------------------------------------------------------
 ' erros: os campos que não converteram (DEV-09); vazio = tudo convertido
@@ -2018,7 +2053,9 @@ End Sub
 Private Sub cmdStatus_Click()
     If mID = 0 Then Exit Sub
     If mEditando Then Exit Sub
-    If Not modAcoes.AcaoStatus(mTabela, mID, mAtivo) Then Exit Sub
+    
+    ' DEV-15: a ação leva a versão lida; ficha antiga não desativa nem exclui
+    If Not modAcoes.AcaoStatus(mTabela, mID, mAtivo, mVersao) Then Exit Sub
     modConfig.gGravados = modConfig.gGravados & mID & ","
     ' a lista e relida: o registro pode ter deixado de existir
     Buscar

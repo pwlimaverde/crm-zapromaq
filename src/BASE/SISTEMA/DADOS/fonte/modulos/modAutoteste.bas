@@ -148,6 +148,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     dL("aderencia") = "2": dL("uf") = "PR"
     Confere "lote: linha certa passa", modLote.CriticaCampos(dL), ""
 
+    ' ---- DEV-15: conflito por campo compara pelo tipo
+    Confere "MesmoValor nulo e vazio", modRegras.MesmoValor(Null, ""), True
+    Confere "MesmoValor numero", modRegras.MesmoValor(CCur(10), CLng(10)), True
+    Confere "MesmoValor texto diferente", modRegras.MesmoValor("A", "a"), False
+    Confere "MesmoValor data", modRegras.MesmoValor(DateSerial(2026, 1, 2), DateSerial(2026, 1, 2)), True
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"

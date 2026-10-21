@@ -63,3 +63,18 @@ Public Function CriticarContatoDoAtendimento(ByVal existe As Boolean, ByVal ativ
     End If
     If Not ativo Then CriticarContatoDoAtendimento = "O contato est" & ChrW$(225) & " inativo: escolha um contato ativo da empresa. Nada foi gravado."
 End Function
+
+
+' Mesmo valor, para conflito por campo (DEV-15): nulo = vazio; numero e data
+' comparados como tal; texto exato.
+Public Function MesmoValor(ByVal a As Variant, ByVal b As Variant) As Boolean
+    Dim va As Boolean, vb As Boolean
+    va = IsNull(a) Or IsEmpty(a): If Not va Then va = (Len(CStr(a)) = 0)
+    vb = IsNull(b) Or IsEmpty(b): If Not vb Then vb = (Len(CStr(b)) = 0)
+    If va Or vb Then MesmoValor = (va And vb): Exit Function
+    If VarType(a) = vbDate Or VarType(b) = vbDate Then
+        If IsDate(a) And IsDate(b) Then MesmoValor = (CDate(a) = CDate(b)): Exit Function
+    End If
+    If IsNumeric(a) And IsNumeric(b) And VarType(a) <> vbString And VarType(b) <> vbString Then MesmoValor = (CDbl(a) = CDbl(b)): Exit Function
+    MesmoValor = (StrComp(CStr(a), CStr(b), vbBinaryCompare) = 0)
+End Function
