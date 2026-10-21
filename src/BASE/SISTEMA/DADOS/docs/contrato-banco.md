@@ -36,6 +36,14 @@ este contrato. Qualquer terceiro cliente futuro segue as mesmas regras.
 Campos `ctx_*` são escritos só pela IA e nunca pelo formulário: não entram no
 controle de versão (não há conflito possível entre os dois).
 
+## 3b. Conversão e resultado da gravação (ciclo 008)
+
+- Número digitado (DEV-09): moeda com vírgula decimal (até 2 casas), ponto só como milhar, limite
+  999.999.999.999,99; inteiro sem fração, no limite do Long; data `dd/mm/aaaa` ou `aaaa-mm-dd` e que exista.
+  Inválido não grava nem apaga o valor anterior (`modValidacao.Converter`, `ConvertTo-Moeda`, `ConvertTo-Inteiro`).
+- Bloqueio de registro é o único erro repetido automaticamente, e só antes do commit (DEV-14). Falha no commit é
+  "resultado indeterminado" (DEV-13): conferir antes de repetir.
+
 ## 4. Auditoria
 
 - **Toda gravação** (inserção, alteração, ativação, exclusão, promoção, contexto)

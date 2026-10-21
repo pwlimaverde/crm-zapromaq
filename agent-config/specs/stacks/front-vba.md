@@ -148,3 +148,6 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 - `modDB.ExecutarEm` troca o erro de escrita durante o backup pela mensagem controlada (`MensagemEscritaRecusada`)
   e registra a falha no diagnóstico (`modDiag`, `execucao\logs\front-<ESTACAO>-AAAAMM.log`, sem dado comercial).
 - `modBackupAviso.MotivosAviso`: regra por janela, os mesmos casos J1-J8 do PowerShell.
+- Ciclo 008: `modValidacao.Converter` (vazio/válido/inválido) em toda conversão de texto digitado; `MontarDados`
+  devolve os campos inválidos e a ficha recusa salvar sem apagar nada. `modDB.EstadoGravacao` +
+  `MensagemResultadoGravacao` (confirmada/indeterminada/desfeita/recusada); `ExecutarEm` repete só bloqueio (`EhBloqueio`).

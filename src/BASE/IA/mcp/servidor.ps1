@@ -21,7 +21,8 @@ Add-Type -AssemblyName System.Data
 
 # 1.6.0 (ciclo 007): crm_status com versao_conector, capacidades, diagnostico, motivos_backup e pasta_conector;
 # recusa de gravação por manutenção (config.manutencao) e mensagem controlada durante o backup.
-$script:VersaoServidor = '1.6.0'
+# 1.6.1 (ciclo 008): moeda/inteiro sem perda (C17-C21), repetição de bloqueio antes do commit, resultado indeterminado.
+$script:VersaoServidor = '1.6.1'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.

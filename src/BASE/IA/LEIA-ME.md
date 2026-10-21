@@ -1,3 +1,13 @@
+## Conector 1.6.1 — tipos e resultado da gravação (ciclo 008)
+
+**Nota de mudança (DEV-09, DEV-13, DEV-14).** Nenhuma ferramenta muda de nome ou parâmetro.
+- `valor`/`meta_faturamento` com mais de 2 casas decimais ou acima de 999.999.999.999,99 é recusado (antes era
+  aceito/arredondado); campo inteiro com fração (`1.5`) é recusado (antes `[int]` arredondava).
+- Registro bloqueado por outra gravação: o conector espera e repete sozinho (até 5 tentativas, ~4 s); se não
+  passar, "Não gravou: ... pode repetir em instantes" (nada foi gravado).
+- Falha no próprio commit: "Resultado indeterminado ... Leia o registro de novo (obter_*) e confira antes de
+  repetir". A skill não deve repetir sem conferir.
+
 ## Conector 1.6.0 — contrato, manutenção, backup e publicação por versão (ciclo 007)
 
 **Nota de mudança (DEV-07).** Nenhuma ferramenta sai nem muda parâmetro; o catálogo continua com

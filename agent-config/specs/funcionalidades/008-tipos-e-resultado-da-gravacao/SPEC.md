@@ -1,6 +1,6 @@
 # Spec: Tipos, resultado da gravação e falha transitória (ciclo 008)
 
-> Situação: aprovada em 19/10/2026 (plano revisado de 19/10/2026, seção 5, Etapa 2)
+> Concluída em 20/10/2026 - feature/tipos-e-resultado-da-gravacao (plano revisado de 19/10/2026, seção 5, Etapa 2)
 
 ## Objetivo
 
@@ -17,19 +17,19 @@
 
 ## Critérios de aceite
 
-- [ ] Matriz C17–C21 (front `Confere` e conector `testar-mcp`; o `verificar.py` exige os dois lados):
+- [x] Matriz C17–C21 (front `Confere` e conector `testar-mcp`; o `verificar.py` exige os dois lados):
   C17 data inexistente (31/02/2026, 2026-02-31) recusada; C18 moeda com mais de 2 casas recusada (12,505 / 12.505);
   C19 inteiro com fração recusado (1,5 / 1.5); C20 valor acima de 999.999.999.999,99 recusado; C21 valor negativo recusado.
-- [ ] Front, texto digitado (`modValidacao.Converter`): `abc` inválido; `12.50` inválido ("use vírgula para os
+- [x] Front, texto digitado (`modValidacao.Converter`): `abc` inválido; `12.50` inválido ("use vírgula para os
   centavos"); `1,5` = 1,5; `1.250` = 1250; `1.250,50` = 1250,5; `1,250.50` (separadores mistos) inválido; `-10`
   convertido (a crítica recusa negativo); `0` válido; data `dd/mm/aaaa` e `aaaa-mm-dd`; vazio = Null (limpar de
   propósito); a ficha recusa salvar com campo inválido, mostrando campo e texto, sem apagar o que foi digitado.
-- [ ] Lote: aderência/porte pelo mesmo conversor de inteiro (nota fracionária é erro).
-- [ ] Conector: `ConvertTo-Moeda` e `ConvertTo-Inteiro` no atendimento, cadastro e metas (nada de `[int]1.5` = 2).
-- [ ] DEV-13: `modDB.EstadoGravacao` (enviada → confirmada | indeterminada | desfeita); `MensagemResultadoGravacao`
+- [x] Lote: aderência/porte pelo mesmo conversor de inteiro (nota fracionária é erro).
+- [x] Conector: `ConvertTo-Moeda` e `ConvertTo-Inteiro` no atendimento, cadastro e metas (nada de `[int]1.5` = 2).
+- [x] DEV-13: `modDB.EstadoGravacao` (enviada → confirmada | indeterminada | desfeita); `MensagemResultadoGravacao`
   (pura, `Confere`) com as quatro mensagens; a ficha usa o estado no tratador de erro; releitura protegida depois de
   gravar; `Confirmar` trata o `Close` à parte; reentrada no Salvar bloqueada.
-- [ ] DEV-14: conector repete a transação inteira em erro de bloqueio antes do commit (3 tentativas, 200/500/1000 ms),
+- [x] DEV-14: conector repete a transação inteira em erro de bloqueio antes do commit (3 tentativas, 200/500/1000 ms),
   nunca depois; teste com duas conexões reais (uma segura a linha, o conector espera e grava); esgotado, "não gravou,
   pode repetir". Front: `ExecutarEm` repete o comando em erro de bloqueio (mesma transação, antes do commit).
 
