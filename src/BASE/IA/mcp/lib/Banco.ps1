@@ -164,7 +164,7 @@ function Invoke-Valor([string]$sql, [array]$params) {
   e .Log(tabela, id, campo, antigo, novo, acao).
   Qualquer throw dentro do bloco desfaz tudo.
 #>
-function Invoke-Transacao([scriptblock]$bloco) {
+function Invoke-TransacaoUmaVez([scriptblock]$bloco) {
     $cn = Open-Conexao
     $tx = $null
     try {
@@ -213,7 +213,6 @@ function Invoke-Transacao([scriptblock]$bloco) {
         }
         try {
             $resultado = & $bloco $ctx
-            $tx.Commit()
         } catch {
             # DEV-03: durante a cópia exclusiva do backup o ACE abre só leitura e a escrita falha; quem pediu
             # recebe a mensagem controlada, não o erro cru do motor
@@ -221,11 +220,53 @@ function Invoke-Transacao([scriptblock]$bloco) {
             if ($controlada) { throw $controlada }
             throw
         }
+        # DEV-13: falha no PRÓPRIO commit = resultado indeterminado (pode ter gravado): nunca repetir sozinho
+        try { $tx.Commit() }
+        catch {
+            $tx = $null
+            $ex = New-Object System.Exception(('Resultado indeterminado: a confirmação da gravação falhou (' + (Get-MensagemInterna $_.Exception) +
+                ') e ela pode ter sido concluída. Leia o registro de novo (obter_*) e confira antes de repetir.'))
+            $ex.Data['indeterminado'] = $true
+            throw $ex
+        }
         $tx = $null
         return $resultado
     } finally {
         if ($tx) { try { $tx.Rollback() } catch { } }
-        $cn.Close(); $cn.Dispose()
+        # depois do commit, falha ao fechar não muda o resultado (vai só para o diagnóstico)
+        try { $cn.Close(); $cn.Dispose() } catch { Write-DiagSeHouver ('fechar conexão: ' + $_.Exception.Message) }
+    }
+}
+
+function Write-DiagSeHouver([string]$t) { if (Get-Command Write-Diag -ErrorAction SilentlyContinue) { Write-Diag $t } }
+
+# DEV-14: erro transitório = registro/página bloqueada por outra conexão. Só ele se repete.
+function Test-ErroTransitorio([string]$mensagem) {
+    return ($mensagem -match 'bloquead|locked|could not update|não foi possível atualizar|nao foi possivel atualizar')
+}
+
+<#
+  Executa o bloco numa transação (Invoke-TransacaoUmaVez) e REPETE a transação inteira quando ela falhou
+  ANTES do commit por erro transitório (DEV-14): o rollback já aconteceu, então repetir não duplica nada.
+  Espera crescente (250, 500, 1000, 2000 ms), no máximo 5 tentativas. Esgotado: "não gravou, pode repetir".
+  Nunca repete erro de regra, conflito de versão, resultado indeterminado ou recusa por backup/manutenção.
+#>
+function Invoke-Transacao([scriptblock]$bloco) {
+    $esperas = @(250, 500, 1000, 2000)
+    for ($tentativaTx = 0; ; $tentativaTx++) {
+        try { return (Invoke-TransacaoUmaVez $bloco) }
+        catch {
+            $ex = $_.Exception
+            $msg = Get-MensagemInterna $ex
+            $transitorio = (-not $ex.Data.Contains('indeterminado')) -and (Test-ErroTransitorio $msg)
+            if (-not $transitorio) { throw }
+            if ($tentativaTx -ge $esperas.Count) {
+                throw ('Não gravou: o registro continuou bloqueado por outra gravação depois de ' + ($tentativaTx + 1) + ' tentativas (' + $msg +
+                       '). Nada foi gravado; pode repetir em instantes.')
+            }
+            Write-DiagSeHouver ('transitório (tentativa ' + ($tentativaTx + 1) + '): ' + $msg)
+            Start-Sleep -Milliseconds $esperas[$tentativaTx]
+        }
     }
 }
 

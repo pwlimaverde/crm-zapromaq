@@ -106,6 +106,20 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: nota 2 valida", modLote.NotaValida("2"), True
     Confere "lote: nota vazia valida", modLote.NotaValida(""), True
 
+    ' ---- DEV-13: estado da gravacao e mensagem fiel
+    modDB.NovaGravacao
+    Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"
+    Confere "msg confirmada diz GRAVADO", (InStr(modDB.MensagemResultadoGravacao("confirmada", 1, "x", "erro na releitura", "AT-0001-0001"), "GRAVADO (AT-0001-0001)") > 0), True
+    Confere "msg confirmada nunca diz nada foi gravado", (InStr(modDB.MensagemResultadoGravacao("confirmada", 1, "x", "erro", "r"), "Nada foi gravado") = 0), True
+    Confere "msg indeterminada pede conferir", (InStr(modDB.MensagemResultadoGravacao("indeterminada", 1, "x", "erro", "r"), "INDETERMINADO") > 0), True
+    Confere "msg desfeita: nada gravado, pode repetir", (InStr(modDB.MensagemResultadoGravacao("desfeita", 1, "x", "erro", "r"), "pode repetir") > 0), True
+    Confere "msg recusada mostra o motivo", (InStr(modDB.MensagemResultadoGravacao("nao_enviada", modDB.ERRO_ESCRITA_RECUSADA, "x", "Sistema em manutencao", "r"), "Sistema em manutencao") > 0), True
+    ' ---- DEV-14: so bloqueio e transitorio
+    Confere "bloqueio pt-BR e transitorio", modDB.EhBloqueio("N" & ChrW$(227) & "o foi poss" & ChrW$(237) & "vel atualizar; bloqueado no momento."), True
+    Confere "bloqueio en e transitorio", modDB.EhBloqueio("Could not update; currently locked."), True
+    Confere "violacao de chave nao e transitoria", modDB.EhBloqueio("Os valores duplicados no indice"), False
+    Confere "consulta atualizavel nao e bloqueio", modDB.EhBloqueio("A operacao deve usar uma consulta atualizavel."), False
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"

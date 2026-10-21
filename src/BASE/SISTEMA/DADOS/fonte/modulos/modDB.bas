@@ -31,6 +31,14 @@ Public Const adCurrency As Long = 6
 Public Const adBoolean As Long = 11
 ' Gravacao recusada por manutencao, esquema ou backup em curso (DEV-03, DEV-08)
 Public Const ERRO_ESCRITA_RECUSADA As Long = vbObjectError + 7001
+
+' DEV-14: espera entre tentativas de um comando bloqueado (sem DoEvents)
+Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal ms As Long)
+
+' DEV-13: onde parou a ultima gravacao desta estacao. "nao_enviada" ->
+' "enviada" (AbrirTransacao) -> "confirmada" | "indeterminada" (falha no
+' proprio CommitTrans) | "desfeita". A ficha decide a mensagem por aqui.
+Private mEstadoGravacao As String
 Private Const adParamInput As Long = 1
 Private Const adCmdText As Long = 1
 
@@ -297,6 +305,7 @@ Public Function AbrirTransacao() As Object
         modDiag.Registrar "gravacao", "inicio", "", ERRO_ESCRITA_RECUSADA, motivo, "recusada"
         Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.AbrirTransacao", motivo
     End If
+    mEstadoGravacao = "enviada"
     Set AbrirTransacao = cn
     Exit Function
 falhou:
@@ -331,14 +340,66 @@ End Function
 Public Sub Confirmar(ByVal cn As Object)
     On Error GoTo falhou
     cn.CommitTrans
+    ' DEV-13: daqui em diante o dado ESTA gravado; falha ao fechar a conexao
+    ' e outra coisa (vai para o diagnostico, nunca vira "nada foi gravado")
+    mEstadoGravacao = "confirmada"
+    On Error Resume Next
     cn.Close
+    If Err.Number <> 0 Then modDiag.Registrar "gravacao", "fechar conexao", "", Err.Number, Err.Description, "confirmada"
+    On Error GoTo 0
     Exit Sub
 falhou:
     Dim nErr As Long, sErr As String, sOrig As String
     nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
-    modDiag.Registrar "gravacao", "commit", "", nErr, sErr
+    mEstadoGravacao = "indeterminada"
+    modDiag.Registrar "gravacao", "commit", "", nErr, sErr, "indeterminada"
     Err.Raise nErr, sOrig, sErr
 End Sub
+
+'----------------------------------------------------------
+' DEV-13: estado da gravacao em curso (ver mEstadoGravacao).
+'----------------------------------------------------------
+Public Sub NovaGravacao()
+    mEstadoGravacao = "nao_enviada"
+End Sub
+
+Public Function EstadoGravacao() As String
+    If mEstadoGravacao = "" Then EstadoGravacao = "nao_enviada" Else EstadoGravacao = mEstadoGravacao
+End Function
+
+' Mensagem fiel ao que aconteceu: confirmada (so a tela nao foi atualizada),
+' indeterminada (conferir antes de repetir), recusada antes de gravar, ou
+' falhou antes do commit (nada gravado, pode repetir).
+Public Function MensagemResultadoGravacao(ByVal estado As String, ByVal numero As Long, ByVal origem As String, _
+                                          ByVal descricao As String, ByVal registro As String) As String
+    Select Case estado
+        Case "confirmada"
+            MensagemResultadoGravacao = "GRAVADO (" & registro & "), mas a tela n" & ChrW$(227) & "o foi atualizada:" & vbCrLf & _
+                descricao & vbCrLf & vbCrLf & "Clique em Atualizar para conferir. N" & ChrW$(227) & "o grave de novo."
+        Case "indeterminada"
+            MensagemResultadoGravacao = "RESULTADO INDETERMINADO (" & registro & "): a confirma" & ChrW$(231) & ChrW$(227) & _
+                "o da grava" & ChrW$(231) & ChrW$(227) & "o falhou e ela pode ter sido conclu" & ChrW$(237) & "da." & vbCrLf & _
+                descricao & vbCrLf & vbCrLf & "Clique em Atualizar e confira antes de repetir."
+        Case Else
+            If numero = ERRO_ESCRITA_RECUSADA Then
+                MensagemResultadoGravacao = "N" & ChrW$(227) & "o gravado: " & descricao & vbCrLf & vbCrLf & _
+                    "O que voc" & ChrW$(234) & " digitou continua na tela."
+            Else
+                MensagemResultadoGravacao = "N" & ChrW$(227) & "o foi poss" & ChrW$(237) & "vel salvar. Nada foi gravado; pode repetir." & _
+                    vbCrLf & vbCrLf & "Erro " & numero & IIf(origem = "", "", " em " & origem) & vbCrLf & descricao & vbCrLf & vbCrLf & _
+                    "O que voc" & ChrW$(234) & " digitou continua na tela."
+            End If
+    End Select
+End Function
+
+' DEV-14: erro transitorio do ACE (registro ou pagina bloqueada por outra
+' estacao). So este se repete; regra, permissao e consulta invalida, nunca.
+Public Function EhBloqueio(ByVal descricao As String) As Boolean
+    Dim s As String
+    s = LCase$(descricao)
+    EhBloqueio = (InStr(s, "bloquead") > 0 Or InStr(s, "locked") > 0 Or InStr(s, "em uso por outro") > 0 _
+                  Or InStr(s, "could not update") > 0 Or InStr(s, "n" & ChrW$(227) & "o foi poss" & ChrW$(237) & "vel atualizar") > 0)
+End Function
 
 ' "UPDATE clientes SET ..." -> "UPDATE clientes" (diagnostico sem dado)
 Public Function OperacaoDoSql(ByVal sql As String) As String
@@ -356,6 +417,8 @@ End Function
 Public Sub Desfazer(ByVal cn As Object)
     On Error Resume Next
     If cn Is Nothing Then Exit Sub
+    ' desfazer depois de uma falha no commit nao torna o resultado conhecido
+    If mEstadoGravacao = "enviada" Then mEstadoGravacao = "desfeita"
     If cn.State = 1 Then
         cn.RollbackTrans
         cn.Close
@@ -365,15 +428,24 @@ End Sub
 
 Public Function ExecutarEm(ByVal cn As Object, ByVal sql As String, _
                            Optional ByVal params As Variant) As Long
-    Dim cmd As Object, n As Long, msg As String
+    Dim cmd As Object, n As Long, msg As String, tentativa As Long
     On Error GoTo falhou
     Set cmd = NovoComando(cn, sql, params)
+repetir:
     cmd.Execute n
     ExecutarEm = n
     Exit Function
 falhou:
     Dim nErr As Long, sErr As String, sOrig As String
     nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
+    ' DEV-14: registro bloqueado por outra estacao e transitorio; o comando
+    ' falhou sem gravar e a transacao segue aberta: repete o MESMO comando,
+    ' antes do commit, com espera crescente e limite
+    tentativa = tentativa + 1
+    If EhBloqueio(sErr) And tentativa <= 4 Then
+        Sleep 250 * (2 ^ (tentativa - 1))
+        Resume repetir
+    End If
     ' DEV-03: com o backup segurando o arquivo, o ACE abriu so leitura e a
     ' gravacao falhou antes de gravar: quem pediu recebe a mensagem controlada
     msg = MensagemEscritaRecusada(sErr, modBackupAviso.BackupEmCurso())

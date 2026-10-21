@@ -198,6 +198,34 @@ try {
         Conferir 'diagnóstico sem poder gravar: a operação responde e o crm_status mostra a falha' ((-not $res.isError) -and [int]$st.diagnostico.falhas -ge 1 -and [string]$st.diagnostico.ultima_falha -ne '') ($st.diagnostico | ConvertTo-Json -Compress)
     } finally { Set-ItemProperty -LiteralPath $hoje5 -Name IsReadOnly -Value $false }
 
+    Write-Host '--- DEV-14: registro bloqueado por outra gravação (duas conexões reais)'
+    $b6 = NovaBase 'base-bloqueio'
+    $banco6 = Join-Path $b6 'crm_zapromaq.accdb'
+    # outra "estação": segura o cliente 2 numa transação aberta por N segundos e confirma
+    function Segurar([string]$banco, [int]$segundos) {
+        $cmd = ('Add-Type -AssemblyName System.Data; $cn = New-Object System.Data.OleDb.OleDbConnection(''Provider=' + (Get-ProvedorAce) + ';Data Source=' + $banco +
+                ';OLE DB Services=-4;''); $cn.Open(); $tx = $cn.BeginTransaction(); $c = $cn.CreateCommand(); $c.Transaction = $tx; ' +
+                '$c.CommandText = ''UPDATE clientes SET observacoes = ''''bloqueio de teste'''' WHERE codigo_cliente = 2''; [void]$c.ExecuteNonQuery(); ' +
+                '[IO.File]::WriteAllText(''' + (Join-Path $tmp 'segurando.txt') + ''', ''x''); Start-Sleep -Seconds ' + $segundos + '; $tx.Commit(); $cn.Close()')
+        Remove-Item -LiteralPath (Join-Path $tmp 'segurando.txt') -ErrorAction SilentlyContinue
+        $p = Start-Process -FilePath $ps -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-Command', $cmd)
+        $n = 0; while (-not (Test-Path -LiteralPath (Join-Path $tmp 'segurando.txt')) -and $n -lt 60) { Start-Sleep -Milliseconds 250; $n++ }
+        return $p
+    }
+    $cli6 = (ChamarMcp $banco6 'obter_cliente' ([ordered]@{ codigo_cliente = 2 })).content[0].text | ConvertFrom-Json
+    $seg = Segurar $banco6 6
+    $inicio6 = Get-Date
+    $res = ChamarMcp $banco6 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli6.versao; cidade = 'CIDADE DEPOIS DO BLOQUEIO'; autor = 'teste' })
+    [void]$seg.WaitForExit(30000)
+    Conferir 'gravação que encontra o registro bloqueado espera e grava (sem erro para o usuário)' ((-not $res.isError) -and ((Get-Date) - $inicio6).TotalSeconds -ge 3) ($res.content[0].text)
+    # versão subiu pela outra gravação? não: a outra mudou observações sem versão; o conector gravou uma vez só
+    $cli6b = (ChamarMcp $banco6 'obter_cliente' ([ordered]@{ codigo_cliente = 2 })).content[0].text | ConvertFrom-Json
+    Conferir 'a gravação repetida entrou UMA vez (versão +1 e um log de cidade)' ([int]$cli6b.versao -eq ([int]$cli6.versao + 1) -and [string]$cli6b.cidade -eq 'CIDADE DEPOIS DO BLOQUEIO') ($cli6b | ConvertTo-Json -Compress -Depth 3)
+    $seg = Segurar $banco6 40
+    $res = ChamarMcp $banco6 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli6b.versao; cidade = 'NAO DEVE GRAVAR'; autor = 'teste' })
+    try { $seg.Kill() } catch { }
+    Conferir 'bloqueio que não passa: "não gravou, pode repetir" e nada gravado' ($res.isError -and $res.content[0].text -match 'pode repetir') ($res.content[0].text)
+
     # FIM-DOS-CASOS
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 
