@@ -287,10 +287,13 @@ Private Function Peso(ByVal status As String) As Long
     End Select
 End Function
 
-Private Function NotaValida(ByVal v As String) As Boolean
-    If Trim$(v) = "" Then NotaValida = True: Exit Function
-    If Not IsNumeric(v) Then Exit Function
-    NotaValida = (CLng(v) >= 1 And CLng(v) <= 3)
+' Nota 1 a 3, INTEIRA (DEV-09): "1,5" era arredondada por CLng e entrava como 2.
+Public Function NotaValida(ByVal v As String) As Boolean
+    Dim conv As Variant
+    conv = modValidacao.Converter("N", v)
+    If conv(0) = "vazio" Then NotaValida = True: Exit Function
+    If conv(0) = "invalido" Then Exit Function
+    NotaValida = (conv(1) >= 1 And conv(1) <= 3)
 End Function
 
 ' A lista e lida UMA vez por conferencia (CarregarSegmentos), nao

@@ -1010,7 +1010,7 @@ function Invoke-AtualizarCadastroCliente($a) {
             $tipo = $defs[$campo][0]; $lista = $defs[$campo][1]
             $v = $a.$campo
             if ($tipo -eq 'inteiro') {
-                if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
+                if ($null -ne $v) { $v = ConvertTo-Inteiro $campo $v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
             } elseif ($lista) {
                 $v = Resolve-ValorLista $ctx $lista $campo $v $atual[$campo]
             } else {
@@ -1316,8 +1316,8 @@ function ConvertTo-CampoAtendimento($ctx, [string]$campo, $v, $atual = $null) {
     $tipo = $script:DefsAtendimento[$campo][0]; $lista = $script:DefsAtendimento[$campo][1]
     switch ($tipo) {
         'data'    { return (ConvertTo-Data $campo $v) }
-        'moeda'   { if ($null -ne $v) { $v = [decimal]$v; if ($v -lt 0) { throw 'O valor não pode ser negativo.' } }; return $v }
-        'inteiro' { if ($null -ne $v) { $v = [int]$v; if ($v -lt 0) { throw "Campo '$campo' não pode ser negativo." } }; return $v }
+        'moeda'   { $v = ConvertTo-Moeda $campo $v; if ($null -ne $v) { if ($v -lt 0) { throw 'O valor não pode ser negativo.' } }; return $v }
+        'inteiro' { $v = ConvertTo-Inteiro $campo $v; if ($null -ne $v) { if ($v -lt 0) { throw "Campo '$campo' não pode ser negativo." } }; return $v }
         default   {
             if ($lista) { return (Resolve-ValorLista $ctx $lista $campo $v $atual) }
             $v = ConvertTo-Normalizado $campo $v; Assert-Tamanho $campo $v; return $v
@@ -1348,7 +1348,7 @@ function Invoke-PromoverNaTransacao($ctx, $cli) {
 function ConvertTo-CampoCliente($ctx, [string]$campo, $v, [int]$idProprio, $atual = $null) {
     $defs = @{ uf = 'UF'; segmento = 'Segmento'; responsavel = 'Responsavel' }
     if ($campo -in @('aderencia', 'porte')) {
-        if ($null -ne $v) { $v = [int]$v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
+        if ($null -ne $v) { $v = ConvertTo-Inteiro $campo $v; if ($v -lt 1 -or $v -gt 3) { throw "Campo '$campo' vai de 1 a 3." } }
         return $v
     }
     if ($defs.ContainsKey($campo)) { return (Resolve-ValorLista $ctx $defs[$campo] $campo $v $atual) }
@@ -2200,7 +2200,7 @@ function Invoke-GravarMeta($a) {
             if (-not (Test-TemArg $a $c)) { continue }
             $v = $a.$c
             if ($null -ne $v) {
-                if ($defs[$c] -eq 'moeda') { $v = [decimal]$v } else { $v = [int]$v }
+                if ($defs[$c] -eq 'moeda') { $v = ConvertTo-Moeda $c $v } else { $v = ConvertTo-Inteiro $c $v }
                 if ($v -lt 0) { throw "Campo '$c' não pode ser negativo." }
             }
             $antigo = $null; if ($ex.Count -gt 0) { $antigo = $ex[0][$c] }

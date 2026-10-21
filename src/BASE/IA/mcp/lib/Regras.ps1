@@ -109,6 +109,25 @@ function ConvertTo-Data([string]$campo, $valor) {
     return $d
 }
 
+# DEV-09 (ciclo 008): número sem perda silenciosa. Mesma matriz (C17 a C21) de modValidacao.Converter (front).
+# Moeda: até 2 casas decimais e até 999.999.999.999,99; nada de arredondar em silêncio.
+$script:MoedaMaxima = [decimal]999999999999.99
+function ConvertTo-Moeda([string]$campo, $v) {
+    if ($null -eq $v -or ($v -is [string] -and $v.Trim() -eq '')) { return $null }
+    try { $d = [decimal]$v } catch { throw ("Campo '" + $campo + "': valor inválido '" + $v + "'.") }
+    if ([decimal]::Round($d, 2) -ne $d) { throw ("Campo '" + $campo + "': mais de 2 casas decimais (" + $v + '). Nada foi gravado.') }
+    if ([math]::Abs($d) -gt $script:MoedaMaxima) { throw ("Campo '" + $campo + "': valor acima do limite (999.999.999.999,99).") }
+    return $d
+}
+# Inteiro: sem fração e dentro do Long do banco (nada de [int]1.5 = 2).
+function ConvertTo-Inteiro([string]$campo, $v) {
+    if ($null -eq $v -or ($v -is [string] -and $v.Trim() -eq '')) { return $null }
+    try { $d = [decimal]$v } catch { throw ("Campo '" + $campo + "': número inválido '" + $v + "'.") }
+    if ([decimal]::Truncate($d) -ne $d) { throw ("Campo '" + $campo + "': número inteiro, sem fração (" + $v + '). Nada foi gravado.') }
+    if ($d -gt [int]::MaxValue -or $d -lt [int]::MinValue) { throw ("Campo '" + $campo + "': número fora do limite.") }
+    return [int]$d
+}
+
 function ConvertTo-DataOuNulo($v) {
     if ($null -eq $v -or [string]$v -eq '') { return $null }
     if ($v -is [datetime]) { return $v.Date }
