@@ -115,6 +115,21 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C24 URL caminho e email preservados", modValidacao.Normalizar("observacoes", "ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com"), "VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com"
     Confere "C24 caminho de contexto como gravado", modValidacao.Normalizar("ctx_arquivo", " Clientes\0001\Contexto.md "), "Clientes\0001\Contexto.md"
 
+    ' ---- DEV-10: transicoes de etapa (mesmos casos C25-C28 do conector)
+    Dim dT As Object
+    Set dT = CreateObject("Scripting.Dictionary")
+    dT("prox_acao") = "LIGAR": dT("dt_prox_acao") = DateSerial(2026, 11, 1): dT("motivo_desfecho") = "PRECO": dT("dt_desfecho") = DateSerial(2026, 10, 1): dT("retomar_em") = DateSerial(2027, 1, 1)
+    Confere "C25 encerrar em perda nao orienta", modRegras.TransicaoEtapa(False, True, True, dT), ""
+    Confere "C25 encerrar em perda limpa a proxima acao", IsNull(dT("prox_acao")) And IsNull(dT("dt_prox_acao")), True
+    Confere "C26 retomada em etapa aberta recusada", (modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), Null) <> ""), True
+    Confere "C26 retomada em perda passa", modRegras.CriticarRetomada(True, True, DateSerial(2026, 12, 1), Null), ""
+    Confere "C26 retomada antiga sem mudar nao trava", modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), DateSerial(2026, 12, 1)), ""
+    Confere "C27 reabrir orienta", (InStr(modRegras.TransicaoEtapa(True, False, False, dT), "atendimento NOVO") > 0), True
+    Confere "C27 reabrir limpa motivo desfecho e retomada", IsNull(dT("motivo_desfecho")) And IsNull(dT("dt_desfecho")) And IsNull(dT("retomar_em")), True
+    Set dT = CreateObject("Scripting.Dictionary")
+    dT("dt_entrada") = DateSerial(2026, 10, 10): dT("dt_proposta") = DateSerial(2026, 10, 1)
+    Confere "C28 proposta antes da entrada e aviso", (InStr(modValidacao.AvisoDatas(dT), "proposta") > 0), True
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"

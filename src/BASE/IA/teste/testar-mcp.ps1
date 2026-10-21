@@ -143,6 +143,18 @@ Conferir 'C23 e-mail adicional vai para as observações' ((Add-EmailsAdicionais
 Conferir 'C24 URL, caminho e e-mail dentro das observações ficam como digitados' ((ConvertTo-Normalizado 'observacoes' 'ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com') -ceq 'VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com')
 Conferir 'C24 caminho de contexto como gravado' ((ConvertTo-Normalizado 'ctx_arquivo' ' Clientes\0001\Contexto.md ') -ceq 'Clientes\0001\Contexto.md')
 
+Write-Host '--- DEV-10: transições de etapa e retomada (mesmos casos C25-C28 do front)'
+$trP = Get-TransicaoEtapa $false $true $true
+Conferir 'C25 encerrar em Perdido/Descartado limpa a próxima ação e a data' ((@($trP.limpar) -join ',') -eq 'prox_acao,dt_prox_acao' -and $trP.orientacao -eq '')
+Conferir 'C25 encerrar em Pedido Fechado (GANHO) não limpa a próxima ação' (@((Get-TransicaoEtapa $false $true $false).limpar).Count -eq 0)
+Conferir 'C26 retomada em etapa aberta é recusada' ((Test-RetomadaPermitida $false $false '2026-12-01' $null) -match 'C26')
+Conferir 'C26 retomada em Perdido/Descartado passa' ($null -eq (Test-RetomadaPermitida $true $true '2026-12-01' $null))
+Conferir 'C26 retomada antiga que não mudou não trava a edição' ($null -eq (Test-RetomadaPermitida $false $false '2026-12-01' '2026-12-01'))
+$trR = Get-TransicaoEtapa $true $false $false
+Conferir 'C27 reabrir limpa motivo, desfecho e retomada e orienta' ((@($trR.limpar) -join ',') -eq 'motivo_desfecho,dt_desfecho,retomar_em' -and $trR.orientacao -match 'atendimento NOVO')
+$avC28 = Get-CriticaAtendimento ([ordered]@{ etapa = 'Negociação'; responsavel = 'Vendedor A'; dt_entrada = '2026-10-10'; dt_proposta = '2026-10-01'; familia = 'X'; dt_prox_acao = '2026-12-01' })
+Conferir 'C28 proposta antes da entrada é aviso, não recusa' (@($avC28 | Where-Object { $_ -match 'proposta' }).Count -eq 1)
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')

@@ -557,6 +557,21 @@ falha:
     Err.Raise nErr, "modCRM.CriarCliente", sErr
 End Function
 
+' DEV-10: contato com o mesmo nome na mesma empresa gera aviso e pede
+' confirmação, sem bloquear ("" = nenhum homônimo).
+Public Function AvisoHomonimo(ByVal idCliente As Long, ByVal nome As String) As String
+    Dim d As Variant, i As Long, cods As String
+    If idCliente = 0 Or nome = "" Then Exit Function
+    d = modDB.Consultar("SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?", _
+                        Array(modDB.P(modDB.adInteger, idCliente), modDB.P(modDB.adVarWChar, nome)))
+    If IsEmpty(d) Then Exit Function
+    For i = 1 To UBound(d, 1)
+        cods = cods & IIf(cods = "", "", ", ") & modDB.Nz(d(i, 1))
+    Next i
+    AvisoHomonimo = "Já existe contato com o nome " & nome & " nesta empresa (" & cods & ")." & vbCrLf & vbCrLf & _
+                    "Se for a mesma pessoa, use o cadastro existente. Cadastrar assim mesmo?"
+End Function
+
 Private Function CnpjJaExiste(ByVal cnpj As Variant) As Boolean
     If IsNull(cnpj) Or IsEmpty(cnpj) Then Exit Function
     If Len(CStr(cnpj)) = 0 Then Exit Function

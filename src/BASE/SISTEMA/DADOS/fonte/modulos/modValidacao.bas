@@ -390,19 +390,8 @@ Public Function CriticarOportunidade(ByVal d As Object) As String
         If CDbl(d("valor")) < 0 Then CriticarOportunidade = "O valor não pode ser negativo.": Exit Function
     End If
 
-    ' datas coerentes entre si
-    If Not IsNull(d("dt_proposta")) And Not IsNull(d("dt_entrada")) Then
-        If CDate(d("dt_proposta")) < CDate(d("dt_entrada")) Then
-            CriticarOportunidade = "A data da proposta é anterior à data de entrada."
-            Exit Function
-        End If
-    End If
-    If Not IsNull(d("dt_desfecho")) And Not IsNull(d("dt_entrada")) Then
-        If CDate(d("dt_desfecho")) < CDate(d("dt_entrada")) Then
-            CriticarOportunidade = "A data do desfecho é anterior à data de entrada."
-            Exit Function
-        End If
-    End If
+    ' datas fora de ordem (proposta/desfecho antes da entrada) são AVISO, não
+    ' recusa (seção 5.2, C28): ver AvisoDatas em AvisarOportunidade
 
     ' o que a etapa exige
     ' o que a etapa exige: o papel vem da lista (Encerra e Exige familia)
@@ -427,9 +416,29 @@ End Function
 '----------------------------------------------------------
 ' Aviso, nao impedimento: o vendedor decide seguir.
 '----------------------------------------------------------
+' C28: proposta ou desfecho antes da entrada é aviso ("" = datas em ordem). Pura.
+Public Function AvisoDatas(ByVal d As Object) As String
+    If Not d.Exists("dt_entrada") Then Exit Function
+    If IsNull(d("dt_entrada")) Then Exit Function
+    If d.Exists("dt_proposta") Then
+        If Not IsNull(d("dt_proposta")) Then
+            If CDate(d("dt_proposta")) < CDate(d("dt_entrada")) Then AvisoDatas = "A data da proposta é anterior à data de entrada."
+        End If
+    End If
+    If d.Exists("dt_desfecho") Then
+        If Not IsNull(d("dt_desfecho")) Then
+            If CDate(d("dt_desfecho")) < CDate(d("dt_entrada")) Then AvisoDatas = AvisoDatas & IIf(AvisoDatas = "", "", " ") & "A data do desfecho é anterior à data de entrada."
+        End If
+    End If
+End Function
+
 Public Function AvisarOportunidade(ByVal d As Object) As String
     Dim etapa As String
     etapa = modDB.Nz(d("etapa"))
+    If AvisoDatas(d) <> "" Then
+        AvisarOportunidade = AvisoDatas(d) & " Confira as datas. Deseja salvar assim mesmo?"
+        Exit Function
+    End If
     If modCRM.EtapaResultado(etapa) = "GANHO" And IsNull(d("valor")) Then
         AvisarOportunidade = "Pedido fechado sem valor informado. Deseja salvar assim mesmo?"
         Exit Function

@@ -989,7 +989,18 @@ function Invoke-AtualizarAtendimento($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        # DEV-10: transições de etapa e retomada (seção 5.2), as mesmas do front (modRegras)
+        $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
+        $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
+        $mRet = Test-RetomadaPermitida $papelNovo.encerra $perdaNova $novo.retomar_em $atual.retomar_em
+        if ($mRet) { throw $mRet }
+        $tr = Get-TransicaoEtapa (Get-PapelEtapa ([string]$atual.etapa)).encerra $papelNovo.encerra $perdaNova
+        foreach ($c in $tr.limpar) {
+            $novo[$c] = $null
+            if (Test-Igual $atual[$c] $null) { $mud.Remove($c) } else { $mud[$c] = @{ Tipo = $script:DefsAtendimento[$c][0]; Novo = $null; Antigo = $atual[$c] } }
+        }
         $avisos = Get-CriticaAtendimento $novo
+        if ($tr.orientacao) { [void]$avisos.Add($tr.orientacao) }
         if ($mud.Count -eq 0) {
             return [ordered]@{ codigo = $codigo; gravado = $false; mensagem = 'Nada a alterar: os valores já estão iguais.'; versao = $atual.versao }
         }
@@ -1304,8 +1315,6 @@ function Get-CriticaAtendimento($novo) {
     $dEnt = ConvertTo-DataOuNulo $novo.dt_entrada
     $dPro = ConvertTo-DataOuNulo $novo.dt_proposta
     $dDes = ConvertTo-DataOuNulo $novo.dt_desfecho
-    if ($dEnt -and $dPro -and $dPro -lt $dEnt) { throw 'A data da proposta é anterior à data de entrada.' }
-    if ($dEnt -and $dDes -and $dDes -lt $dEnt) { throw 'A data do desfecho é anterior à data de entrada.' }
     if ((Get-PapelEtapa $etapa).encerra) {
         if ([string]$novo.motivo_desfecho -eq '') { throw ('Etapa "' + $etapa + '" exige motivo_desfecho.') }
         if (-not $dDes) { throw ('Etapa "' + $etapa + '" exige dt_desfecho.') }
@@ -1314,6 +1323,9 @@ function Get-CriticaAtendimento($novo) {
         throw ('Etapa "' + $etapa + '" exige a família de máquina.')
     }
     $avisos = New-Object System.Collections.ArrayList
+    # C28 (seção 5.2): datas fora de ordem são aviso, não recusa
+    if ($dEnt -and $dPro -and $dPro -lt $dEnt) { [void]$avisos.Add('A data da proposta é anterior à data de entrada.') }
+    if ($dEnt -and $dDes -and $dDes -lt $dEnt) { [void]$avisos.Add('A data do desfecho é anterior à data de entrada.') }
     if ((Get-PapelEtapa $etapa).resultado -eq 'GANHO' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
     if ((-not (Get-PapelEtapa $etapa).encerra) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
         [void]$avisos.Add('Sem próxima ação e sem data de retomada: o atendimento some da fila da manhã.')
@@ -1503,6 +1515,12 @@ function Invoke-AbrirAtendimento($a) {
         foreach ($c in $script:DefsAtendimento.Keys) { $novo[$c] = $null }
         $novo['dt_entrada'] = (Get-Date).Date
         foreach ($c in $script:DefsAtendimento.Keys) { if (Test-TemArg $a $c) { $novo[$c] = ConvertTo-CampoAtendimento $ctx $c $a.$c } }
+        # DEV-10: retomada só em Perdido/Descartado; nascer encerrado em perda não tem próxima ação
+        $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
+        $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
+        $mRet = Test-RetomadaPermitida $papelNovo.encerra $perdaNova $novo.retomar_em $null
+        if ($mRet) { throw $mRet }
+        foreach ($c in (Get-TransicaoEtapa $false $papelNovo.encerra $perdaNova).limpar) { $novo[$c] = $null }
         $avisos = Get-CriticaAtendimento $novo
         $idAnt = $null
         if (Test-TemArg $a 'codigo_atendimento_anterior') {

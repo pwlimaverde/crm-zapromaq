@@ -64,6 +64,7 @@ Private mCarregando As Boolean
 Private mRestaurando As Boolean    ' devolvendo a selecao da lista, sem reexibir
 Private mUltimoIndice As Long      ' linha da lista do registro exibido
 Private mSalvando As Boolean       ' DEV-13: gravação em andamento (sem reentrada)
+Private mLidos As Object           ' valores lidos do banco ao entrar em edição (transição de etapa, conflito)
 
 '==========================================================
 Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long = 0, _
@@ -1095,6 +1096,7 @@ End Sub
 Private Sub cmdNovo_Click()
     Dim i As Long, spec As Variant
     mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0: mAnteriorLido = 0
+    Set mLidos = CreateObject("Scripting.Dictionary")
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         DefinirValor CStr(spec(0)), CStr(spec(2)), Null
@@ -1133,10 +1135,12 @@ Private Sub cmdEditar_Click()
     End If
     nomes = modDB.gCampos
 
+    Set mLidos = CreateObject("Scripting.Dictionary")
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         If spec(6) = "1" Then
             DefinirValor CStr(spec(0)), CStr(spec(2)), ValorPorNome(d, nomes, CStr(spec(0)))
+            mLidos(CStr(spec(0))) = ValorPorNome(d, nomes, CStr(spec(0)))
         End If
     Next i
     mVersao = CLng(modDB.Nz(ValorPorNome(d, nomes, "versao"), "1"))
@@ -1157,6 +1161,13 @@ trata:
     MsgBox "Não foi possível abrir para edição:" & vbCrLf & vbCrLf & Err.Description, _
            vbExclamation, "CRM Zapromaq"
 End Sub
+
+' Valor do campo como foi lido do banco ao entrar em edição (Null se não há)
+Private Function Lido(ByVal campo As String) As Variant
+    Lido = Null
+    If mLidos Is Nothing Then Exit Function
+    If mLidos.Exists(campo) Then Lido = mLidos(campo)
+End Function
 
 Private Function ValorPorNome(ByVal d As Variant, ByVal nomes As Variant, _
                               ByVal campo As String) As Variant
@@ -1209,6 +1220,28 @@ Private Sub Salvar()
         MsgBox "Não foi possível salvar: valor que não pode ser convertido." & vbCrLf & vbCrLf & erroConv & vbCrLf & _
                "Corrija e salve de novo. Nada foi gravado; o que você digitou continua na tela.", vbExclamation, "CRM Zapromaq"
         Exit Sub
+    End If
+
+    ' DEV-10: regras de etapa da seção 5.2 (modRegras), as mesmas do conector
+    If mTabela = "oportunidades" Then
+        Dim etapaLida As String, encNova As Boolean, perdaNova As Boolean, orientacao As String
+        If Not mNovo Then etapaLida = modDB.Nz(Lido("etapa"))
+        encNova = modCRM.EtapaEncerra(modDB.Nz(d("etapa")))
+        perdaNova = (modCRM.EtapaResultado(modDB.Nz(d("etapa"))) = "PERDA")
+        critica = modRegras.CriticarRetomada(encNova, perdaNova, d("retomar_em"), Lido("retomar_em"))
+        If critica <> "" Then MsgBox critica, vbExclamation, "CRM Zapromaq": Exit Sub
+        orientacao = modRegras.TransicaoEtapa(IIf(etapaLida = "", False, modCRM.EtapaEncerra(etapaLida)), encNova, perdaNova, d)
+        If orientacao <> "" Then
+            If MsgBox(orientacao & vbCrLf & vbCrLf & "Reabrir assim mesmo?", vbYesNo + vbQuestion, "CRM Zapromaq - reabrir atendimento") <> vbYes Then Exit Sub
+        End If
+    End If
+    ' DEV-10: contato com o mesmo nome na mesma empresa é aviso, não bloqueio
+    If mTabela = "contatos" And mNovo Then
+        aviso = modCRM.AvisoHomonimo(VinculoDe("id_cliente"), modDB.Nz(d("nome")))
+        If aviso <> "" Then
+            If MsgBox(aviso, vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
+        End If
+        aviso = ""
     End If
 
     Select Case mTabela

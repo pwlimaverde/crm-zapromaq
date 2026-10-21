@@ -173,6 +173,28 @@ function ConvertTo-DataOuNulo($v) {
     return [datetime]::ParseExact(([string]$v).Substring(0, 10), 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
 }
 
+# Regras de etapa da seção 5.2 (ciclo 009, DEV-10). Espelho de modRegras (front), casos C25 a C27.
+# Devolve @{ limpar = campos a limpar; orientacao = texto da reabertura ou '' }.
+function Get-TransicaoEtapa([bool]$encerraAntiga, [bool]$encerraNova, [bool]$perdaNova) {
+    $limpar = @()
+    $orientacao = ''
+    if ($encerraNova -and $perdaNova) { $limpar += @('prox_acao', 'dt_prox_acao') }
+    if ($encerraAntiga -and -not $encerraNova) {
+        $limpar += @('motivo_desfecho', 'dt_desfecho', 'retomar_em')
+        $orientacao = ('Reabrir serve para corrigir um encerramento indevido: motivo, data do desfecho e retomada foram limpos ' +
+                       '(os valores anteriores ficam no histórico). Interesse novo é atendimento NOVO: use duplicar_atendimento no encerrado.')
+    }
+    return @{ limpar = $limpar; orientacao = $orientacao }
+}
+# C26: retomar_em nova ou alterada só em Perdido/Descartado (encerra + PERDA). Devolve a mensagem ou $null.
+function Test-RetomadaPermitida([bool]$encerraNova, [bool]$perdaNova, $retomarNova, $retomarLida) {
+    $n = ConvertTo-DataOuNulo $retomarNova
+    if ($null -eq $n) { return $null }
+    if ($encerraNova -and $perdaNova) { return $null }
+    if ((ConvertTo-DataOuNulo $retomarLida) -eq $n) { return $null }
+    return 'A data de retomada só existe em atendimento Perdido ou Descartado. Para um atendimento aberto, use a próxima ação (dt_prox_acao) (C26).'
+}
+
 # ---------------------------------------------------------------- modCalc
 function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm) {
     if (-not $temContato) { return '' }
