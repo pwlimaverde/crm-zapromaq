@@ -8,16 +8,20 @@
   sem a opção  : roda também leituras e gravações no banco de teste,
                  incluindo o teste de conflito de versão.
 #>
-param([switch]$SoProtocolo)
+#  -Servidor <servidor.ps1> e -Banco <accdb>: testam outra pasta de conector (publicar-conector.ps1, DEV-05)
+#  contra outro banco de homologação; sem eles, IA\mcp\servidor.ps1 e o banco da raiz de BASE.
+param([switch]$SoProtocolo, [string]$Servidor = '', [string]$Banco = '')
 $ErrorActionPreference = 'Stop'
 
 $raizIA = Split-Path -Parent $PSScriptRoot
-$servidor = Join-Path $raizIA 'mcp\servidor.ps1'
+$servidor = if ($Servidor) { $Servidor } else { Join-Path $raizIA 'mcp\servidor.ps1' }
 $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $ps
-$psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $servidor + '"'
+$psi.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $servidor + '"' + $(if ($Banco) { ' -Banco "' + $Banco + '"' } else { '' })
+# servidor de uma pasta de versão encontra a pasta IA (logs) por aqui, como no lançador
+$psi.EnvironmentVariables['CRM_RAIZ_IA'] = $raizIA
 $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
@@ -31,6 +35,17 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 $script:falhas = 0
 $script:id = 0
+# DEV-07: o contrato do conector é ESTA lista. Mudou o catálogo? Muda aqui, com nota de mudança no IA\LEIA-ME.md
+# (ferramenta, parâmetro, resposta e erro) e VersaoServidor novo.
+$script:FerramentasEsperadas = @(
+    'abrir_atendimento', 'alterar_situacao_cliente', 'alterar_situacao_planejamento', 'alterar_situacao_visita',
+    'atendimentos_por_interacao', 'atendimentos_por_proxima_acao', 'atualizar_atendimento', 'atualizar_cadastro_cliente',
+    'atualizar_contato', 'atualizar_contexto_atendimento', 'atualizar_contexto_cliente', 'atualizar_planejamento',
+    'atualizar_visita', 'buscar_atendimentos', 'buscar_clientes', 'buscar_contatos', 'buscar_municipios',
+    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'exportar_base',
+    'exportar_roteiro', 'gerar_visitas', 'gerenciar_lista', 'gravar_meta', 'lancar_datas', 'lancar_resultados',
+    'listar_candidatos', 'listar_metas', 'listar_opcoes', 'listar_planejamentos', 'listar_visitas', 'obter_atendimento',
+    'obter_cliente', 'obter_contato', 'obter_planejamento', 'promover_cliente', 'resolver_cidade', 'ultimas_alteracoes')
 function Enviar($metodo, $params, [switch]$Notificacao) {
     $msg = [ordered]@{ jsonrpc = '2.0' }
     if (-not $Notificacao) { $script:id++; $msg['id'] = $script:id }
@@ -76,7 +91,7 @@ Write-Host '--- valor inativo (C06, D-j): só o que já está gravado no registr
 . (Join-Path $raizIA 'mcp\lib\Protocolo.ps1')
 . (Join-Path $raizIA 'mcp\lib\Banco.ps1')
 . (Join-Path $raizIA 'mcp\lib\Ferramentas.ps1')
-$script:CaminhoBanco = Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb'
+$script:CaminhoBanco = if ($Banco) { $Banco } else { Join-Path (Split-Path -Parent $raizIA) 'crm_zapromaq.accdb' }
 # Trava (spec 004, F2): daqui em diante o teste GRAVA no banco. Só roda se config.ambiente = TESTE;
 # banco de PRODUCAO (ou que não se lê) é recusado antes de qualquer gravação. Fora de processo,
 # para não misturar as funções de SISTEMA\DADOS\lib\Comum.ps1 com as do conector.
@@ -106,6 +121,29 @@ try {
     Conferir 'C06 inativa gravada aceita o próprio texto, sem diferença de caixa' ((Resolve-ValorLista $null 'Etapa' 'etapa' 'perdido' 'Perdido') -eq 'Perdido')
     Conferir 'C06 inativa que é outra gravada no registro é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Descartado' })
 } finally { Set-AtivoEtapa 'Perdido' $true }
+
+Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
+Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
+Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
+Conferir 'erro de outro tipo com backup em curso não é traduzido' ((Get-MensagemEscritaRecusada 'Violação de chave' $true) -eq '')
+
+Write-Host '--- DEV-03: aviso por janela (seção 5.3) - os mesmos casos de testar-recuperacao.ps1 e do modAutoteste'
+function CJ([string]$quando, [string]$tipo, [bool]$val) { return [pscustomobject]@{ instante = [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null); tipo = $tipo; validado = $val } }
+function AJ([string]$quando) { return [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null) }
+$casosJ = @(
+    @{ n = 'J1'; agora = '2026-10-19 10:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true), (CJ '2026-10-19 09:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J2'; agora = '2026-10-19 10:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true)); motivos = 1 }
+    @{ n = 'J3'; agora = '2026-10-19 09:20'; copias = @((CJ '2026-10-16 16:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J4'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-16 16:05' 'diario' $true), (CJ '2026-10-19 09:05' 'periodico' $true), (CJ '2026-10-19 12:35' 'periodico' $true), (CJ '2026-10-19 16:10' 'periodico' $true)); motivos = 1 }
+    @{ n = 'J5'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-19 16:10' 'diario' $true)); motivos = 0 }
+    @{ n = 'J6'; agora = '2026-10-19 08:00'; copias = @((CJ '2026-10-15 16:05' 'diario' $true)); motivos = 2 }
+    @{ n = 'J7'; agora = '2026-10-24 11:00'; copias = @((CJ '2026-10-23 16:05' 'diario' $true)); motivos = 0 }
+    @{ n = 'J8'; agora = '2026-10-19 17:00'; copias = @((CJ '2026-10-19 16:10' 'diario' $false)); motivos = 1 }
+)
+foreach ($k in $casosJ) {
+    $av = Get-AvisoBackupJanela (AJ $k.agora) $k.copias
+    Conferir ('aviso de backup ' + $k.n + ': ' + $k.motivos + ' motivo(s)') (@($av.motivos).Count -eq $k.motivos -and $av.alerta -eq ($k.motivos -gt 0)) ($av | ConvertTo-Json -Compress)
+}
 
 Write-Host '--- regras de lista da Fase 2 (C03, C04, C05): puras, sem servidor'
 Conferir 'C05 UF de uma das 27 passa' (Test-UFValida 'sp')
@@ -415,7 +453,13 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
     Conferir 'versão não suportada volta -32022 com a lista suportada' ($r.error.code -eq -32022 -and @($r.error.data.supported) -contains '2026-07-28') ($r | ConvertTo-Json -Compress -Depth 6)
     $r = Enviar 'tools/list' (Moderno $null)
     Conferir 'tools/list moderno: resultType, ttlMs e cacheScope' ($r.result.resultType -eq 'complete' -and $r.result.ttlMs -ge 0 -and $r.result.cacheScope -eq 'public')
-    Conferir ('tools/list moderno: ' + @($r.result.tools).Count + ' ferramentas') (@($r.result.tools).Count -ge 11)
+    # DEV-07: contrato EXATO - ferramenta que some ou aparece sem constar aqui (e sem nota de mudança) quebra o teste
+    $nomesModerno = @($r.result.tools | ForEach-Object { [string]$_.name })
+    $faltam = @($script:FerramentasEsperadas | Where-Object { $nomesModerno -notcontains $_ })
+    $sobram = @($nomesModerno | Where-Object { $script:FerramentasEsperadas -notcontains $_ })
+    Conferir ('tools/list moderno: exatamente as ' + $script:FerramentasEsperadas.Count + ' ferramentas do contrato') ($faltam.Count -eq 0 -and $sobram.Count -eq 0 -and $nomesModerno.Count -eq $script:FerramentasEsperadas.Count) ('faltam: ' + ($faltam -join ',') + ' | sobram: ' + ($sobram -join ','))
+    $incompletas = @($r.result.tools | Where-Object { -not $_.title -or -not $_.description -or $null -eq $_.inputSchema -or $_.inputSchema.type -ne 'object' -or $null -eq $_.annotations -or $null -eq $_.annotations.readOnlyHint })
+    Conferir 'toda ferramenta tem título, descrição, inputSchema de objeto e annotations' ($incompletas.Count -eq 0) (($incompletas | ForEach-Object { $_.name }) -join ',')
     $r = Enviar 'tools/call' (Moderno ([ordered]@{ name = 'obter_atendimento'; arguments = [ordered]@{ codigo = 'XX' } }))
     Conferir 'tools/call moderno: erro de ferramenta com resultType' ($r.result.resultType -eq 'complete' -and $r.result.isError -eq $true)
     $r = Enviar 'metodo/inexistente' (Moderno $null)
@@ -433,7 +477,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
     Conferir 'ping' ($null -ne $r.result)
     $r = Enviar 'tools/list' ([ordered]@{})
     $nomes = @($r.result.tools | ForEach-Object { $_.name })
-    Conferir ('tools/list: ' + $nomes.Count + ' ferramentas') ($nomes.Count -ge 11)
+    Conferir ('tools/list legado: as mesmas ' + $script:FerramentasEsperadas.Count + ' ferramentas do contrato') ((@($nomes | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ',')) ($nomes -join ',')
     Conferir 'ferramentas de leitura marcadas como somente leitura' (@($r.result.tools | Where-Object { $_.name -like 'buscar_*' -and -not $_.annotations.readOnlyHint }).Count -eq 0)
     $r = Enviar 'metodo/inexistente' ([ordered]@{})
     Conferir 'método desconhecido volta erro -32601' ($r.error.code -eq -32601)
@@ -451,6 +495,8 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
         Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
+        # DEV-07: o consumidor (skill) descobre versão e capacidades pelo crm_status
+        Conferir 'crm_status traz versao_conector, capacidades (o catálogo) e quantidade_ferramentas' ($st.versao_conector -match '^\d+\.\d+\.\d+$' -and [int]$st.quantidade_ferramentas -eq $script:FerramentasEsperadas.Count -and ((@($st.capacidades | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ','))) ($res.content[0].text)
 
         $d = Dados (Chamar 'buscar_clientes' ([ordered]@{ texto = "d'angelo" }))
         Conferir 'busca com apóstrofo' ($d.quantidade -eq 1)
@@ -491,6 +537,25 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         # Devolve ao estado inicial o que muda o resultado dos testes acima, para o teste
         # poder rodar de novo no mesmo banco (sem isto, a 2a execução falhava: o AT-0001-0001
         # deixava de estar atrasado e a cidade do cliente 2 já estava normalizada).
+        Write-Host '--- manutenção (DEV-08): config.manutencao recusa gravação no ponto de escrita; leitura continua'
+        Conferir 'motivo puro: sem manutenção e esquema 1.1 grava' ((Get-MotivoRecusaEscrita '1.1' '') -eq '')
+        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita '1.1' 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
+        Conferir 'motivo puro: esquema desconhecido recusa' ((Get-MotivoRecusaEscrita '0.9' '') -match 'esquema')
+        $atM = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        Executa-Visita "INSERT INTO config (chave, valor) VALUES ('manutencao', ?)" @((P 'texto' 'EST-TESTE|teste|1|2026-10-19 10:00|migração de teste'))
+        try {
+            $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = 7; autor = 'teste' })
+            Conferir 'manutenção ligada: gravação recusada com a mensagem de manutenção' ($res.isError -and $res.content[0].text -match 'manutenção') $res.content[0].text
+            Conferir 'a mensagem chega limpa (sem "Exceção ao chamar")' ($res.content[0].text -notmatch 'chamar') $res.content[0].text
+            $res = Chamar 'criar_cliente' ([ordered]@{ empresa = 'EMPRESA MANUTENCAO TESTE'; autor = 'teste' })
+            Conferir 'manutenção ligada: criação também recusada' ($res.isError -and $res.content[0].text -match 'manutenção') $res.content[0].text
+            $atM2 = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+            Conferir 'manutenção ligada: leitura continua e o registro não mudou (versão igual)' ([int]$atM2.versao -eq [int]$atM.versao)
+            Conferir 'manutenção ligada: nada foi criado' ([int](Invoke-Valor "SELECT COUNT(*) FROM clientes WHERE empresa='EMPRESA MANUTENCAO TESTE'" @()) -eq 0)
+        } finally { Executa-Visita "DELETE FROM config WHERE chave='manutencao'" }
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = [int]$atM.tentativas; observacoes_acrescentar = 'depois da manutenção'; autor = 'teste' })
+        Conferir 'manutenção desligada: gravação volta a funcionar' (-not $res.isError) $res.content[0].text
+
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao; autor = 'teste' })

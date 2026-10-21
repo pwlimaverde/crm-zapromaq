@@ -91,3 +91,15 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
   responde (`atualizacao_pendente`, `esquemas_suportados`, `gravacao_liberada`); as demais ferramentas voltam
   `isError` com "esquema X". O `Protocolo` passa o nome da ferramenta ao `AntesDaFerramenta`.
 - `aplicar_migracoes` (MCP de desenvolvimento) recusa migração estrutural em banco de produção.
+
+## Contrato, manutenção e publicação por versão (ciclo 007)
+
+- Contrato exato: `testar-mcp.ps1` tem `$script:FerramentasEsperadas`; o `verificar.py` cruza com o catálogo e com a
+  contagem do `instalar-mcp.ps1`. Ferramenta nova = lista + nota de mudança no `IA\LEIA-ME.md` + `VersaoServidor` novo.
+- `Invoke-Transacao` confere `config.manutencao` e o esquema antes da 1ª escrita (`ConferirEscrita`, dentro da
+  transação); erro de escrita com `execucao\backup\copiando.txt` presente vira a mensagem controlada do backup.
+- Erros lançados dentro de método de objeto são desembrulhados antes de voltar à IA (`Get-MensagemInterna`).
+- Diagnóstico: mês corrente e anterior pela data do nome; escrita compartilhada com nova tentativa; falhas no `crm_status`.
+- Publicação: `publicar-conector.ps1` (pasta de versão imutável + ponteiro `IA\conector\ATUAL.txt`), lançador fixo
+  `lancador.ps1` registrado nos clientes; `testar-conector-versoes.ps1` prova publicação, interrupção e volta.
+- O aviso de backup por janela é cópia fiel de `SISTEMA\DADOS\lib\Backup.ps1` (o `verificar.py` compara).

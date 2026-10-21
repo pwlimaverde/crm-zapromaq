@@ -500,8 +500,66 @@ def verificar_textos_de_etapa(vba):
                     break
 
 
+def verificar_contrato_conector():
+    # DEV-07: catálogo (Ferramentas.ps1), contrato do teste (testar-mcp.ps1) e o número que o instalador anuncia
+    # são o mesmo conjunto. Ferramenta nova sem constar no teste = contrato mudado sem nota de mudança.
+    cat = os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1')
+    tst = os.path.join(BASE, 'IA', 'teste', 'testar-mcp.ps1')
+    ins = os.path.join(BASE, 'IA', 'mcp', 'instalar-mcp.ps1')
+    if not all(os.path.isfile(p) for p in (cat, tst, ins)):
+        falha('Contrato do conector', 'Ferramentas.ps1, testar-mcp.ps1 ou instalar-mcp.ps1 ausente')
+        return
+    catalogo = set(re.findall(r"name = '([a-z_]+)'; title", open(cat, encoding='utf-8-sig').read()))
+    txt = open(tst, encoding='utf-8-sig').read()
+    m = re.search(r'\$script:FerramentasEsperadas = @\((.*?)\)', txt, re.S)
+    esperadas = set(re.findall(r"'([a-z_]+)'", m.group(1))) if m else set()
+    if catalogo != esperadas:
+        falha('Contrato do conector', 'catálogo x testar-mcp: só no catálogo %s; só no teste %s' %
+              (sorted(catalogo - esperadas), sorted(esperadas - catalogo)))
+    q = re.findall(r'\$qtdFerramentas = (\d+)', open(ins, encoding='utf-8-sig').read())
+    if len(q) < 2 or int(q[-1]) != len(catalogo):
+        falha('Contrato do conector', 'instalar-mcp.ps1 anuncia %s ferramentas; o catálogo tem %d' % (q[-1] if q else '?', len(catalogo)))
+
+
+def bloco_ps(txt, nome):
+    # texto da função PowerShell "function nome" até a chave que fecha (contagem simples de chaves)
+    i = txt.find('function ' + nome)
+    if i < 0:
+        return None
+    j = txt.find('{', i)
+    prof = 0
+    for k in range(j, len(txt)):
+        prof += (txt[k] == '{') - (txt[k] == '}')
+        if prof == 0:
+            return txt[i:k + 1].replace('\r\n', '\n')
+    return None
+
+
+def verificar_espelho_backup():
+    # Ciclo 007: o aviso de backup por janela existe em SISTEMA\DADOS\lib\Backup.ps1 e, copiado, no conector
+    # (que não depende de SISTEMA em tempo de execução). As cópias têm de ser idênticas.
+    lib = os.path.join(DADOS, 'lib', 'Backup.ps1')
+    con = os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1')
+    if not (os.path.isfile(lib) and os.path.isfile(con)):
+        return
+    a = open(lib, encoding='utf-8-sig').read()
+    b = open(con, encoding='utf-8-sig').read()
+    for nome in ('Test-DiaUtil', 'Get-InicioJanela', 'Get-CopiasBackup', 'Get-AvisoBackupJanela'):
+        x, y = bloco_ps(a, nome), bloco_ps(b, nome)
+        if x is None or y is None or x != y:
+            falha('Espelho do backup', nome + ': Backup.ps1 e Ferramentas.ps1 diferentes (ou ausente)')
+    for const in ('JanelasBackup', 'JanelaEncerraMin', 'JanelaContaMin', 'FimDoDiaUtil'):
+        rx = r'^\$script:' + const + r' = (.*)$'
+        x = re.findall(rx, a, re.M)
+        y = re.findall(rx, b, re.M)
+        if not x or x != y:
+            falha('Espelho do backup', '$script:' + const + ' diferente entre Backup.ps1 e Ferramentas.ps1')
+
+
 def main():
     vba = fontes_vba()
+    verificar_contrato_conector()
+    verificar_espelho_backup()
     verificar_textos_de_etapa(vba)
     verificar_migracao_003()
     verificar_casos_regra()

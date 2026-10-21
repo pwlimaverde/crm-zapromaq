@@ -226,6 +226,39 @@ function Set-ConfigBanco($cn, [string]$chave, [string]$valor, $tx) {
     }
 }
 
+# O banco está em uso (.laccdb presente)? O .laccdb pode demorar alguns instantes para sumir depois do último
+# Close: espera até $esperarMs antes de decidir (ciclo 007: o ensaio recusava a própria cópia recém-fechada).
+# Continua conservador: .laccdb que não some (resto de queda) conta como em uso.
+function Test-BancoEmUso([string]$banco, [int]$esperarMs = 3000) {
+    $laccdb = [System.IO.Path]::ChangeExtension($banco, 'laccdb')
+    $limite = (Get-Date).AddMilliseconds($esperarMs)
+    while ((Test-Path -LiteralPath $laccdb) -and (Get-Date) -lt $limite) { Start-Sleep -Milliseconds 200 }
+    return (Test-Path -LiteralPath $laccdb)
+}
+
+# ------------------------------------------------------------------ manutenção (DEV-08)
+# config.manutencao = 'estação|usuário|PID|início|motivo'. Preenchida, o front (modDB.AbrirTransacao) e o conector
+# (Invoke-Transacao) recusam toda gravação; a leitura continua. Quem liga é quem mexe no banco (montagem,
+# migrações) e desliga no fim. Dono que caiu NÃO libera sozinho (falha segura): a próxima montagem assume, ou
+# aplicar-migracoes.ps1 -LiberarManutencao.
+function New-TextoManutencao([string]$motivo) {
+    return ($env:COMPUTERNAME + '|' + $env:USERNAME + '|' + $PID + '|' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '|' + $motivo)
+}
+function Get-Manutencao($cn) {
+    return [string](Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='manutencao'" @() $null)
+}
+function Set-Manutencao($cn, [string]$motivo) {
+    $t = New-TextoManutencao $motivo
+    Set-ConfigBanco $cn 'manutencao' $t $null
+    return $t
+}
+# Desliga. Com $soSeFor, só desliga se o sinal ainda é aquele (não apaga o de outra manutenção que assumiu).
+function Clear-Manutencao($cn, [string]$soSeFor = '') {
+    if ($soSeFor -and (Get-Manutencao $cn) -ne $soSeFor) { return $false }
+    [void](Invoke-Comando $cn "DELETE FROM config WHERE chave='manutencao'" @() $null)
+    return $true
+}
+
 # Chave de comparação de lista (C01): sem caixa, sem acento, espaços aparados e colapsados.
 # Mesma regra de modValidacao.ChaveLista (front) e Regras.ps1 (conector): as três tem de concordar.
 function Get-ChaveLista([string]$texto) {

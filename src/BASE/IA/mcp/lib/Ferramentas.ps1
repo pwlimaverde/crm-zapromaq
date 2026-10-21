@@ -136,10 +136,67 @@ function Add-Calculados($o) {
     return $o
 }
 
-# Último backup VALIDADO (marca <backup>.validado gravada por SISTEMA\DADOS\operacao\scripts\backup-banco.ps1 só
-# depois de restaurar uma cópia numa pasta descartável e conferir). Espelho de Get-AlertaBackup (lib\Backup.ps1):
-# alerta se não há nenhum ou se o último passou de 36 h.
-$script:BackupAlertaHoras = 36
+# Aviso de backup por janela (seção 5.3, ciclo 007). CÓPIA FIEL das funções de SISTEMA\DADOS\lib\Backup.ps1
+# (o conector publicado numa pasta de versão não depende de SISTEMA em tempo de execução); o verificar.py
+# confere que os textos são iguais.
+$script:JanelasBackup = @('09:00', '12:30', '16:00')
+$script:JanelaEncerraMin = 30
+$script:JanelaContaMin = 60
+$script:FimDoDiaUtil = '16:30'   # depois disto, o dia útil tem de ter cópia completa validada
+
+function Test-DiaUtil([datetime]$d) { return ($d.DayOfWeek -ne 'Saturday' -and $d.DayOfWeek -ne 'Sunday') }
+function Get-InicioJanela([datetime]$dia, [string]$hhmm) { $p = $hhmm.Split(':'); return $dia.Date.AddHours([int]$p[0]).AddMinutes([int]$p[1]) }
+
+# Cópias da pasta, pelo NOME: { instante; tipo (diario|periodico); validado }.
+function Get-CopiasBackup([string]$pasta) {
+    $lista = New-Object System.Collections.ArrayList
+    foreach ($f in @(Get-ChildItem -LiteralPath $pasta -Filter 'crm_*.accdb' -File -ErrorAction SilentlyContinue)) {
+        if ($f.Name -match '^crm_(diario|periodico)_(\d{8})-(\d{4}|\d{6})(-\d+)?_') {
+            $hora = $Matches[3]; if ($hora.Length -eq 4) { $hora += '00' }
+            $d = [datetime]::MinValue
+            if ([datetime]::TryParseExact($Matches[2] + $hora, 'yyyyMMddHHmmss', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$d)) {
+                [void]$lista.Add([pscustomobject]@{ instante = $d; tipo = $Matches[1]; validado = (Test-Path -LiteralPath ($f.FullName + '.validado')) })
+            }
+        }
+    }
+    return , $lista
+}
+
+# Regra pura do aviso (seção 5.3): (a) a última janela encerrada não tem cópia nenhuma; (b) o último dia útil
+# cujas 16h30 já passaram não tem cópia COMPLETA VALIDADA (a simples não apaga este aviso).
+function Get-AvisoBackupJanela([datetime]$agora, $copias) {
+    $motivos = New-Object System.Collections.ArrayList
+    $copias = @($copias)
+    # (a)
+    $ultima = $null
+    for ($k = 0; $k -le 10 -and $null -eq $ultima; $k++) {
+        $dia = $agora.Date.AddDays(-$k)
+        if (-not (Test-DiaUtil $dia)) { continue }
+        foreach ($h in ($script:JanelasBackup | Sort-Object -Descending)) {
+            $ini = Get-InicioJanela $dia $h
+            if ($agora -ge $ini.AddMinutes($script:JanelaEncerraMin)) { $ultima = $ini; break }
+        }
+    }
+    if ($null -ne $ultima) {
+        $tem = @($copias | Where-Object { $_.instante -ge $ultima -and $_.instante -lt $ultima.AddMinutes($script:JanelaContaMin) }).Count -gt 0
+        if (-not $tem) { [void]$motivos.Add('a janela das ' + $ultima.ToString('HH:mm') + ' de ' + $ultima.ToString('dd/MM/yyyy') + ' terminou sem cópia') }
+    }
+    # (b)
+    $diaB = $null
+    for ($k = 0; $k -le 10 -and $null -eq $diaB; $k++) {
+        $dia = $agora.Date.AddDays(-$k)
+        if ((Test-DiaUtil $dia) -and $agora -ge (Get-InicioJanela $dia $script:FimDoDiaUtil)) { $diaB = $dia }
+    }
+    if ($null -ne $diaB) {
+        $tem = @($copias | Where-Object { $_.tipo -eq 'diario' -and $_.validado -and $_.instante.Date -eq $diaB }).Count -gt 0
+        if (-not $tem) { [void]$motivos.Add('o dia ' + $diaB.ToString('dd/MM/yyyy') + ' terminou sem cópia completa validada') }
+    }
+    $msg = if ($motivos.Count) { 'Backup atrasado: ' + ($motivos -join '; ') + '. Avise quem cuida dos backups (FAZER-BACKUP.bat).' } else { 'Backups em dia.' }
+    return [pscustomobject]@{ alerta = ($motivos.Count -gt 0); motivos = @($motivos); mensagem = $msg }
+}
+
+# Último backup VALIDADO (marca <backup>.validado, gravada só depois de restaurar uma cópia numa pasta
+# descartável e conferir) e o aviso por janela.
 function Get-StatusBackup {
     $pasta = Join-Path (Split-Path -Parent $script:CaminhoBanco) 'SISTEMA\DADOS\execucao\backup'
     $melhor = $null
@@ -152,13 +209,10 @@ function Get-StatusBackup {
             } catch { }
         }
     }
-    if ($null -eq $melhor) { return [ordered]@{ ultimo = $null; alerta = $true; mensagem = 'Nenhum backup validado encontrado.' } }
-    $h = [math]::Round(((Get-Date) - $melhor.instante).TotalHours, 1)
-    return [ordered]@{
-        ultimo   = [ordered]@{ arquivo = $melhor.arquivo; validado_em = $melhor.instante.ToString('yyyy-MM-dd HH:mm:ss'); horas = $h }
-        alerta   = ($h -gt $script:BackupAlertaHoras)
-        mensagem = $(if ($h -gt $script:BackupAlertaHoras) { 'O último backup validado tem ' + $h + ' h (limite ' + $script:BackupAlertaHoras + ' h).' } else { 'Último backup validado há ' + $h + ' h.' })
-    }
+    $aviso = Get-AvisoBackupJanela (Get-Date) (Get-CopiasBackup $pasta)
+    $ultimo = $null
+    if ($melhor) { $ultimo = [ordered]@{ arquivo = $melhor.arquivo; validado_em = $melhor.instante.ToString('yyyy-MM-dd HH:mm:ss'); horas = [math]::Round(((Get-Date) - $melhor.instante).TotalHours, 1) } }
+    return [ordered]@{ ultimo = $ultimo; alerta = $aviso.alerta; motivos = @($aviso.motivos); mensagem = $aviso.mensagem }
 }
 
 # ================================================================= LEITURA
@@ -173,6 +227,7 @@ function Invoke-CrmStatus($a) {
         ultimo_backup_validado = $bkp.ultimo
         alerta_backup       = $bkp.alerta
         mensagem_backup     = $bkp.mensagem
+        motivos_backup      = @($bkp.motivos)
         banco               = $script:CaminhoBanco
         provedor            = Get-ProvedorAce
         versao_esquema      = $esq
@@ -184,6 +239,13 @@ function Invoke-CrmStatus($a) {
         registros           = $cont
         ultimo_log_id       = Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @()
         versao_servidor_mcp = $script:VersaoServidor
+        # DEV-07: o consumidor (skill) confere versão e capacidades antes de usar uma ferramenta nova
+        versao_conector     = $script:VersaoServidor
+        capacidades         = @($script:Ferramentas | ForEach-Object { [string]$_.name } | Sort-Object)
+        quantidade_ferramentas = @($script:Ferramentas).Count
+        pasta_conector      = $script:PastaConector   # DEV-05: de onde esta sessão carregou o conector
+        # DEV-06 parte A: falha ao gravar o diagnóstico aparece aqui, sem bloquear nada
+        diagnostico         = [ordered]@{ arquivo = $script:ArquivoLog; falhas = $script:DiagFalhas; ultima_falha = $script:DiagUltimaFalha }
     }
 }
 

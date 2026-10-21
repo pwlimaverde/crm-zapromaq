@@ -28,11 +28,11 @@ function Conferir([string]$nome, [bool]$ok, [string]$detalhe = '') {
     else { $script:falhas++; Write-Host ('  FALHA ' + $nome + '  ' + $detalhe) -ForegroundColor Red }
 }
 function Hash([string]$p) { if (Test-Path -LiteralPath $p) { return (Get-HashArquivo $p) } return '-' }
-function Montar([string]$falhaSub) {
+function Montar([string]$falhaSub, [string[]]$extra = @()) {
     $pref = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     try {
         if ($falhaSub) { $env:CRM_FALHA_SUBPASSO_12 = $falhaSub }
-        $saida = @(& $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\build\montar-frontend.ps1') -TempoLimite 400 2>&1 | ForEach-Object { [string]$_ })
+        $saida = @(& $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $base 'SISTEMA\DADOS\build\montar-frontend.ps1') -TempoLimite 400 @extra 2>&1 | ForEach-Object { [string]$_ })
         return [pscustomobject]@{ codigo = $LASTEXITCODE; saida = ($saida -join "`n") }
     } finally { Remove-Item Env:CRM_FALHA_SUBPASSO_12 -ErrorAction SilentlyContinue; $ErrorActionPreference = $pref }
 }
@@ -61,6 +61,9 @@ try {
     $cn = Open-BancoLeitura $banco
     try { $vf = [string](Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='versao_front'" @() $null); $esq = Get-VersaoEsquemaBanco $cn } finally { $cn.Close(); $cn.Dispose() }
     Conferir ('config.versao_front = ' + $v1 + ' e esquema 1.1') ($vf -eq $v1 -and $esq -eq '1.1') ("versao_front=$vf esquema=$esq")
+    $rel1 = Join-Path $base ('SISTEMA\DADOS\execucao\releases\release-' + $v1 + '.json')
+    $m1 = if (Test-Path -LiteralPath $rel1) { Get-Content -LiteralPath $rel1 -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+    Conferir ('DEV-04: manifesto de release ' + $v1 + ' com tipo, esquema, migrações e hash do .xlsm publicado') ($null -ne $m1 -and $m1.tipo -eq 'publicacao' -and $m1.esquema -eq '1.1' -and @($m1.migracoes).Count -ge 3 -and $m1.xlsm_sha256 -eq (Get-HashArquivo $xlsm)) $rel1
 
     Write-Host '--- 2. segunda publicação: o anterior vai para o histórico'
     $hX1 = Hash $xlsm
@@ -72,8 +75,23 @@ try {
     $antes = (Hash $xlsm) + '|' + (Hash $frontTxt) + '|' + (Hash $versaoTxt) + '|' + (Hash $banco)
     $r = Montar 'versao-front'
     $depois = (Hash $xlsm) + '|' + (Hash $frontTxt) + '|' + (Hash $versaoTxt) + '|' + (Hash $banco)
-    Conferir 'a montagem falha no passo 12 (e diz que devolveu)' ($r.codigo -ne 0 -and $r.saida -match 'PAROU NO PASSO 12/12' -and $r.saida -match 'voltou ao backup') ($r.saida.Substring([Math]::Max(0, $r.saida.Length - 1200)))
+    Conferir 'a montagem falha no passo 12 (e diz que devolveu)' ($r.codigo -ne 0 -and $r.saida -match 'PAROU NO PASSO 12/12' -and $r.saida -match 'voltou ao backup') ('codigo ' + $r.codigo + ': ' + (($r.saida -split "`n" | Where-Object { $_ -match 'PAROU|voltou|revert|ERRO|AVISO|Local' }) -join ' | '))
     Conferir '.xlsm, VERSAO-FRONT.txt, VERSAO.txt e banco voltaram como estavam (hash)' ($antes -eq $depois) ($antes + ' != ' + $depois)
+
+    Write-Host '--- 4. volta (DEV-04): o pacote anterior extraído vira versão nova, com motivo'
+    $r = Montar '' @('-Volta')
+    Conferir 'volta sem motivo é recusada antes de mexer em qualquer coisa' ($r.codigo -ne 0 -and $r.saida -match 'Motivo') ($r.saida.Substring([Math]::Max(0, $r.saida.Length - 600)))
+    $r = Montar '' @('-Volta', '-Motivo', 'teste de volta')
+    Conferir 'volta sem pacote (MANIFESTO.json) é recusada' ($r.codigo -ne 0 -and $r.saida -match 'pacote') ($r.saida.Substring([Math]::Max(0, $r.saida.Length - 600)))
+    $manPac = Join-Path $base 'SISTEMA\DADOS\MANIFESTO.json'
+    [IO.File]::WriteAllText($manPac, (ConvertTo-Json @{ versao = $v1; commit = 'commit-teste'; arquivos = @() }), (New-Object System.Text.UTF8Encoding($false)))
+    $v3 = '{0}.{1}' -f $versao0.Split('.')[0], ([int]$versao0.Split('.')[1] + 3)
+    $r = Montar '' @('-Volta', '-Motivo', 'teste de volta')
+    Conferir ('volta publica o conteúdo de ' + $v1 + ' como ' + $v3 + ' (versão maior)') ($r.codigo -eq 0 -and (Get-Content -LiteralPath $versaoTxt -Raw).Trim() -eq $v3) ($r.saida.Substring([Math]::Max(0, $r.saida.Length - 1500)))
+    $rel3 = Join-Path $base ('SISTEMA\DADOS\execucao\releases\release-' + $v3 + '.json')
+    $m3 = if (Test-Path -LiteralPath $rel3) { Get-Content -LiteralPath $rel3 -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+    Conferir 'manifesto da volta: tipo volta, conteúdo da versão anterior, motivo e commit' ($null -ne $m3 -and $m3.tipo -eq 'volta' -and $m3.conteudo_de -eq $v1 -and $m3.motivo -eq 'teste de volta' -and $m3.commit -eq 'commit-teste') $rel3
+    Conferir 'CHANGELOG registra a volta e o motivo' ((Get-Content -LiteralPath (Join-Path $base 'SISTEMA\DADOS\docs\CHANGELOG.md') -Raw -Encoding UTF8) -match 'VOLTA: conteúdo da versão')
 } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host ''

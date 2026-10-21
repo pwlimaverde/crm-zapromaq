@@ -29,6 +29,8 @@ Public Const adDate As Long = 7
 Public Const adInteger As Long = 3
 Public Const adCurrency As Long = 6
 Public Const adBoolean As Long = 11
+' Gravacao recusada por manutencao, esquema ou backup em curso (DEV-03, DEV-08)
+Public Const ERRO_ESCRITA_RECUSADA As Long = vbObjectError + 7001
 Private Const adParamInput As Long = 1
 Private Const adCmdText As Long = 1
 
@@ -271,16 +273,85 @@ End Function
 '   Err.Raise nErr, "...", sErr
 '==========================================================
 Public Function AbrirTransacao() As Object
-    Dim cn As Object
+    Dim cn As Object, d As Variant, i As Long, esq As String, man As String
+    Dim motivo As String, camposAntes As Variant
     Set cn = NovaConexao()
     cn.BeginTrans
+    ' DEV-08: toda gravacao do front passa por aqui. Esquema e manutencao sao
+    ' conferidos DENTRO da transacao, no ponto de escrita: a ficha aberta antes
+    ' de uma migracao (ou da montagem) nao grava depois dela. gCampos e
+    ' preservado: quem chamou pode estar no meio da leitura de outra consulta.
+    camposAntes = gCampos
+    On Error GoTo falhou
+    d = ConsultarEm(cn, "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao')")
+    On Error GoTo 0
+    gCampos = camposAntes
+    If Not IsEmpty(d) Then
+        For i = 1 To UBound(d, 1)
+            If Nz(d(i, 1)) = "versao_esquema" Then esq = Nz(d(i, 2)) Else man = Nz(d(i, 2))
+        Next i
+    End If
+    motivo = MotivoRecusaEscrita(esq, man)
+    If motivo <> "" Then
+        Desfazer cn
+        modDiag.Registrar "gravacao", "inicio", "", ERRO_ESCRITA_RECUSADA, motivo, "recusada"
+        Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.AbrirTransacao", motivo
+    End If
     Set AbrirTransacao = cn
+    Exit Function
+falhou:
+    Dim nErr As Long, sErr As String
+    nErr = Err.Number: sErr = Err.Description
+    gCampos = camposAntes
+    Desfazer cn
+    Err.Raise nErr, "modDB.AbrirTransacao", sErr
+End Function
+
+'----------------------------------------------------------
+' DEV-08: motivo para recusar a escrita (vazio = pode gravar).
+' Mesma regra de Get-MotivoRecusaEscrita (conector, Banco.ps1).
+' manutencao = "estacao|usuario|PID|inicio|motivo" (config).
+'----------------------------------------------------------
+Public Function MotivoRecusaEscrita(ByVal esquema As String, ByVal manutencao As String) As String
+    Dim partes As Variant, quem As String
+    If Len(Trim$(manutencao)) > 0 Then
+        partes = Split(manutencao, "|")
+        If UBound(partes) >= 4 Then quem = " (" & partes(4) & ", por " & partes(0) & "\" & partes(1) & " desde " & partes(3) & ")"
+        MotivoRecusaEscrita = "Sistema em manuten" & ChrW$(231) & ChrW$(227) & "o" & quem & _
+            ": grava" & ChrW$(231) & ChrW$(227) & "o recusada, nada foi gravado. Tente de novo quando a manuten" & _
+            ChrW$(231) & ChrW$(227) & "o terminar."
+        Exit Function
+    End If
+    If esquema <> modConfig.VERSAO_ESQUEMA Then
+        MotivoRecusaEscrita = "O banco est" & ChrW$(225) & " no esquema " & esquema & " e esta c" & ChrW$(243) & _
+            "pia do CRM espera o " & modConfig.VERSAO_ESQUEMA & ": nada foi gravado. Feche e abra pelo INICIAR-CRM."
+    End If
 End Function
 
 Public Sub Confirmar(ByVal cn As Object)
+    On Error GoTo falhou
     cn.CommitTrans
     cn.Close
+    Exit Sub
+falhou:
+    Dim nErr As Long, sErr As String, sOrig As String
+    nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
+    modDiag.Registrar "gravacao", "commit", "", nErr, sErr
+    Err.Raise nErr, sOrig, sErr
 End Sub
+
+' "UPDATE clientes SET ..." -> "UPDATE clientes" (diagnostico sem dado)
+Public Function OperacaoDoSql(ByVal sql As String) As String
+    Dim palavras As Variant, s As String
+    s = Trim$(Replace(Replace(sql, vbCr, " "), vbLf, " "))
+    palavras = Split(s, " ")
+    If UBound(palavras) < 0 Then Exit Function
+    Select Case UCase$(palavras(0))
+        Case "UPDATE": If UBound(palavras) >= 1 Then OperacaoDoSql = "UPDATE " & palavras(1)
+        Case "INSERT", "DELETE": If UBound(palavras) >= 2 Then OperacaoDoSql = UCase$(palavras(0)) & " " & palavras(2)
+        Case Else: OperacaoDoSql = UCase$(palavras(0))
+    End Select
+End Function
 
 Public Sub Desfazer(ByVal cn As Object)
     On Error Resume Next
@@ -294,10 +365,37 @@ End Sub
 
 Public Function ExecutarEm(ByVal cn As Object, ByVal sql As String, _
                            Optional ByVal params As Variant) As Long
-    Dim cmd As Object, n As Long
+    Dim cmd As Object, n As Long, msg As String
+    On Error GoTo falhou
     Set cmd = NovoComando(cn, sql, params)
     cmd.Execute n
     ExecutarEm = n
+    Exit Function
+falhou:
+    Dim nErr As Long, sErr As String, sOrig As String
+    nErr = Err.Number: sErr = Err.Description: sOrig = Err.Source
+    ' DEV-03: com o backup segurando o arquivo, o ACE abriu so leitura e a
+    ' gravacao falhou antes de gravar: quem pediu recebe a mensagem controlada
+    msg = MensagemEscritaRecusada(sErr, modBackupAviso.BackupEmCurso())
+    ' DEV-06A: so o verbo e a tabela do SQL (os valores sao parametros, nunca entram no texto)
+    modDiag.Registrar "gravacao", OperacaoDoSql(sql), "", nErr, sErr, IIf(msg <> "", "recusada (backup)", "erro")
+    If msg <> "" Then Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.ExecutarEm", msg
+    Err.Raise nErr, sOrig, sErr
+End Function
+
+'----------------------------------------------------------
+' DEV-03: erro de escrita durante a copia exclusiva do backup
+' vira a mensagem controlada ("" = nao e o caso). Mesma regra de
+' Get-MensagemEscritaRecusada (conector, Banco.ps1).
+'----------------------------------------------------------
+Public Function MensagemEscritaRecusada(ByVal erro As String, ByVal backupEmCurso As Boolean) As String
+    Dim s As String
+    If Not backupEmCurso Then Exit Function
+    s = LCase$(erro)
+    If InStr(s, "atualiz") = 0 And InStr(s, "updat") = 0 And InStr(s, "bloquead") = 0 And InStr(s, "locked") = 0 _
+       And InStr(s, "em uso") = 0 And InStr(s, "in use") = 0 And InStr(s, "somente leitura") = 0 And InStr(s, "read-only") = 0 Then Exit Function
+    MensagemEscritaRecusada = "C" & ChrW$(243) & "pia de seguran" & ChrW$(231) & "a (backup) do banco em andamento: grava" & _
+        ChrW$(231) & ChrW$(227) & "o recusada, nada foi gravado. A leitura continua normal; tente gravar de novo em um ou dois minutos."
 End Function
 
 Public Function ConsultarEm(ByVal cn As Object, ByVal sql As String, _

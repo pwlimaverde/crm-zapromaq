@@ -19,14 +19,19 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Data
 
-$script:VersaoServidor = '1.5.0'
+# 1.6.0 (ciclo 007): crm_status com versao_conector, capacidades, diagnostico, motivos_backup e pasta_conector;
+# recusa de gravação por manutenção (config.manutencao) e mensagem controlada durante o backup.
+$script:VersaoServidor = '1.6.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.
 $script:InfoServidor = [ordered]@{ name = 'crm-zapromaq'; title = 'CRM Zapromaq'; version = $script:VersaoServidor }
 
-$raizIA   = Split-Path -Parent $PSScriptRoot
+# Carregado pelo lançador de uma pasta de versão (IA\conector\versoes\<v>, DEV-05), a pasta IA vem do
+# lançador; carregado direto (IA\mcp), é a pasta acima desta.
+$raizIA   = if ($env:CRM_RAIZ_IA -and (Test-Path -LiteralPath $env:CRM_RAIZ_IA)) { $env:CRM_RAIZ_IA } else { Split-Path -Parent $PSScriptRoot }
 $raizBase = Split-Path -Parent $raizIA
+$script:PastaConector = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($Banco)) { $Banco = Join-Path $raizBase 'crm_zapromaq.accdb' }
 $script:CaminhoBanco = $Banco
 $script:UsuarioLog = 'IA'

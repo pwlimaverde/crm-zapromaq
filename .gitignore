@@ -17,6 +17,8 @@
 !/src/BASE/SISTEMA/DADOS/execucao/**/
 !/src/BASE/SISTEMA/DADOS/execucao/**/.gitkeep
 /src/BASE/IA/logs/
+# versões publicadas do conector e o ponteiro (DEV-05): só existem na rede
+/src/BASE/IA/conector/
 /src/BASE/IA/instrucoes/*.zip
 .teste-escrita*
 

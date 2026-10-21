@@ -16,9 +16,13 @@
   aplica numa cópia de trabalho (-CopiaDeTrabalho, em execucao\publicacao ou execucao\ensaio) e só
   depois troca o banco. Em banco com config.ambiente = TESTE, aplica no lugar.
 
-  Uso: aplicar-migracoes.ps1 [-Banco <accdb>] [-Simular] [-CopiaDeTrabalho]
+  Manutenção (DEV-08): aplicando no lugar (sem -CopiaDeTrabalho), liga config.manutencao antes e desliga no
+  fim; front e conector recusam gravação enquanto isso. Migração estrutural que parou no meio deixa o sinal
+  ligado (falha segura): restaure o backup e rode -LiberarManutencao.
+
+  Uso: aplicar-migracoes.ps1 [-Banco <accdb>] [-Simular] [-CopiaDeTrabalho] [-LiberarManutencao]
 #>
-param([string]$Banco = '', [switch]$Simular, [switch]$CopiaDeTrabalho)
+param([string]$Banco = '', [switch]$Simular, [switch]$CopiaDeTrabalho, [switch]$LiberarManutencao)
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib\Comum.ps1')
 
@@ -27,6 +31,13 @@ if ([string]::IsNullOrWhiteSpace($Banco)) { $Banco = Get-CaminhoBanco $raiz }
 $log = New-Log $raiz 'migracoes'
 $log.L('=== MIGRAÇÕES DO BANCO - CRM Zapromaq ===')
 $log.L('Banco...: ' + $Banco)
+
+if ($LiberarManutencao) {
+    $cn = Open-Banco $Banco
+    try { $antes = Get-Manutencao $cn; [void](Clear-Manutencao $cn) } finally { $cn.Close(); $cn.Dispose() }
+    $log.L($(if ($antes) { 'Manutenção desligada (estava: ' + $antes + ').' } else { 'Não havia manutenção ligada.' }))
+    $log.Salvar(); exit 0
+}
 
 # Migração ESTRUTURAL (DDL no ACE não é transacional) só é aplicada:
 #   - numa cópia de trabalho da montagem (-CopiaDeTrabalho), que tem de estar em execucao\publicacao
@@ -83,7 +94,7 @@ if ($estrutural -and -not $CopiaDeTrabalho) {
         $log.Salvar(); exit 3
     }
 }
-$ocupado = Test-Path -LiteralPath ([System.IO.Path]::ChangeExtension($Banco, 'laccdb'))
+$ocupado = Test-BancoEmUso $Banco
 if ($estrutural -and $ocupado) {
     $log.L(''); $log.L('ABORTADO: há migração estrutural e o banco está em uso (.laccdb). Peça para todos fecharem o CRM.')
     $log.Salvar(); exit 2
@@ -94,7 +105,10 @@ if ($Banco -eq (Get-CaminhoBanco $raiz)) {
 }
 
 $cn = Open-Banco $Banco
+$sinal = ''
+$deixarSinal = $false
 try {
+    if (-not $CopiaDeTrabalho) { $sinal = Set-Manutencao $cn ('migrações ' + (@($pendentes | ForEach-Object { $_.Id }) -join ',')); $log.L('manutenção ligada: ' + $sinal) }
     foreach ($m in $pendentes) {
         $atual = Get-VersaoEsquemaBanco $cn
         if ($m.EsquemaDe -and $atual -ne $m.EsquemaDe) {
@@ -119,8 +133,16 @@ try {
     }
 } catch {
     $log.L(''); $log.L('ERRO: ' + $_.Exception.Message); $log.L('A migração com erro foi desfeita (dados) ou parou no meio (estrutura): restaure o backup se preciso.')
+    # estrutura pela metade: o sinal fica ligado (ninguém grava num esquema misto) até alguém restaurar e liberar
+    if ($sinal -and @($pendentes | Where-Object { $_.EsquemaPara }).Count -gt 0) {
+        $deixarSinal = $true
+        $log.L('A manutenção CONTINUA LIGADA. Depois de restaurar o backup: aplicar-migracoes.ps1 -LiberarManutencao')
+    }
     $log.Salvar(); exit 1
-} finally { $cn.Close(); $cn.Dispose() }
+} finally {
+    if ($sinal -and -not $deixarSinal) { try { [void](Clear-Manutencao $cn $sinal); $log.L('manutenção desligada') } catch { $log.L('AVISO: não desligou a manutenção: ' + $_.Exception.Message) } }
+    $cn.Close(); $cn.Dispose()
+}
 
 $log.L('')
 $log.L('Migrações aplicadas: ' + $pendentes.Count)

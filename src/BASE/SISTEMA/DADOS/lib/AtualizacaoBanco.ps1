@@ -38,7 +38,7 @@ function Get-EstacoesDaTrava([string]$laccdb) {
 function Test-BancoLivre([string]$banco) {
     $laccdb = [System.IO.Path]::ChangeExtension($banco, 'laccdb')
     $estacoes = Get-EstacoesDaTrava $laccdb
-    return [pscustomobject]@{ livre = -not (Test-Path -LiteralPath $laccdb); estacoes = @($estacoes); laccdb = $laccdb }
+    return [pscustomobject]@{ livre = -not (Test-BancoEmUso $banco); estacoes = @($estacoes); laccdb = $laccdb }
 }
 
 # Passo 1: o CSV de municípios bate com o SHA-256 registrado no .fonte.json (o da migração 003 é conferido lá).

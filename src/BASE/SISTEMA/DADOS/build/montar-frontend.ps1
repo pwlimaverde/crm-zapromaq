@@ -29,6 +29,12 @@
   -Ensaio         ensaio da atualização: passos 1 a 8 numa cópia (execucao\ensaio), sem Excel e sem trocar o
                   banco; gera execucao\ensaio\relatorio-*.txt. Exige a trava livre. Não combina com -Teste.
   -SemTesteDeUso  pula o teste de uso (passo 10)
+  -Volta -Motivo "<por que>"   VOLTA (DEV-04): publica o conteúdo do pacote anterior extraído por cima da BASE
+                  como nova versão MAIOR; recusa sem motivo, sem pacote, pacote que não é anterior ao publicado ou
+                  esquema esperado pela fonte diferente do banco. Ver build\lib\Release.ps1.
+
+  Toda publicação grava execucao\releases\release-<versão>.json (manifesto de release: commit, versões do
+  front, conector e esquema, migrações, hashes do .xlsm e dos scripts).
   -Ambiente PRODUCAO | TESTE (padrão: config.ambiente do banco; sem banco, PRODUCAO)
 
   "Confiar no acesso ao modelo de objeto do projeto do VBA" é ligado só durante a
@@ -38,6 +44,8 @@ param(
     [switch]$Teste,
     [switch]$SemTesteDeUso,
     [switch]$Ensaio,
+    [switch]$Volta,
+    [string]$Motivo = '',
     [ValidateSet('', 'PRODUCAO', 'TESTE')][string]$Ambiente = '',
     [int]$TempoLimite = 300
 )
@@ -47,6 +55,7 @@ $dados = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'lib\Versao.ps1')
 . (Join-Path $PSScriptRoot 'lib\Pacote.ps1')
 . (Join-Path $PSScriptRoot 'lib\Excel.ps1')
+. (Join-Path $PSScriptRoot 'lib\Release.ps1')
 . (Join-Path $dados 'lib\AtualizacaoBanco.ps1')
 
 $raiz = Get-RaizBase $PSScriptRoot
@@ -78,6 +87,8 @@ try {
     catch { Parar 'Outro build está em andamento (execucao\build\build.lock em uso). Espere ele terminar.' }
 
     if ($Ensaio -and $Teste) { Parar '-Ensaio e -Teste não se combinam: o ensaio nunca troca banco nem monta o front.' }
+    if ($Ensaio -and $Volta) { Parar '-Ensaio e -Volta não se combinam.' }
+    if ($Volta -and [string]::IsNullOrWhiteSpace($Motivo)) { Parar (Test-PedidoVolta '' $null '' '' '') }
 
     if (-not $Ensaio -and $null -eq [type]::GetTypeFromProgID('Excel.Application')) {
         Parar 'Excel não está instalado nesta máquina. O build roda numa estação com Excel 2019 64 bits (veja testes\CHECAR-AMBIENTE.bat).'
@@ -141,6 +152,24 @@ try {
     $prep = Invoke-PreparacaoDoBanco $bancoArq (Get-PastaExecucao $raiz 'publicacao') $pastaBkp $totalMunicipios $log
     if (-not $prep.ok) { Parar-NoPasso $prep.passo $prep.motivo }
     $log.L('  cópia pronta: ' + $prep.copia)
+    # DEV-04: o front destas fontes tem de esperar o esquema do banco que vai ser publicado (vale para a volta e
+    # para a publicação normal); e a volta tem motivo, pacote anterior ao publicado e esquema compatível
+    $cnE = Open-BancoLeitura $prep.copia
+    try {
+        $esquemaCopia = Get-VersaoEsquemaBanco $cnE
+        $migracoesCopia = New-Object System.Collections.ArrayList
+        $cmE = New-ComandoBanco $cnE "SELECT chave FROM config WHERE chave LIKE 'migracao.%' ORDER BY chave" @() $null
+        $rdE = $cmE.ExecuteReader(); while ($rdE.Read()) { [void]$migracoesCopia.Add(([string]$rdE.GetValue(0)).Substring(9)) }; $rdE.Close(); $cmE.Dispose()
+    } finally { $cnE.Close(); $cnE.Dispose() }
+    $esquemaFonte = Get-EsquemaDaFonte $dados
+    $pacote = Get-ManifestoPacote $raiz
+    if ($Volta) {
+        $motivoVolta = Test-PedidoVolta $Motivo $pacote (Get-VersaoPublicada $raiz) $esquemaFonte $esquemaCopia
+        if ($motivoVolta) { Parar-NoPasso 8 $motivoVolta }
+        $log.L('  VOLTA: conteúdo da versão ' + $pacote.versao + ' (commit ' + $pacote.commit + '), motivo: ' + $Motivo)
+    } elseif ($esquemaFonte -ne $esquemaCopia) {
+        Parar-NoPasso 8 ('o front destas fontes espera o esquema ' + $esquemaFonte + ' e o banco migrado está no ' + $esquemaCopia + '. Nada foi publicado.')
+    }
     # -Teste (só roda com ambiente TESTE, passo 2) declara a homologação NA CÓPIA: os testes que gravam exigem
     # config.homologacao = 1. Bancos de teste antigos, de antes da spec 005, ganham a marca por aqui.
     if ($Teste) {
@@ -466,6 +495,8 @@ try {
     if ($Teste) {
         $destTeste = Join-Path (Get-PastaExecucao $raiz 'teste') $script:NomeFront
         Copy-Item -LiteralPath $temp -Destination $destTeste -Force
+        $manT = New-ManifestoRelease -Versao $versao -Tipo $(if ($Volta) { 'volta' } else { 'teste' }) -Motivo $Motivo -Pacote $pacote -VersaoFront $versao -VersaoConector (Get-VersaoConectorDaFonte $raiz) -Esquema $esquemaCopia -Migracoes @($migracoesCopia) -Xlsm $destTeste -Dados $dados -Raiz $raiz
+        $log.L('  manifesto de release (teste): ' + (Save-ManifestoRelease $manT (Get-PastaExecucao $raiz 'teste')))
         $log.L(''); $log.L('TESTE CONCLUÍDO: ' + $destTeste + '  (nada publicado, versão continua ' + $versaoAtual + ')')
         $sucesso = $true
     } else {
@@ -488,6 +519,10 @@ try {
 
         # Depois do ponto de não retorno nada reverte: falha aqui vira aviso.
         try {
+            $manR = New-ManifestoRelease -Versao $versao -Tipo $(if ($Volta) { 'volta' } else { 'publicacao' }) -Motivo $Motivo -Pacote $pacote -VersaoFront $versao -VersaoConector (Get-VersaoConectorDaFonte $raiz) -Esquema $esquemaCopia -Migracoes @($migracoesCopia) -Xlsm $destinoRaiz -Dados $dados -Raiz $raiz
+            $log.L('  manifesto de release: ' + (Save-ManifestoRelease $manR (Get-PastaExecucao $raiz 'releases')))
+        } catch { $log.L('  AVISO: o manifesto de release não foi gravado (' + $_.Exception.Message.Split([char]13)[0] + '). A versão já está publicada.') }
+        try {
         # CHANGELOG: o que mudou em fonte\ desde a publicação anterior
         $manif = Join-Path (Get-PastaExecucao $raiz 'build') 'ultima-publicacao.json'
         $agora = [ordered]@{}
@@ -503,6 +538,7 @@ try {
         # fim de linha normalizado antes de tirar o cabeçalho: com LF ele não casava e saía duplicado
         if (Test-Path -LiteralPath $chg) { $resto = (([System.IO.File]::ReadAllText($chg, [System.Text.Encoding]::UTF8)) -replace '\r?\n', "`r`n").Replace($cab, '').TrimStart() }
         $entrada = "`r`n## " + $versao + ' - ' + $quando.ToString('dd/MM/yyyy HH:mm') + ' - ' + $env:USERNAME + '@' + $env:COMPUTERNAME + ' - ' + $Ambiente + "`r`n`r`n"
+        if ($Volta) { $entrada += '- VOLTA: conteúdo da versão ' + $pacote.versao + ' (commit ' + $pacote.commit + '). Motivo: ' + $Motivo + "`r`n" }
         if (@($antes.Keys).Count -eq 0) { $entrada += "- primeira publicação registrada por este build`r`n" }
         elseif ($mud.Count -eq 0) { $entrada += "- nenhuma fonte alterada (remontagem)`r`n" }
         else { foreach ($m in ($mud | Sort-Object)) { $entrada += '- ' + $m + "`r`n" } }
@@ -525,8 +561,8 @@ try {
     }
     } catch {
         if ($troca -and $troca.ok -and -not $pontoSemRetorno) {
-            $volta = Reverter-Troca $bancoArq $prep.backup $hashNovo
-            $log.L('  ' + $volta.motivo)
+            $reversao = Reverter-Troca $bancoArq $prep.backup $hashNovo
+            $log.L('  ' + $reversao.motivo)
         }
         throw
     }

@@ -16,6 +16,8 @@ rem
 rem  Opcoes:  MONTAR-FRONTEND.bat -Ensaio         passos 1 a 8 numa copia; nao troca o banco, nao precisa de Excel
 rem           MONTAR-FRONTEND.bat -Teste          so sobre banco TESTE; nao publica
 rem           MONTAR-FRONTEND.bat -SemTesteDeUso  pula o teste de uso
+rem           MONTAR-FRONTEND.bat -Volta -Motivo "por que"   VOLTA: publica o pacote anterior
+rem                (extraido por cima da BASE) como versao NOVA, maior; motivo obrigatorio
 rem ============================================================
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if exist "%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe" set "PS=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"

@@ -8,15 +8,13 @@
   Depende de Comum.ps1 e de AtualizacaoBanco.ps1 (Get-HashArquivo, Get-ContagensDoBanco) carregados antes.
 #>
 
-# Política (DA-2): uma cópia validada por dia útil (RPO 24 h), restauração em até 4 h (RTO), alerta se não
-# houver backup validado há mais de 36 h. Mudar o número é mudar uma linha aqui.
-$script:BackupRpoHoras = 24
-$script:BackupRtoHoras = 4
-$script:BackupAlertaHoras = 36
+# Política (seção 5.3 do plano de 19/10/2026, substitui o alerta de 36 h do DA-2): janelas 9h, 12h30 e 16h nos
+# dias úteis; aviso por janela sem cópia e por dia útil sem cópia completa validada (Get-AvisoBackupJanela).
+# RPO e RTO são definidos pela gestão (manual de restauração, docs\implantacao.md).
 
 # Escreve <backup>.manifesto.json: instante, tipo, SHA-256 e tamanho do arquivo, esquema e contagens do banco
 # de ORIGEM (lido em modo somente leitura, com o banco fechado). Não abre o arquivo de backup.
-function New-ManifestoBackup([string]$arquivoBackup, [string]$origemBanco, [string]$tipo) {
+function New-ManifestoBackup([string]$arquivoBackup, [string]$origemBanco, [string]$tipo, $extra = @{}) {
     $cn = Open-BancoLeitura $origemBanco
     try { $esquema = Get-VersaoEsquemaBanco $cn; $contagens = Get-ContagensDoBanco $cn } finally { $cn.Close(); $cn.Dispose() }
     $agora = Get-Date
@@ -32,6 +30,7 @@ function New-ManifestoBackup([string]$arquivoBackup, [string]$origemBanco, [stri
         esquema          = $esquema
         contagens        = $contagens
     }
+    foreach ($k in $extra.Keys) { $m[$k] = $extra[$k] }
     $json = ConvertTo-Json -InputObject $m -Depth 4
     [System.IO.File]::WriteAllText(($arquivoBackup + '.manifesto.json'), $json, (New-Object System.Text.UTF8Encoding($false)))
     return [pscustomobject]$m
@@ -110,13 +109,21 @@ function Enter-TravaBackup([string]$pasta, [string]$tipo) {
             try { $b = [System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $dono)); $fs.Write($b, 0, $b.Length) } finally { $fs.Dispose() }
             return [pscustomobject]@{ ok = $true; arquivo = $arq; sessao = $dono.sessao; recuperada = $recuperada; motivo = '' }
         } catch [System.IO.IOException] {
+            if (-not (Test-Path -LiteralPath $arq)) { continue }   # o dono acabou de soltar: tenta de novo
             $atual = $null
             try {
                 $fl = New-Object System.IO.FileStream($arq, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
                 try { $sr = New-Object System.IO.StreamReader($fl); $atual = $sr.ReadToEnd() | ConvertFrom-Json } finally { $fl.Dispose() }
             } catch { }
             $abandonada = $false
-            if ($null -eq $atual) { $abandonada = $true }   # ilegível: lixo
+            if ($null -eq $atual) {
+                # ilegível: ou é lixo antigo, ou o dono ACABOU de criar e ainda está escrevendo (disparos simultâneos,
+                # ciclo 007). Só é lixo se o arquivo tem mais de 2 minutos.
+                $idade = 0
+                try { $idade = ((Get-Date) - (Get-Item -LiteralPath $arq).LastWriteTime).TotalSeconds } catch { }
+                if ($idade -gt 120) { $abandonada = $true }
+                else { return [pscustomobject]@{ ok = $false; arquivo = $arq; sessao = ''; recuperada = $false; motivo = 'há outro backup começando agora (trava sendo criada).' } }
+            }
             else {
                 $inicio = [datetime]::MinValue
                 [void][datetime]::TryParse([string]$atual.inicio, [ref]$inicio)
@@ -142,6 +149,52 @@ function Exit-TravaBackup($trava) {
     } catch { }
 }
 
+# ------------------------------------------------------------------ exclusividade durante a cópia (DEV-03, ciclo 007)
+# O backup completo segura o ARQUIVO do banco com FileShare.Read durante TODA a captura (cópia, hash e contagens do
+# manifesto) e copia pelo próprio fluxo. Enquanto isso o ACE de quem abrir o CRM entra SÓ LEITURA (consultar
+# continua funcionando) e qualquer gravação falha com "A operação deve usar uma consulta atualizável" - antes de
+# gravar, sem efeito parcial. A marca execucao\backup\copiando.txt existe enquanto o arquivo está seguro: é por
+# ela que o front e o conector trocam esse erro pela mensagem controlada ("cópia de segurança em andamento").
+# Quem já está conectado (gravação aberta) impede a captura: o FileStream não abre e a tentativa repete.
+function Get-MarcaCopiando([string]$pastaBkp) { return (Join-Path $pastaBkp 'copiando.txt') }
+
+function Enter-CopiaExclusiva([string]$banco, [string]$pastaBkp, [int]$esperarSeg = 60) {
+    $marca = Get-MarcaCopiando $pastaBkp
+    New-Item -ItemType Directory -Path $pastaBkp -Force | Out-Null
+    [System.IO.File]::WriteAllText($marca, ($env:COMPUTERNAME + '|' + $PID + '|' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')), (New-Object System.Text.UTF8Encoding($false)))
+    $limite = (Get-Date).AddSeconds($esperarSeg)
+    $ultimoErro = ''
+    do {
+        try {
+            $fs = New-Object System.IO.FileStream($banco, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+            return [pscustomobject]@{ ok = $true; fluxo = $fs; marca = $marca; motivo = '' }
+        } catch [System.IO.IOException] { $ultimoErro = $_.Exception.Message.Split([char]13)[0] }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $limite)
+    Remove-Item -LiteralPath $marca -Force -ErrorAction SilentlyContinue
+    return [pscustomobject]@{ ok = $false; fluxo = $null; marca = $marca; motivo = ('o banco está em uso por quem grava (' + $ultimoErro + ')') }
+}
+
+function Exit-CopiaExclusiva($copia) {
+    if ($null -eq $copia) { return }
+    if ($copia.fluxo) { try { $copia.fluxo.Dispose() } catch { } }
+    Remove-Item -LiteralPath $copia.marca -Force -ErrorAction SilentlyContinue
+}
+
+# Copia um fluxo aberto para um arquivo (o .tmp do backup).
+function Copy-FluxoParaArquivo($fluxo, [string]$destino) {
+    $fluxo.Position = 0
+    $saida = New-Object System.IO.FileStream($destino, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    try { $fluxo.CopyTo($saida, 1048576) } finally { $saida.Dispose() }
+}
+
+# Cópia simples (CRM aberto): lê com FileShare.ReadWrite, para NÃO bloquear quem grava (o Copy-Item abre o
+# arquivo só com compartilhamento de leitura e fazia o ACE recusar gravações durante a cópia).
+function Copy-BancoSemBloquear([string]$banco, [string]$destino) {
+    $fs = New-Object System.IO.FileStream($banco, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try { Copy-FluxoParaArquivo $fs $destino } finally { $fs.Dispose() }
+}
+
 # ------------------------------------------------------------------ backup validado e alerta (spec 006)
 # <backup>.validado = JSON { validado_utc, sha256 }: gravado só depois de Test-BackupRestauravel aprovar.
 function Set-BackupValidado([string]$arquivoBackup) {
@@ -163,14 +216,95 @@ function Get-UltimoBackupValidado([string]$pasta) {
     return $melhor
 }
 
-# Alerta se não há backup validado ou se o último passou de BackupAlertaHoras (36 h).
-function Get-AlertaBackup([string]$pasta) {
+# ------------------------------------------------------------------ janelas e aviso (seção 5.3, ciclo 007)
+# Janelas: 9h, 12h30 e 16h, de segunda a sexta. Tentativas no horário, +10 e +20 min; a janela ENCERRA 30 min
+# depois do início (20 min de tentativas + 10 de cópia e validação). Uma cópia conta para a janela se o instante
+# dela estiver em [início, início + 60 min). Mesma regra em IA\mcp\lib\Ferramentas.ps1 (crm_status) e
+# modBackupAviso (front): mudou aqui, muda lá - os três testes usam os mesmos casos.
+$script:JanelasBackup = @('09:00', '12:30', '16:00')
+$script:JanelaEncerraMin = 30
+$script:JanelaContaMin = 60
+$script:FimDoDiaUtil = '16:30'   # depois disto, o dia útil tem de ter cópia completa validada
+
+function Test-DiaUtil([datetime]$d) { return ($d.DayOfWeek -ne 'Saturday' -and $d.DayOfWeek -ne 'Sunday') }
+function Get-InicioJanela([datetime]$dia, [string]$hhmm) { $p = $hhmm.Split(':'); return $dia.Date.AddHours([int]$p[0]).AddMinutes([int]$p[1]) }
+
+# Janela que uma execução agendada cumpre agora: 'AAAAMMDD-HHMM' ou '' (fora de janela).
+function Get-JanelaBackup([datetime]$agora) {
+    if (-not (Test-DiaUtil $agora)) { return '' }
+    foreach ($h in ($script:JanelasBackup | Sort-Object -Descending)) {
+        $ini = Get-InicioJanela $agora $h
+        if ($agora -ge $ini -and ($agora - $ini).TotalMinutes -lt $script:JanelaContaMin) { return $ini.ToString('yyyyMMdd-HHmm') }
+    }
+    return ''
+}
+
+# Arquivo de cópia cujo manifesto diz que atendeu a janela ('' = nenhum).
+function Get-CopiaDaJanela([string]$pasta, [string]$janela) {
+    foreach ($m in @(Get-ChildItem -LiteralPath $pasta -Filter 'crm_*.accdb.manifesto.json' -File -ErrorAction SilentlyContinue)) {
+        try {
+            $j = Get-Content -LiteralPath $m.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$j.janela -eq $janela -and (Test-Path -LiteralPath ($m.FullName -replace '\.manifesto\.json$', ''))) { return [string]$j.arquivo }
+        } catch { }
+    }
+    return ''
+}
+
+# Cópias da pasta, pelo NOME: { instante; tipo (diario|periodico); validado }.
+function Get-CopiasBackup([string]$pasta) {
+    $lista = New-Object System.Collections.ArrayList
+    foreach ($f in @(Get-ChildItem -LiteralPath $pasta -Filter 'crm_*.accdb' -File -ErrorAction SilentlyContinue)) {
+        if ($f.Name -match '^crm_(diario|periodico)_(\d{8})-(\d{4}|\d{6})(-\d+)?_') {
+            $hora = $Matches[3]; if ($hora.Length -eq 4) { $hora += '00' }
+            $d = [datetime]::MinValue
+            if ([datetime]::TryParseExact($Matches[2] + $hora, 'yyyyMMddHHmmss', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$d)) {
+                [void]$lista.Add([pscustomobject]@{ instante = $d; tipo = $Matches[1]; validado = (Test-Path -LiteralPath ($f.FullName + '.validado')) })
+            }
+        }
+    }
+    return , $lista
+}
+
+# Regra pura do aviso (seção 5.3): (a) a última janela encerrada não tem cópia nenhuma; (b) o último dia útil
+# cujas 16h30 já passaram não tem cópia COMPLETA VALIDADA (a simples não apaga este aviso).
+function Get-AvisoBackupJanela([datetime]$agora, $copias) {
+    $motivos = New-Object System.Collections.ArrayList
+    $copias = @($copias)
+    # (a)
+    $ultima = $null
+    for ($k = 0; $k -le 10 -and $null -eq $ultima; $k++) {
+        $dia = $agora.Date.AddDays(-$k)
+        if (-not (Test-DiaUtil $dia)) { continue }
+        foreach ($h in ($script:JanelasBackup | Sort-Object -Descending)) {
+            $ini = Get-InicioJanela $dia $h
+            if ($agora -ge $ini.AddMinutes($script:JanelaEncerraMin)) { $ultima = $ini; break }
+        }
+    }
+    if ($null -ne $ultima) {
+        $tem = @($copias | Where-Object { $_.instante -ge $ultima -and $_.instante -lt $ultima.AddMinutes($script:JanelaContaMin) }).Count -gt 0
+        if (-not $tem) { [void]$motivos.Add('a janela das ' + $ultima.ToString('HH:mm') + ' de ' + $ultima.ToString('dd/MM/yyyy') + ' terminou sem cópia') }
+    }
+    # (b)
+    $diaB = $null
+    for ($k = 0; $k -le 10 -and $null -eq $diaB; $k++) {
+        $dia = $agora.Date.AddDays(-$k)
+        if ((Test-DiaUtil $dia) -and $agora -ge (Get-InicioJanela $dia $script:FimDoDiaUtil)) { $diaB = $dia }
+    }
+    if ($null -ne $diaB) {
+        $tem = @($copias | Where-Object { $_.tipo -eq 'diario' -and $_.validado -and $_.instante.Date -eq $diaB }).Count -gt 0
+        if (-not $tem) { [void]$motivos.Add('o dia ' + $diaB.ToString('dd/MM/yyyy') + ' terminou sem cópia completa validada') }
+    }
+    $msg = if ($motivos.Count) { 'Backup atrasado: ' + ($motivos -join '; ') + '. Avise quem cuida dos backups (FAZER-BACKUP.bat).' } else { 'Backups em dia.' }
+    return [pscustomobject]@{ alerta = ($motivos.Count -gt 0); motivos = @($motivos); mensagem = $msg }
+}
+
+# Aviso da pasta de backup: regra por janela + o último backup validado (para mostrar).
+function Get-AlertaBackup([string]$pasta, $agora = $null) {
+    if ($null -eq $agora) { $agora = Get-Date }
     $u = Get-UltimoBackupValidado $pasta
-    if ($null -eq $u) { return [pscustomobject]@{ alerta = $true; ultimo = $null; horas = $null; mensagem = ('Nenhum backup validado encontrado em ' + $pasta + '. Rode FAZER-BACKUP.bat e TESTAR-RESTAURACAO.bat.') } }
-    $h = [math]::Round(((Get-Date) - $u.instante).TotalHours, 1)
-    $alerta = ($h -gt $script:BackupAlertaHoras)
-    $msg = if ($alerta) { 'O último backup validado tem ' + $h + ' h (limite ' + $script:BackupAlertaHoras + ' h): ' + $u.arquivo } else { 'Último backup validado há ' + $h + ' h.' }
-    return [pscustomobject]@{ alerta = $alerta; ultimo = $u; horas = $h; mensagem = $msg }
+    $aviso = Get-AvisoBackupJanela $agora (Get-CopiasBackup $pasta)
+    $h = if ($u) { [math]::Round(($agora - $u.instante).TotalHours, 1) } else { $null }
+    return [pscustomobject]@{ alerta = $aviso.alerta; motivos = $aviso.motivos; ultimo = $u; horas = $h; mensagem = $aviso.mensagem }
 }
 
 # Nova geração da base: config.geracao_base = GUID. Todo substituto do arquivo do banco (publicação, restauração)

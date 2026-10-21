@@ -1270,6 +1270,7 @@ Private Sub cmdSalvar_Click()
 
 trata:
     Me.MousePointer = fmMousePointerDefault
+    modDiag.Registrar "frmCRM", IIf(mNovo, "salvar novo", "salvar"), mTabela & ":" & mID, Err.Number, Err.Description
     MsgBox "Não foi possível salvar." & vbCrLf & vbCrLf & _
            "Erro " & Err.Number & " em " & IIf(Err.Source = "", "(origem não informada)", Err.Source) & _
            vbCrLf & Err.Description & vbCrLf & vbCrLf & _

@@ -20,7 +20,8 @@ if ($Dev) {
     $qtdFerramentas = 15
 } else {
     $nomeServidor = 'crm-zapromaq'
-    $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'servidor.ps1')).ProviderPath
+    # DEV-05: o cliente registra o LANÇADOR fixo; ele carrega a versão publicada (IA\conector\ATUAL.txt)
+    $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'lancador.ps1')).ProviderPath
     $qtdFerramentas = 41
 }
 
@@ -114,6 +115,14 @@ if ($Aplicativo -in @('Codex','Ambos')) {
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar o MCP no Codex.' }
     if (-not $Remover) {
         $origemSkill = Join-Path (Split-Path $PSScriptRoot -Parent) ('instrucoes\' + $nomeServidor + '\SKILL.md')
+        # DEV-05: a skill do Codex sai da MESMA versão publicada do conector (e grava a versão ao lado, para conferir)
+        $ponteiroCon = Join-Path (Split-Path $PSScriptRoot -Parent) 'conector\ATUAL.txt'
+        $versaoSkill = 'fonte'
+        if (-not $Dev -and (Test-Path -LiteralPath $ponteiroCon)) {
+            $versaoSkill = ([IO.File]::ReadAllText($ponteiroCon)).Trim()
+            $publicada = Join-Path (Split-Path $PSScriptRoot -Parent) ('conector\versoes\' + $versaoSkill + '\skill\SKILL.md')
+            if (Test-Path -LiteralPath $publicada) { $origemSkill = $publicada }
+        }
         $destinoSkill = Join-Path $codexRoot ('skills\' + $nomeServidor)
         if (-not (Test-Path -LiteralPath $destinoSkill)) { New-Item -ItemType Directory -Path $destinoSkill -Force | Out-Null }
         $arquivoSkill = Join-Path $destinoSkill 'SKILL.md'
@@ -121,7 +130,8 @@ if ($Aplicativo -in @('Codex','Ambos')) {
             Copy-Item -LiteralPath $arquivoSkill -Destination ($arquivoSkill + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
         }
         Copy-Item -LiteralPath $origemSkill -Destination $arquivoSkill -Force
-        Write-Host ('Skill instalada em: ' + $arquivoSkill)
+        [IO.File]::WriteAllText((Join-Path $destinoSkill 'VERSAO-CONECTOR.txt'), $versaoSkill)
+        Write-Host ('Skill instalada em: ' + $arquivoSkill + ' (versão do conector: ' + $versaoSkill + ')')
     }
     Write-Host 'Reabra o Codex para carregar a conexao e a skill.'
 }

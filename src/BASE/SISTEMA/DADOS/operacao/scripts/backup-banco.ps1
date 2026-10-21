@@ -2,16 +2,25 @@
   backup-banco.ps1 - cópia de segurança do banco do CRM.
 
   Modos:
-    -Modo Diario     exige EXCLUSIVIDADE (ninguém conectado: sem .laccdb). Sai com 2 se ocupado.
-    -Modo Periodico  cópia simples, roda com gente usando (pode sair inconsistente).
-    -Modo Agendado   o das tarefas agendadas: tenta o completo até -Tentativas vezes,
-                     esperando -IntervaloMin entre elas; se o CRM continuar aberto,
-                     faz a cópia simples com AVISO no log. Nunca termina sem cópia,
-                     salvo falha de gravação.
+    -Modo Diario     cópia COMPLETA: exige exclusividade (ninguém gravando). Sai com 2 se ocupado.
+    -Modo Periodico  cópia simples, roda com gente usando (pode sair inconsistente; não bloqueia quem grava).
+    -Modo Agendado   o das tarefas agendadas (9h, 12h30, 16h): tenta o completo até -Tentativas vezes,
+                     esperando -IntervaloMin entre elas (no horário, +10 e +20 min); se não conseguir a
+                     exclusividade, faz a cópia simples marcada como NÃO verificada. Nunca termina sem
+                     cópia, salvo falha de gravação.
+
+  Exclusividade (DEV-03, ciclo 007): a cópia completa segura o arquivo do banco (FileShare.Read) durante TODA
+  a captura - cópia, hash e contagens do manifesto - e copia pelo próprio fluxo. Quem abrir o CRM nesse
+  intervalo lê normalmente; quem tentar gravar recebe a mensagem controlada "cópia de segurança em andamento"
+  (marca execucao\backup\copiando.txt). Ver lib\Backup.ps1.
+
+  Janela (ciclo 007): disparos do modo Agendado para a mesma janela (ex.: duas estações com a tarefa das 9h)
+  geram UMA captura: quem encontra a trava ocupada espera (até -EsperaTravaSeg) e, se a janela já tem cópia
+  (manifesto com "janela"), registra "janela atendida" e sai com 0.
 
   Nome do arquivo: crm_<diario|periodico>_AAAAMMDD-HHMMSS_<ESTACAO>.accdb
-    diario    = cópia completa, feita sem ninguém conectado
-    periodico = cópia simples, feita com o CRM aberto
+    diario    = cópia completa, feita com exclusividade
+    periodico = cópia simples, feita com o CRM em uso
   Se o nome já existir (duas cópias no mesmo segundo), ganha -2, -3...
 
   Coordenação (spec 006):
@@ -37,6 +46,9 @@ param(
     [ValidateRange(1, 12)][int]$Tentativas = 3,
     [ValidateRange(1, 60)][int]$IntervaloMin = 10,
     [ValidateRange(1, 24)][int]$Meses = 2,
+    [ValidateRange(1, 600)][int]$EsperaExclusivaSeg = 60,   # quanto cada tentativa insiste na exclusividade
+    [ValidateRange(0, 3600)][int]$EsperaTravaSeg = 1500,    # Agendado: espera a outra execução da mesma janela
+    [string]$Janela = '',      # Agendado: janela AAAAMMDD-HHMM (padrão: a do horário atual; os testes informam)
     [string]$PastaTeste = ''   # só para teste do expurgo: -PastaTeste <pasta> roda apenas o expurgo nela
 )
 $ErrorActionPreference = 'Stop'
@@ -49,7 +61,19 @@ function Anotar([string]$t) {
     $linha = (Get-Date -Format 'dd/MM/yyyy HH:mm:ss') + '  [' + $Modo + ']  [' + $env:COMPUTERNAME + ']  ' + $t
     Write-Host $linha
     [void]$script:linhasExecucao.Add($linha)
-    Add-Content -LiteralPath $log -Value $linha -Encoding UTF8
+    # o backup.log é compartilhado por todas as execuções (várias estações na mesma janela): escrita com
+    # compartilhamento e nova tentativa; se não der, a linha continua no log desta execução (logs\backup-*.log)
+    # (nomes próprios: este script também roda dentro de outros - aplicar-migracoes - e o PowerShell 5.1 não
+    # compila "$x++" quando um $x de mesmo nome e outro tipo existe no chamador)
+    $bytesLinhaLog = (New-Object System.Text.UTF8Encoding($false)).GetBytes($linha + "`r`n")
+    foreach ($esperaLogMs in @(0, 50, 100, 150, 200, 300, 400, 500, 700, 1000)) {
+        if ($esperaLogMs) { Start-Sleep -Milliseconds $esperaLogMs }
+        try {
+            $fluxoLog = New-Object System.IO.FileStream($log, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+            try { $fluxoLog.Write($bytesLinhaLog, 0, $bytesLinhaLog.Length) } finally { $fluxoLog.Dispose() }
+            return
+        } catch { }
+    }
 }
 
 function Remove-Copia([string]$arquivo) {
@@ -115,7 +139,6 @@ $pastaBkp = Get-PastaExecucao $raiz 'backup'
 $pastaLogs = Join-Path $pastaBkp 'logs'
 New-Item -ItemType Directory -Path $pastaLogs -Force | Out-Null
 $log = Join-Path $pastaBkp 'backup.log'
-$trava = [System.IO.Path]::ChangeExtension($banco, 'laccdb')
 
 if (-not (Test-Path -LiteralPath $banco)) {
     # tarefa agendada que falha em silêncio é pior que tarefa que não existe
@@ -123,33 +146,51 @@ if (-not (Test-Path -LiteralPath $banco)) {
     exit 1
 }
 
+# ---- janela (só o modo Agendado tem janela: é ela que a tarefa das 9h, 12h30 ou 16h cumpre)
+if ($Modo -eq 'Agendado' -and -not $Janela) { $Janela = Get-JanelaBackup (Get-Date) }
+
 # ---- trava de backup (uma execução por vez nesta pasta)
 $travaBkp = Enter-TravaBackup $pastaBkp $Modo
+if (-not $travaBkp.ok -and $Modo -eq 'Agendado' -and $Janela) {
+    # outra execução (outra estação, mesma janela): espera ela terminar e confere se a janela ficou atendida
+    Anotar ('janela ' + $Janela + ': ' + $travaBkp.motivo + ' Aguardando até ' + $EsperaTravaSeg + ' s.')
+    $limiteTrava = (Get-Date).AddSeconds($EsperaTravaSeg)
+    while (-not $travaBkp.ok -and (Get-Date) -lt $limiteTrava) {
+        Start-Sleep -Seconds 2
+        $travaBkp = Enter-TravaBackup $pastaBkp $Modo
+    }
+}
 if (-not $travaBkp.ok) { Anotar ('ABORTADO: ' + $travaBkp.motivo); exit 4 }
 if ($travaBkp.recuperada) { Anotar 'AVISO: havia uma trava de backup abandonada; foi recuperada.' }
 
 $codigo = 0
+$copiaExcl = $null
 try {
-    # ---- decide o tipo de cópia
-    $temUsuario = Test-Path -LiteralPath $trava
-    if ($Modo -eq 'Agendado') {
-        for ($i = 1; $temUsuario -and $i -lt $Tentativas; $i++) {
-            Anotar ('CRM aberto (tentativa ' + $i + ' de ' + $Tentativas + '): nova tentativa em ' + $IntervaloMin + ' min')
-            Start-Sleep -Seconds ($IntervaloMin * 60)
-            $temUsuario = Test-Path -LiteralPath $trava
+    if ($Janela) {
+        $atendida = Get-CopiaDaJanela $pastaBkp $Janela
+        if ($atendida) {
+            Anotar ('janela ' + $Janela + ' atendida: ' + $atendida + '. Nada a copiar.')
+            exit 0
         }
-        $tipo = if ($temUsuario) { 'periodico' } else { 'diario' }
-    } elseif ($Modo -eq 'Diario') {
-        if ($temUsuario) {
-            Anotar 'ABORTADO: há usuário conectado (.laccdb presente). O backup diário exige exclusividade.'
+    }
+    # ---- decide o tipo de cópia: completa só com a exclusividade em mãos
+    if ($Modo -eq 'Periodico') { $tipo = 'periodico' }
+    else {
+        $copiaExcl = Enter-CopiaExclusiva $banco $pastaBkp $EsperaExclusivaSeg
+        if ($Modo -eq 'Agendado') {
+            for ($i = 1; -not $copiaExcl.ok -and $i -lt $Tentativas; $i++) {
+                Anotar ('sem exclusividade (tentativa ' + $i + ' de ' + $Tentativas + ', ' + $copiaExcl.motivo + '): nova tentativa em ' + $IntervaloMin + ' min')
+                Start-Sleep -Seconds ($IntervaloMin * 60)
+                $copiaExcl = Enter-CopiaExclusiva $banco $pastaBkp $EsperaExclusivaSeg
+            }
+        } elseif (-not $copiaExcl.ok) {
+            Anotar ('ABORTADO: ' + $copiaExcl.motivo + '. O backup diário exige exclusividade.')
             $codigo = 2
             exit 2
         }
-        $tipo = 'diario'
-    } else {
-        $tipo = 'periodico'
+        $tipo = if ($copiaExcl.ok) { 'diario' } else { 'periodico' }
+        if (-not $copiaExcl.ok) { Anotar ('AVISO: sem exclusividade depois de ' + $Tentativas + ' tentativa(s). Cópia simples, marcada como NÃO verificada.') }
     }
-    if ($temUsuario) { Anotar 'AVISO: há usuário conectado. Cópia simples: sai, mas pode não estar consistente.' }
 
     # ---- cópia: .tmp, conferida, promovida
     $base = 'crm_' + $tipo + '_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '_' + ($env:COMPUTERNAME -replace '[^A-Za-z0-9_-]', '_')
@@ -158,8 +199,8 @@ try {
     $destino = Join-Path $pastaBkp $nome
     $tmp = $destino + '.tmp'
     try {
-        Copy-Item -LiteralPath $banco -Destination $tmp -Force
-        $tamOrigem = (Get-Item -LiteralPath $banco).Length
+        if ($tipo -eq 'diario') { Copy-FluxoParaArquivo $copiaExcl.fluxo $tmp; $tamOrigem = $copiaExcl.fluxo.Length }
+        else { Copy-BancoSemBloquear $banco $tmp; $tamOrigem = (Get-Item -LiteralPath $banco).Length }
         $tamCopia = (Get-Item -LiteralPath $tmp).Length
         if ($tamCopia -ne $tamOrigem) {
             Anotar ('FALHA: cópia com ' + $tamCopia + ' bytes contra ' + $tamOrigem + ' do original. Removida.')
@@ -168,7 +209,7 @@ try {
             exit 1
         }
         Move-Item -LiteralPath $tmp -Destination $destino
-        Anotar ('OK: ' + (Split-Path -Leaf $destino) + '  (' + [math]::Round($tamCopia / 1MB, 2) + ' MB)')
+        Anotar ('OK: ' + (Split-Path -Leaf $destino) + '  (' + [math]::Round($tamCopia / 1MB, 2) + ' MB)' + $(if ($tipo -eq 'diario') { ', com exclusividade' } else { '' }))
     } catch {
         Anotar ('FALHA ao copiar: ' + $_.Exception.Message.Split([char]13)[0])
         Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
@@ -177,8 +218,12 @@ try {
     }
 
     # ---- manifesto e validação (restauração numa pasta descartável; o arquivo de backup não é aberto)
+    # Na cópia completa o manifesto (contagens da origem) sai AINDA com o arquivo seguro: mesmo corte da cópia.
     try {
-        [void](New-ManifestoBackup $destino $banco $tipo)
+        $extra = [ordered]@{ consistencia = $(if ($tipo -eq 'diario') { 'exclusiva' } else { 'nao-verificada' }) }
+        if ($Janela) { $extra['janela'] = $Janela }
+        [void](New-ManifestoBackup $destino $banco $tipo $extra)
+        Exit-CopiaExclusiva $copiaExcl; $copiaExcl = $null
         $val = Test-BackupRestauravel $destino
         if ($val.ok) { Set-BackupValidado $destino; Anotar 'validado: manifesto, restauração numa pasta descartável e contagens conferem' }
         else { Anotar ('AVISO: a cópia NÃO foi validada (' + ($val.problemas -join '; ') + '). Fica sem a marca de validado.') }
@@ -192,6 +237,7 @@ try {
     $total = @(Get-ChildItem -LiteralPath $pastaBkp -Filter '*.accdb' -File)
     Anotar ('na pasta: ' + $total.Count + ' cópia(s), ' + [math]::Round((($total | Measure-Object Length -Sum).Sum) / 1MB, 1) + ' MB')
 } finally {
+    Exit-CopiaExclusiva $copiaExcl
     Exit-TravaBackup $travaBkp
     try {
         $arqExec = Join-Path $pastaLogs ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $PID + '-' + ($env:COMPUTERNAME -replace '[^A-Za-z0-9_-]', '_') + '.log')
