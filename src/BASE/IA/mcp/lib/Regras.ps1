@@ -19,20 +19,59 @@ function Get-SoDigitos([string]$s) {
     return ($s -replace '[^0-9]', '')
 }
 
-# Normaliza pelo NOME do campo. Campo desconhecido so leva Trim.
+# Normaliza pelo NOME do campo (seção 5.1 do plano de 19/10/2026, ciclo 009). Espelho de
+# modValidacao.Normalizar (front), casos C22 a C24:
+#   todo texto comercial em MAIÚSCULAS, aparado e com espaço horizontal repetido colapsado; observações, próxima
+#   ação e contexto mantêm as quebras de linha; URL, caminho e e-mail dentro do texto ficam como digitados;
+#   e-mail minúsculo e UM endereço (os demais ficam em $script:EmailsAdicionais, para ir às observações);
+#   CNPJ e telefone só dígitos; lista = valor exato (só apara); ctx_arquivo = caminho como gravado.
 # Devolve $null quando vazio - nunca cadeia vazia (indice unico de CNPJ).
+$script:EmailsAdicionais = ''
+$script:CamposLista = @('etapa', 'responsavel', 'familia', 'origem', 'categoria', 'prioridade', 'motivo_desfecho', 'qualificacao', 'segmento')
+function ConvertTo-EspacosColapsados([string]$s) {
+    $s = $s.Replace("`t", ' ').Trim()
+    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
+    return $s
+}
+function ConvertTo-MaiusculasProtegidas([string]$s) {
+    if ($s -eq '') { return '' }
+    $pt = [Globalization.CultureInfo]'pt-BR'
+    return ((@($s.Split(' ') | ForEach-Object {
+        if ($_.Contains('@') -or $_.Contains('://') -or $_.Contains('\') -or $_.ToLowerInvariant().StartsWith('www.')) { $_ } else { $_.ToUpper($pt) }
+    })) -join ' ')
+}
+function ConvertTo-TextoComercial([string]$s, [bool]$multilinha) {
+    $linhas = $s.Replace("`r`n", "`n").Replace("`r", "`n").Split("`n")
+    $saida = @($linhas | ForEach-Object { ConvertTo-MaiusculasProtegidas (ConvertTo-EspacosColapsados $_) })
+    if ($multilinha) { return (($saida -join "`r`n").Trim("`r", "`n")) }
+    return ((@($saida | Where-Object { $_ -ne '' })) -join ' ')
+}
+function Get-ListaEmails([string]$s) {
+    return @(($s -replace '[;,/]', ' ').Split(' ') | Where-Object { $_.Trim() -ne '' } | ForEach-Object { $_.Trim().ToLowerInvariant() })
+}
 function ConvertTo-Normalizado([string]$campo, $valor) {
     if ($null -eq $valor) { return $null }
-    $s = ([string]$valor).Replace([string][char]160, ' ').Trim()
-    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
-    switch ($campo.ToLowerInvariant()) {
-        { $_ -in @('empresa', 'cidade', 'uf', 'maquina', 'orcamento') } { $s = $s.ToUpper([Globalization.CultureInfo]'pt-BR') }
-        'email'    { $s = $s.ToLowerInvariant() }
-        'cnpj'     { $s = Get-SoDigitos $s }
-        'telefone' { $s = Get-SoDigitos $s }
+    $s = ([string]$valor).Replace([string][char]160, ' ')
+    $c = $campo.ToLowerInvariant()
+    if ($c -eq 'email') {
+        $todos = Get-ListaEmails $s
+        $s = if ($todos.Count -gt 0) { $todos[0] } else { '' }
+        $script:EmailsAdicionais = if ($todos.Count -gt 1) { (@($todos | Select-Object -Skip 1)) -join '; ' } else { '' }
     }
+    elseif ($c -in @('cnpj', 'telefone')) { $s = Get-SoDigitos $s }
+    elseif ($script:CamposLista -contains $c) { $s = ConvertTo-EspacosColapsados $s }
+    elseif ($c -eq 'ctx_arquivo') { $s = $s.Trim() }
+    elseif ($c -in @('observacoes', 'prox_acao', 'ctx_resumo')) { $s = ConvertTo-TextoComercial $s $true }
+    else { $s = ConvertTo-TextoComercial $s $false }
     if ($s.Length -eq 0) { return $null }
     return $s
+}
+# Endereços além do primeiro vão para as observações, numa linha própria (mesma regra do front).
+function Add-EmailsAdicionais($observacoes, [string]$adicionais) {
+    if (-not $adicionais) { return $observacoes }
+    if ($null -eq $observacoes -or [string]$observacoes -eq '') { return ('E-MAIL ADICIONAL: ' + $adicionais) }
+    if (([string]$observacoes).Contains($adicionais)) { return $observacoes }
+    return ([string]$observacoes + "`r`n" + 'E-MAIL ADICIONAL: ' + $adicionais)
 }
 
 # Chave de comparacao de lista (C01): sem caixa, sem acento, espacos aparados e colapsados.

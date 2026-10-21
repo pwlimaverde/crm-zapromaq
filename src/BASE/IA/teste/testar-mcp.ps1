@@ -133,6 +133,16 @@ Conferir 'C21 valor negativo recusado' (Recusa { ConvertTo-CampoAtendimento $nul
 Conferir 'inteiro fora do Long recusado' (Recusa { ConvertTo-Inteiro 'meta_pedidos' 2147483648 })
 Conferir 'moeda nula continua nula (limpar o campo)' ($null -eq (ConvertTo-Moeda 'valor' $null))
 
+Write-Host '--- DEV-10: normalização da seção 5.1 (mesmos casos C22-C24 do front)'
+Conferir 'C22 nome em maiúsculas, acento preservado e espaço colapsado' ((ConvertTo-Normalizado 'nome' ('  jo' + [char]0x00E3 + 'o   da  silva ')) -ceq ('JO' + [char]0x00C3 + 'O DA SILVA'))
+Conferir 'C22 observações: maiúsculas e quebra de linha preservada' ((ConvertTo-Normalizado 'observacoes' ("linha  um  `r`n`r`n  linha dois")) -ceq "LINHA UM`r`n`r`nLINHA DOIS")
+Conferir 'C22 campo de lista fica como na lista' ((ConvertTo-Normalizado 'etapa' ' Proposta em Análise ') -ceq 'Proposta em Análise')
+$script:EmailsAdicionais = ''
+Conferir 'C23 e-mail minúsculo e só o primeiro endereço' ((ConvertTo-Normalizado 'email' 'Ana@X.COM; b@y.com') -ceq 'ana@x.com' -and $script:EmailsAdicionais -eq 'b@y.com')
+Conferir 'C23 e-mail adicional vai para as observações' ((Add-EmailsAdicionais 'OBS' 'b@y.com') -ceq "OBS`r`nE-MAIL ADICIONAL: b@y.com")
+Conferir 'C24 URL, caminho e e-mail dentro das observações ficam como digitados' ((ConvertTo-Normalizado 'observacoes' 'ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com') -ceq 'VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com')
+Conferir 'C24 caminho de contexto como gravado' ((ConvertTo-Normalizado 'ctx_arquivo' ' Clientes\0001\Contexto.md ') -ceq 'Clientes\0001\Contexto.md')
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')

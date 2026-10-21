@@ -57,9 +57,20 @@ function Assert-Tamanho([string]$campo, $valor) {
 }
 
 function Add-Observacao($atual, [string]$texto) {
-    $linha = '[' + (Get-Date).ToString('dd/MM/yyyy') + ' ' + $script:UsuarioLog + '] ' + $texto.Trim()
+    # seção 5.1: o texto comercial acrescentado entra em maiúsculas (URL, caminho e e-mail preservados)
+    $linha = '[' + (Get-Date).ToString('dd/MM/yyyy') + ' ' + $script:UsuarioLog + '] ' + (ConvertTo-TextoComercial $texto.Trim() $true)
     if ($null -eq $atual -or [string]$atual -eq '') { return $linha }
     return ([string]$atual).TrimEnd() + "`r`n" + $linha
+}
+
+# Seção 5.1: e-mails além do primeiro, recebidos em "email", vão para as observações (na mesma gravação).
+function Add-EmailsNasObservacoes($a, $atual, $mud) {
+    if (-not (Test-TemArg $a 'email')) { return }
+    [void](ConvertTo-Normalizado 'email' $a.email)
+    if (-not $script:EmailsAdicionais) { return }
+    $base = if ($mud.Contains('observacoes')) { $mud['observacoes'].Novo } else { $atual.observacoes }
+    $novo = Add-EmailsAdicionais $base $script:EmailsAdicionais
+    if (-not (Test-Igual $atual.observacoes $novo)) { $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $novo; Antigo = $atual.observacoes } }
 }
 
 function Test-Igual($a, $b) {
@@ -1035,6 +1046,7 @@ function Invoke-AtualizarCadastroCliente($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        Add-EmailsNasObservacoes $a $atual $mud
         if ($mud.Count -eq 0) {
             return [ordered]@{ id_cliente = $atual.id; gravado = $false; mensagem = 'Nada a alterar: os valores já estão iguais.'; versao = $atual.versao }
         }
@@ -1177,8 +1189,10 @@ function Invoke-CriarContato($a) {
     foreach ($campo in @('nome', 'cargo', 'telefone', 'email')) {
         if ($campo -eq 'nome' -or (Test-TemArg $a $campo)) { $d[$campo] = ConvertTo-CampoContato $campo (Get-Arg $a $campo) }
     }
+    $extrasEmail = $(if (Test-TemArg $a 'email') { $script:EmailsAdicionais } else { '' })
     $obs = $null
     if ((Test-TemArg $a 'observacoes') -and [string]$a.observacoes -ne '') { $obs = Add-Observacao $null ([string]$a.observacoes) }
+    $obs = Add-EmailsAdicionais $obs $extrasEmail
     $promover = [bool](Get-Arg $a 'promover_pre_cliente' $false)
 
     for ($tentativa = 1; $tentativa -le 5; $tentativa++) {
@@ -1202,6 +1216,8 @@ function Invoke-CriarContato($a) {
                     $ctx.Log('clientes', [int]$cli.id, 'estagio', ('Pr' + [char]0x00E9 + '-cliente'), 'Cliente', 'PROMOVER')
                     $promovida = $true
                 }
+                # DEV-10: contato com o mesmo nome na mesma empresa é aviso, não bloqueio
+                $homonimos = @($ctx.Consultar('SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?', @((P 'inteiro' ([int]$cli.id)), (P 'texto' $d['nome']))) | ForEach-Object { [string]$_.codigo })
                 $controle = [int]$ctx.Valor('SELECT MAX(controle) FROM contatos', @()) + 1
                 $codigo = 'CT-' + ([int]$codCli).ToString('0000') + '-' + $controle.ToString('0000')
                 $agora = Get-Date
@@ -1216,6 +1232,7 @@ function Invoke-CriarContato($a) {
                     gravado = $true; id_contato = $id; codigo_contato = $codigo; versao = 1
                     empresa = $cli.empresa; codigo_cliente = Format-CodigoCliente $codCli; empresa_promovida = $promovida
                     nome = $d['nome']; cargo = $d['cargo']; telefone = $d['telefone']; email = $d['email']
+                    avisos = @($(if ($homonimos.Count -gt 0) { 'Já existe contato com o mesmo nome nesta empresa (' + ($homonimos -join ', ') + '). Confira com o usuário se não é o mesmo.' }))
                 }
             }
         } catch {
@@ -1241,6 +1258,7 @@ function Invoke-AtualizarContato($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        Add-EmailsNasObservacoes $a $atual $mud
         $avisos = New-Object System.Collections.ArrayList
         if (Test-TemArg $a 'codigo_cliente_destino') {
             $dest = $ctx.Consultar('SELECT id, empresa, ativo FROM clientes WHERE codigo_cliente=?', @((P 'inteiro' ([int]$a.codigo_cliente_destino))))
@@ -1388,6 +1406,7 @@ function Invoke-CriarCliente($a) {
         if ($comoCliente) { $cod = [int]$ctx.Valor('SELECT MAX(codigo_cliente) FROM clientes', @()) + 1; $estagio = 'Cliente' }
         $obs = $null
         if ((Test-TemArg $a 'observacoes') -and [string]$a.observacoes -ne '') { $obs = Add-Observacao $null ([string]$a.observacoes) }
+        if (Test-TemArg $a 'email') { [void](ConvertTo-Normalizado 'email' $a.email); $obs = Add-EmailsAdicionais $obs $script:EmailsAdicionais }
         $cols = @('codigo_cliente', 'estagio'); $par = @((P 'inteiro' $cod), (P 'texto' $estagio))
         foreach ($c in $d.Keys) {
             $t = 'texto'; if ($tipos.ContainsKey($c)) { $t = $tipos[$c] }

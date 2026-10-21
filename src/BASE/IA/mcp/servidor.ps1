@@ -64,6 +64,7 @@ $script:AntesDaFerramenta = {
         if ($motivoEsquema) { throw $motivoEsquema }
     }
     $script:UsuarioLog = 'IA'
+    $script:EmailsAdicionais = ''
     $autor = Get-Arg $a 'autor'
     if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')') }
     if ($script:UsuarioLog.Length -gt 50) { $script:UsuarioLog = $script:UsuarioLog.Substring(0, 50) }

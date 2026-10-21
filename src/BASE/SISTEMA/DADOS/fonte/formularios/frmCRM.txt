@@ -1353,7 +1353,7 @@ End Sub
 ' erros: os campos que não converteram (DEV-09); vazio = tudo convertido
 Private Function MontarDados(Optional ByRef erros As String) As Object
     Dim d As Object, i As Long, spec As Variant, conv As Variant
-    Dim campo As String, tipo As String, bruto As String
+    Dim campo As String, tipo As String, bruto As String, extrasEmail As String
 
     Set d = CreateObject("Scripting.Dictionary")
     erros = ""
@@ -1369,10 +1369,14 @@ Private Function MontarDados(Optional ByRef erros As String) As Object
                 If conv(0) = "invalido" Then erros = erros & "- " & spec(1) & ": """ & bruto & """ (" & conv(2) & ")" & vbCrLf
                 d(campo) = conv(1)
             Case "K": d(campo) = IIf(VinculoDe(campo) = 0, Null, VinculoDe(campo))
-            Case Else: d(campo) = modValidacao.Normalizar(campo, bruto)
+            Case Else
+                d(campo) = modValidacao.Normalizar(campo, bruto)
+                If campo = "email" Then extrasEmail = modValidacao.EmailsAdicionais(bruto)
         End Select
 proximo:
     Next i
+    ' seção 5.1: um e-mail por campo; os outros vão para as observações
+    If extrasEmail <> "" And d.Exists("observacoes") Then d("observacoes") = modValidacao.ObservacoesComEmails(d("observacoes"), extrasEmail)
     Set MontarDados = d
 End Function
 
