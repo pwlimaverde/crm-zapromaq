@@ -556,9 +556,60 @@ def verificar_espelho_backup():
             falha('Espelho do backup', '$script:' + const + ' diferente entre Backup.ps1 e Ferramentas.ps1')
 
 
+def tamanhos_ddl():
+    # {(tabela, campo): n} dos TEXT(n) do DDL e das migrações (ADD COLUMN / ALTER COLUMN mudam o tamanho)
+    textos = [open(os.path.join(DADOS, 'banco', 'esquema', 'criar-banco.ps1'), encoding='utf-8-sig').read()]
+    pasta = os.path.join(DADOS, 'banco', 'migracoes')
+    for nome in sorted(os.listdir(pasta)) if os.path.isdir(pasta) else []:
+        if nome.endswith('.ps1'):
+            textos.append(open(os.path.join(pasta, nome), encoding='utf-8-sig').read())
+    tam = {}
+    for txt in textos:
+        junto = re.sub(r"'\s*\+\s*\n\s*'", '', txt)
+        for m in re.finditer(r"CREATE TABLE (\w+) \((.*?)\)'", junto, re.S):
+            for c in re.finditer(r'(\w+) TEXT\((\d+)\)', m.group(2)):
+                tam[(m.group(1).lower(), c.group(1).lower())] = int(c.group(2))
+        for m in re.finditer(r"ALTER TABLE (\w+) (?:ADD|ALTER) COLUMN (\w+) TEXT\((\d+)\)", junto, re.I):
+            tam[(m.group(1).lower(), m.group(2).lower())] = int(m.group(3))
+    return tam
+
+
+def verificar_matriz_campos():
+    # DEV-10 (ciclo 009): a matriz versionada de campos é a referência dos três canais
+    arq = os.path.join(DADOS, 'docs', 'matriz-campos.json')
+    if not os.path.isfile(arq):
+        falha('Matriz de campos', 'docs/matriz-campos.json ausente')
+        return
+    matriz = json.load(open(arq, encoding='utf-8'))
+    ddl = tamanhos_ddl()
+    ferr = open(os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1'), encoding='utf-8-sig').read()
+    m = re.search(r'\$script:TamanhoTexto = @\{(.*?)\n\}', ferr, re.S)
+    tam_con = {k: int(v) for k, v in re.findall(r'(\w+) = (\d+)', m.group(1))} if m else {}
+    for c in matriz.get('campos', []):
+        t = c.get('tamanho')
+        if t is None:
+            continue
+        chave = (c['tabela'], c['campo'])
+        if chave in ddl and ddl[chave] != t:
+            falha('Matriz de campos', '%s.%s: matriz %d, banco %d' % (c['tabela'], c['campo'], t, ddl[chave]))
+        if c['campo'] in tam_con and tam_con[c['campo']] != t:
+            falha('Matriz de campos', '%s.%s: matriz %d, conector (TamanhoTexto) %d' % (c['tabela'], c['campo'], t, tam_con[c['campo']]))
+    listas = {c['campo'] for c in matriz.get('campos', []) if c.get('normalizacao') == 'lista'}
+    reg = open(os.path.join(BASE, 'IA', 'mcp', 'lib', 'Regras.ps1'), encoding='utf-8-sig').read()
+    m = re.search(r"\$script:CamposLista = @\((.*?)\)", reg)
+    con = set(re.findall(r"'(\w+)'", m.group(1))) if m else set()
+    val = ler_cp1252(os.path.join(FONTE, 'modulos', 'modValidacao.bas'))
+    m = re.search(r'Case "etapa",(.*?)\n\s*s = ColapsarEspacos', val, re.S)
+    fr = set(re.findall(r'"(\w+)"', 'Case "etapa",' + m.group(1))) if m else set()
+    for nome, lado in (('conector (CamposLista)', con), ('front (Normalizar)', fr)):
+        if lado != listas:
+            falha('Matriz de campos', 'campos de lista da matriz x %s: só na matriz %s; só lá %s' % (nome, sorted(listas - lado), sorted(lado - listas)))
+
+
 def main():
     vba = fontes_vba()
     verificar_contrato_conector()
+    verificar_matriz_campos()
     verificar_espelho_backup()
     verificar_textos_de_etapa(vba)
     verificar_migracao_003()

@@ -139,6 +139,7 @@ Conferir 'C22 observações: maiúsculas e quebra de linha preservada' ((Convert
 Conferir 'C22 campo de lista fica como na lista' ((ConvertTo-Normalizado 'etapa' ' Proposta em Análise ') -ceq 'Proposta em Análise')
 $script:EmailsAdicionais = ''
 Conferir 'C23 e-mail minúsculo e só o primeiro endereço' ((ConvertTo-Normalizado 'email' 'Ana@X.COM; b@y.com') -ceq 'ana@x.com' -and $script:EmailsAdicionais -eq 'b@y.com')
+Conferir 'C23 e-mail com um endereço só fica inteiro' ((ConvertTo-Normalizado 'email' ' Compras@Exemplo.com.BR ') -ceq 'compras@exemplo.com.br' -and $script:EmailsAdicionais -eq '')
 Conferir 'C23 e-mail adicional vai para as observações' ((Add-EmailsAdicionais 'OBS' 'b@y.com') -ceq "OBS`r`nE-MAIL ADICIONAL: b@y.com")
 Conferir 'C24 URL, caminho e e-mail dentro das observações ficam como digitados' ((ConvertTo-Normalizado 'observacoes' 'ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com') -ceq 'VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com')
 Conferir 'C24 caminho de contexto como gravado' ((ConvertTo-Normalizado 'ctx_arquivo' ' Clientes\0001\Contexto.md ') -ceq 'Clientes\0001\Contexto.md')

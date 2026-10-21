@@ -1081,9 +1081,8 @@ function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
     $mud = [ordered]@{}
     foreach ($campo in $campos) {
         if (-not (Test-TemArg $a $campo)) { continue }
-        $v = [string]$a.$campo
-        if ($null -ne $a.$campo) { $v = $v.Trim() }
-        if ($v -eq '') { $v = $null }
+        # seção 5.1 (ciclo 009): resumo e família em maiúsculas; ctx_arquivo é caminho, como gravado
+        $v = ConvertTo-Normalizado $campo $a.$campo
         Assert-Tamanho $campo $v
         if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Novo = $v; Antigo = $atual[$campo] } }
     }

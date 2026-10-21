@@ -54,7 +54,7 @@ function ConvertTo-Normalizado([string]$campo, $valor) {
     $s = ([string]$valor).Replace([string][char]160, ' ')
     $c = $campo.ToLowerInvariant()
     if ($c -eq 'email') {
-        $todos = Get-ListaEmails $s
+        $todos = @(Get-ListaEmails $s)   # @(): um endereço só voltaria como texto, e [0] seria a 1ª letra
         $s = if ($todos.Count -gt 0) { $todos[0] } else { '' }
         $script:EmailsAdicionais = if ($todos.Count -gt 1) { (@($todos | Select-Object -Skip 1)) -join '; ' } else { '' }
     }
