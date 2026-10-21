@@ -77,6 +77,49 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "diag operacao do SQL sem valores", modDB.OperacaoDoSql("UPDATE clientes SET empresa=? WHERE id=?"), "UPDATE clientes"
     Confere "diag operacao INSERT", modDB.OperacaoDoSql("INSERT INTO log_alteracoes (a) VALUES (?)"), "INSERT log_alteracoes"
 
+    ' ---- DEV-09: conversao sem perda silenciosa (mesma matriz C17-C21 do conector)
+    Confere "C17 data 31/02/2026 nao existe", modValidacao.Converter("D", "31/02/2026")(0), "invalido"
+    Confere "C17 data 2026-02-31 nao existe", modValidacao.Converter("D", "2026-02-31")(0), "invalido"
+    Confere "C18 moeda com 3 casas recusada", modValidacao.Converter("C", "12,505")(0), "invalido"
+    Confere "C19 inteiro com fracao recusado", modValidacao.Converter("N", "1,5")(0), "invalido"
+    Confere "C20 moeda acima do limite recusada", modValidacao.Converter("C", "1.000.000.000.000,00")(0), "invalido"
+    Dim dNeg As Object
+    Set dNeg = CreateObject("Scripting.Dictionary")
+    dNeg("id_contato") = 1: dNeg("etapa") = "X": dNeg("responsavel") = "Y": dNeg("valor") = CCur(-10)
+    Confere "C21 valor negativo recusado", (InStr(modValidacao.CriticarOportunidade(dNeg), "negativo") > 0), True
+    Confere "conv abc e invalido", modValidacao.Converter("C", "abc")(0), "invalido"
+    Confere "conv 12.50 e invalido (nao vira 1250)", modValidacao.Converter("C", "12.50")(0), "invalido"
+    Confere "conv 1,5 = 1,5", modValidacao.Converter("C", "1,5")(1), CCur(1.5)
+    Confere "conv 1.250 = 1250", modValidacao.Converter("C", "1.250")(1), CCur(1250)
+    Confere "conv 1.250,50 = 1250,5", modValidacao.Converter("C", "R$ 1.250,50")(1), CCur(1250.5)
+    Confere "conv separadores mistos invalido", modValidacao.Converter("C", "1,250.50")(0), "invalido"
+    Confere "conv -10 convertido", modValidacao.Converter("C", "-10")(1), CCur(-10)
+    Confere "conv 0 valido", modValidacao.Converter("C", "0")(0), "valido"
+    Confere "conv vazio limpa", modValidacao.Converter("C", "   ")(0), "vazio"
+    Confere "conv vazio e nulo", IsNull(modValidacao.Converter("D", "")(1)), True
+    Confere "conv data dd/mm/aaaa", modValidacao.Converter("D", "5/3/2026")(1), DateSerial(2026, 3, 5)
+    Confere "conv data ISO", modValidacao.Converter("D", "2026-03-05")(1), DateSerial(2026, 3, 5)
+    Confere "conv data ambigua recusada", modValidacao.Converter("D", "05-03-2026")(0), "invalido"
+    Confere "conv inteiro 12", modValidacao.Converter("N", "12")(1), 12
+    Confere "conv inteiro acima do Long", modValidacao.Converter("N", "2147483648")(0), "invalido"
+    Confere "C19 lote: nota fracionaria e erro", modLote.NotaValida("1,5"), False
+    Confere "lote: nota 2 valida", modLote.NotaValida("2"), True
+    Confere "lote: nota vazia valida", modLote.NotaValida(""), True
+
+    ' ---- DEV-13: estado da gravacao e mensagem fiel
+    modDB.NovaGravacao
+    Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"
+    Confere "msg confirmada diz GRAVADO", (InStr(modDB.MensagemResultadoGravacao("confirmada", 1, "x", "erro na releitura", "AT-0001-0001"), "GRAVADO (AT-0001-0001)") > 0), True
+    Confere "msg confirmada nunca diz nada foi gravado", (InStr(modDB.MensagemResultadoGravacao("confirmada", 1, "x", "erro", "r"), "Nada foi gravado") = 0), True
+    Confere "msg indeterminada pede conferir", (InStr(modDB.MensagemResultadoGravacao("indeterminada", 1, "x", "erro", "r"), "INDETERMINADO") > 0), True
+    Confere "msg desfeita: nada gravado, pode repetir", (InStr(modDB.MensagemResultadoGravacao("desfeita", 1, "x", "erro", "r"), "pode repetir") > 0), True
+    Confere "msg recusada mostra o motivo", (InStr(modDB.MensagemResultadoGravacao("nao_enviada", modDB.ERRO_ESCRITA_RECUSADA, "x", "Sistema em manutencao", "r"), "Sistema em manutencao") > 0), True
+    ' ---- DEV-14: so bloqueio e transitorio
+    Confere "bloqueio pt-BR e transitorio", modDB.EhBloqueio("N" & ChrW$(227) & "o foi poss" & ChrW$(237) & "vel atualizar; bloqueado no momento."), True
+    Confere "bloqueio en e transitorio", modDB.EhBloqueio("Could not update; currently locked."), True
+    Confere "violacao de chave nao e transitoria", modDB.EhBloqueio("Os valores duplicados no indice"), False
+    Confere "consulta atualizavel nao e bloqueio", modDB.EhBloqueio("A operacao deve usar uma consulta atualizavel."), False
+
     ' ---- modDB (so utilitarios)
     Confere "Nz nulo", modDB.Nz(Null, "x"), "x"
     Confere "Nz valor", modDB.Nz(12), "12"

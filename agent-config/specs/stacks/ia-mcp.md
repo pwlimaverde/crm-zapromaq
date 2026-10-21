@@ -103,3 +103,5 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
 - Publicação: `publicar-conector.ps1` (pasta de versão imutável + ponteiro `IA\conector\ATUAL.txt`), lançador fixo
   `lancador.ps1` registrado nos clientes; `testar-conector-versoes.ps1` prova publicação, interrupção e volta.
 - O aviso de backup por janela é cópia fiel de `SISTEMA\DADOS\lib\Backup.ps1` (o `verificar.py` compara).
+- Ciclo 008: `ConvertTo-Moeda`/`ConvertTo-Inteiro` (Regras.ps1) em vez de `[decimal]`/`[int]`; `Invoke-Transacao` repete
+  a transação inteira só em bloqueio (`Test-ErroTransitorio`), antes do commit; falha no commit vira "resultado indeterminado".

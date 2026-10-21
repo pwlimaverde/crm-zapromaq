@@ -122,6 +122,17 @@ try {
     Conferir 'C06 inativa que é outra gravada no registro é recusada' (Recusa { Resolve-ValorLista $null 'Etapa' 'etapa' 'Perdido' 'Descartado' })
 } finally { Set-AtivoEtapa 'Perdido' $true }
 
+Write-Host '--- DEV-09: conversão sem perda silenciosa (mesma matriz C17-C21 do front)'
+Conferir 'C17 data 2026-02-31 recusada' (Recusa { ConvertTo-Data 'dt_proposta' '2026-02-31' })
+Conferir 'C18 moeda com 3 casas recusada (12.505)' (Recusa { ConvertTo-Moeda 'valor' 12.505 })
+Conferir 'C18 moeda com 2 casas passa (12.5)' ((ConvertTo-Moeda 'valor' 12.5) -eq [decimal]12.5)
+Conferir 'C19 inteiro com fração recusado (1.5)' (Recusa { ConvertTo-Inteiro 'tentativas' 1.5 })
+Conferir 'C19 inteiro sem fração passa (3.0 = 3)' ((ConvertTo-Inteiro 'tentativas' 3.0) -eq 3)
+Conferir 'C20 moeda acima do limite recusada' (Recusa { ConvertTo-Moeda 'valor' 1000000000000 })
+Conferir 'C21 valor negativo recusado' (Recusa { ConvertTo-CampoAtendimento $null 'valor' -10 })
+Conferir 'inteiro fora do Long recusado' (Recusa { ConvertTo-Inteiro 'meta_pedidos' 2147483648 })
+Conferir 'moeda nula continua nula (limpar o campo)' ($null -eq (ConvertTo-Moeda 'valor' $null))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')

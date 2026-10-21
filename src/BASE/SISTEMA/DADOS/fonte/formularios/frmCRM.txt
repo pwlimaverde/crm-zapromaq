@@ -63,6 +63,7 @@ Private mAbrindoComVinculo As Boolean  ' Novo com vinculo ja dado: nao pergunta
 Private mCarregando As Boolean
 Private mRestaurando As Boolean    ' devolvendo a selecao da lista, sem reexibir
 Private mUltimoIndice As Long      ' linha da lista do registro exibido
+Private mSalvando As Boolean       ' DEV-13: gravação em andamento (sem reentrada)
 
 '==========================================================
 Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long = 0, _
@@ -1188,12 +1189,27 @@ End Sub
 '==========================================================
 ' SALVAR
 '==========================================================
+' DEV-13: um Salvar de cada vez (duplo clique ou Enter repetido não grava duas vezes)
 Private Sub cmdSalvar_Click()
+    If mSalvando Then Exit Sub
+    mSalvando = True
+    Salvar
+    mSalvando = False
+End Sub
+
+Private Sub Salvar()
     Dim d As Object, critica As String, aviso As String
-    Dim n As Long, novoId As Long, codigo As String
+    Dim n As Long, novoId As Long, codigo As String, erroConv As String
 
     On Error GoTo trata
-    Set d = MontarDados()
+    modDB.NovaGravacao
+    Set d = MontarDados(erroConv)
+    If erroConv <> "" Then
+        ' DEV-09: valor inválido não vira vazio (apagaria o anterior): recusa e mantém o texto
+        MsgBox "Não foi possível salvar: valor que não pode ser convertido." & vbCrLf & vbCrLf & erroConv & vbCrLf & _
+               "Corrija e salve de novo. Nada foi gravado; o que você digitou continua na tela.", vbExclamation, "CRM Zapromaq"
+        Exit Sub
+    End If
 
     Select Case mTabela
         Case "clientes":      critica = modValidacao.CriticarCliente(d)
@@ -1269,12 +1285,31 @@ Private Sub cmdSalvar_Click()
     Exit Sub
 
 trata:
+    ' DEV-13: a mensagem depende de ONDE parou - antes de gravar, na confirmação
+    ' (indeterminado) ou depois de confirmado (só a tela não foi atualizada)
+    Dim nErrS As Long, sErrS As String, sOrigS As String, estadoS As String
+    nErrS = Err.Number: sErrS = Err.Description: sOrigS = Err.Source
+    estadoS = modDB.EstadoGravacao()
     Me.MousePointer = fmMousePointerDefault
-    modDiag.Registrar "frmCRM", IIf(mNovo, "salvar novo", "salvar"), mTabela & ":" & mID, Err.Number, Err.Description
-    MsgBox "Não foi possível salvar." & vbCrLf & vbCrLf & _
-           "Erro " & Err.Number & " em " & IIf(Err.Source = "", "(origem não informada)", Err.Source) & _
-           vbCrLf & Err.Description & vbCrLf & vbCrLf & _
-           "Nada foi gravado. O que você digitou continua na tela.", vbExclamation, "CRM Zapromaq"
+    modDiag.Registrar "frmCRM", IIf(mNovo, "salvar novo", "salvar"), mTabela & ":" & mID, nErrS, sErrS, estadoS
+    MsgBox modDB.MensagemResultadoGravacao(estadoS, nErrS, sOrigS, sErrS, IIf(codigo <> "", codigo, mTabela & " " & IIf(novoId > 0, novoId, mID))), _
+           vbExclamation, "CRM Zapromaq"
+    If estadoS = "confirmada" Or estadoS = "indeterminada" Then AposGravadoSemTela novoId, estadoS
+End Sub
+
+' Gravou (ou pode ter gravado): sai da edição para não gravar de novo, mesmo
+' sem conseguir reler. Erro aqui não pode esconder a mensagem já mostrada.
+Private Sub AposGravadoSemTela(ByVal novoId As Long, ByVal estado As String)
+    On Error Resume Next
+    If novoId > 0 Then mID = novoId
+    mNovo = False
+    modConfig.gGravados = modConfig.gGravados & mID & ","
+    ModoLeitura
+    If estado = "confirmada" Then
+        lblStatus.Caption = "Gravado - a tela não foi atualizada: clique em Atualizar."
+    Else
+        lblStatus.Caption = "Resultado indeterminado - confira (Atualizar) antes de repetir."
+    End If
 End Sub
 
 Private Function PerguntarSeCliente() As Boolean
@@ -1315,11 +1350,13 @@ Private Sub TratarConflito()
 End Sub
 
 '----------------------------------------------------------
-Private Function MontarDados() As Object
-    Dim d As Object, i As Long, spec As Variant
+' erros: os campos que não converteram (DEV-09); vazio = tudo convertido
+Private Function MontarDados(Optional ByRef erros As String) As Object
+    Dim d As Object, i As Long, spec As Variant, conv As Variant
     Dim campo As String, tipo As String, bruto As String
 
     Set d = CreateObject("Scripting.Dictionary")
+    erros = ""
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
         If spec(6) <> "1" Then GoTo proximo
@@ -1327,9 +1364,10 @@ Private Function MontarDados() As Object
         bruto = ValorCampo(campo)
 
         Select Case tipo
-            Case "D": d(campo) = modValidacao.ComoData(bruto)
-            Case "C": d(campo) = modValidacao.ComoNumero(bruto)
-            Case "N": d(campo) = modValidacao.ComoInteiro(bruto)
+            Case "D", "C", "N"
+                conv = modValidacao.Converter(tipo, bruto)
+                If conv(0) = "invalido" Then erros = erros & "- " & spec(1) & ": """ & bruto & """ (" & conv(2) & ")" & vbCrLf
+                d(campo) = conv(1)
             Case "K": d(campo) = IIf(VinculoDe(campo) = 0, Null, VinculoDe(campo))
             Case Else: d(campo) = modValidacao.Normalizar(campo, bruto)
         End Select

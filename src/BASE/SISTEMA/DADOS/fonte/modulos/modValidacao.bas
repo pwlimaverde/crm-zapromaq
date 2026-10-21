@@ -161,6 +161,93 @@ Public Function ComoInteiro(ByVal texto As String) As Variant
     ComoInteiro = CLng(Val(s))
 End Function
 
+'----------------------------------------------------------
+' DEV-09 (ciclo 008): texto digitado -> valor tipado, SEM perda
+' silenciosa. Devolve Array(estado, valor, mensagem):
+'   "vazio"    valor Null: limpar o campo de propósito
+'   "valido"   valor convertido
+'   "invalido" valor Null e a mensagem: quem chama NÃO grava
+'              (e não apaga o valor anterior)
+' tipo: "D" data, "C" moeda, "N" inteiro. Mesma matriz (C17 a
+' C21) do conector, em Regras.ps1.
+'----------------------------------------------------------
+Public Function Converter(ByVal tipo As String, ByVal texto As String) As Variant
+    Dim s As String
+    s = Trim$(Replace(texto, Chr$(160), " "))
+    If s = "" Then Converter = Array("vazio", Null, ""): Exit Function
+    Select Case tipo
+        Case "D": Converter = ConverterData(s)
+        Case "C": Converter = ConverterMoeda(s)
+        Case "N": Converter = ConverterInteiro(s)
+        Case Else: Converter = Array("valido", s, "")
+    End Select
+End Function
+
+' dd/mm/aaaa (dia e mês com 1 ou 2 dígitos) ou aaaa-mm-dd; o dia tem de existir.
+Private Function ConverterData(ByVal s As String) As Variant
+    Dim partes As Variant, d As Long, m As Long, a As Long
+    If s Like "####-##-##" Then
+        a = CLng(Left$(s, 4)): m = CLng(Mid$(s, 6, 2)): d = CLng(Mid$(s, 9, 2))
+    ElseIf s Like "#/#/####" Or s Like "##/#/####" Or s Like "#/##/####" Or s Like "##/##/####" Then
+        partes = Split(s, "/"): d = CLng(partes(0)): m = CLng(partes(1)): a = CLng(partes(2))
+    Else
+        ConverterData = Array("invalido", Null, "data fora do formato dd/mm/aaaa"): Exit Function
+    End If
+    If Not DataExiste(a, m, d) Then ConverterData = Array("invalido", Null, "data que não existe no calendário"): Exit Function
+    ConverterData = Array("valido", DateSerial(a, m, d), "")
+End Function
+
+' Vírgula é o separador decimal (até 2 casas); ponto só como milhar, em grupos de 3.
+' "12.50" é recusado: era o erro que virava 1250 sem aviso.
+Private Function ConverterMoeda(ByVal s As String) As Variant
+    Dim neg As Boolean, i As Long, c As String, pv As Long, inteira As String, dec As String
+    Dim grupos As Variant, v As Currency
+    s = Replace(Replace(s, "R$", ""), " ", "")
+    If Left$(s, 1) = "-" Then neg = True: s = Mid$(s, 2)
+    If s = "" Then ConverterMoeda = Array("invalido", Null, "valor sem número"): Exit Function
+    For i = 1 To Len(s)
+        c = Mid$(s, i, 1)
+        If Not (c Like "#" Or c = "." Or c = ",") Then ConverterMoeda = Array("invalido", Null, "valor com caractere que não é número"): Exit Function
+    Next i
+    pv = InStr(s, ",")
+    If pv > 0 Then
+        If InStr(pv + 1, s, ",") > 0 Then ConverterMoeda = Array("invalido", Null, "valor com mais de uma vírgula"): Exit Function
+        inteira = Left$(s, pv - 1): dec = Mid$(s, pv + 1)
+        If InStr(dec, ".") > 0 Then ConverterMoeda = Array("invalido", Null, "separadores misturados (use 1.250,50)"): Exit Function
+    Else
+        inteira = s
+    End If
+    If Len(dec) > 2 Then ConverterMoeda = Array("invalido", Null, "mais de 2 casas decimais"): Exit Function
+    If InStr(inteira, ".") > 0 Then
+        grupos = Split(inteira, ".")
+        If Len(grupos(0)) < 1 Or Len(grupos(0)) > 3 Then ConverterMoeda = Array("invalido", Null, "ponto só separa milhar (1.250); centavos vão depois da vírgula"): Exit Function
+        For i = 1 To UBound(grupos)
+            If Len(grupos(i)) <> 3 Then ConverterMoeda = Array("invalido", Null, "ponto só separa milhar (1.250); centavos vão depois da vírgula"): Exit Function
+        Next i
+        inteira = Replace(inteira, ".", "")
+    End If
+    If inteira = "" Then inteira = "0"
+    If Len(inteira) > 12 Then ConverterMoeda = Array("invalido", Null, "valor acima do limite"): Exit Function
+    v = CCur(inteira)
+    If dec <> "" Then v = v + CCur(dec) / (10 ^ Len(dec))
+    If v > 999999999999.99@ Then ConverterMoeda = Array("invalido", Null, "valor acima do limite"): Exit Function
+    If neg Then v = -v
+    ConverterMoeda = Array("valido", v, "")
+End Function
+
+' Só dígitos (sinal opcional), dentro do Long do banco.
+Private Function ConverterInteiro(ByVal s As String) As Variant
+    Dim neg As Boolean, i As Long
+    If Left$(s, 1) = "-" Then neg = True: s = Mid$(s, 2)
+    If s = "" Then ConverterInteiro = Array("invalido", Null, "número sem dígitos"): Exit Function
+    For i = 1 To Len(s)
+        If Not (Mid$(s, i, 1) Like "#") Then ConverterInteiro = Array("invalido", Null, "número inteiro, sem vírgula nem ponto"): Exit Function
+    Next i
+    If Len(s) > 10 Then ConverterInteiro = Array("invalido", Null, "número fora do limite"): Exit Function
+    If CDbl(s) > 2147483647# Then ConverterInteiro = Array("invalido", Null, "número fora do limite"): Exit Function
+    If neg Then ConverterInteiro = Array("valido", -CLng(s), "") Else ConverterInteiro = Array("valido", CLng(s), "")
+End Function
+
 '==========================================================
 ' REGRAS DE PREENCHIMENTO
 ' Devolvem "" quando esta tudo certo, ou a mensagem do que
