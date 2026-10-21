@@ -50,3 +50,16 @@ Public Function CriticarRetomada(ByVal encerraNova As Boolean, ByVal perdaNova A
     CriticarRetomada = "A data de retomada s" & ChrW$(243) & " existe em atendimento Perdido ou Descartado. " & _
         "Para um atendimento aberto, use a pr" & ChrW$(243) & "xima a" & ChrW$(231) & ChrW$(227) & "o (data da pr" & ChrW$(243) & "xima a" & ChrW$(231) & ChrW$(227) & "o)."
 End Function
+
+
+' C29 (DEV-11): o contato do atendimento existe, esta ativo e e da empresa
+' do atendimento. Mesma regra de Test-ContatoDoAtendimento (conector).
+Public Function CriticarContatoDoAtendimento(ByVal existe As Boolean, ByVal ativo As Boolean, _
+                                             ByVal idClienteContato As Long, ByVal idClienteAtendimento As Long) As String
+    If Not existe Then CriticarContatoDoAtendimento = "Contato n" & ChrW$(227) & "o encontrado: nada foi gravado.": Exit Function
+    If idClienteContato <> idClienteAtendimento Then
+        CriticarContatoDoAtendimento = "O contato " & ChrW$(233) & " de outra empresa: o atendimento s" & ChrW$(243) & " usa contato da empresa dele. Nada foi gravado."
+        Exit Function
+    End If
+    If Not ativo Then CriticarContatoDoAtendimento = "O contato est" & ChrW$(225) & " inativo: escolha um contato ativo da empresa. Nada foi gravado."
+End Function

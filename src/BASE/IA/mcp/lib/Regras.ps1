@@ -195,6 +195,15 @@ function Test-RetomadaPermitida([bool]$encerraNova, [bool]$perdaNova, $retomarNo
     return 'A data de retomada só existe em atendimento Perdido ou Descartado. Para um atendimento aberto, use a próxima ação (dt_prox_acao) (C26).'
 }
 
+# C29 (DEV-11): o contato do atendimento existe, está ativo e é da empresa do atendimento. Espelho de
+# modRegras.CriticarContatoDoAtendimento. Devolve a mensagem ou $null.
+function Test-ContatoDoAtendimento([bool]$existe, [bool]$ativo, [int]$idClienteContato, [int]$idClienteAtendimento) {
+    if (-not $existe) { return 'Contato não encontrado: nada foi gravado.' }
+    if ($idClienteContato -ne $idClienteAtendimento) { return 'O contato é de outra empresa: o atendimento só usa contato da empresa dele. Nada foi gravado.' }
+    if (-not $ativo) { return 'O contato está inativo: escolha um contato ativo da empresa. Nada foi gravado.' }
+    return $null
+}
+
 # ---------------------------------------------------------------- modCalc
 function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm) {
     if (-not $temContato) { return '' }

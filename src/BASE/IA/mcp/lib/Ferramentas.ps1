@@ -981,8 +981,9 @@ function Invoke-AtualizarAtendimento($a) {
         # troca do contato: só dentro da mesma empresa (o código AT é congelado e nomeia a pasta do cliente)
         if ((Test-TemArg $a 'codigo_contato') -or (Test-TemArg $a 'id_contato')) {
             $ct = Get-ContatoNaTransacao $ctx $a
-            if ([int]$ct.id_cliente -ne [int]$atual.id_cliente) { throw ('O contato ' + $ct.codigo + ' é de outra empresa. O atendimento só troca de contato dentro da mesma empresa.') }
-            if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo.') }
+            # DEV-11: conferido dentro da transação (C29)
+            $mCt = Test-ContatoDoAtendimento $true ([bool]$ct.ativo) ([int]$ct.id_cliente) ([int]$atual.id_cliente)
+            if ($mCt) { throw ($ct.codigo + ': ' + $mCt) }
             if ([int]$ct.id -ne [int]$atual.id_contato) { $mud['id_contato'] = @{ Tipo = 'inteiro'; Novo = [int]$ct.id; Antigo = $atual.id_contato } }
         }
         if (Test-TemArg $a 'observacoes_acrescentar') {
@@ -1271,15 +1272,6 @@ function Invoke-AtualizarContato($a) {
         }
         Add-EmailsNasObservacoes $a $atual $mud
         $avisos = New-Object System.Collections.ArrayList
-        if (Test-TemArg $a 'codigo_cliente_destino') {
-            $dest = $ctx.Consultar('SELECT id, empresa, ativo FROM clientes WHERE codigo_cliente=?', @((P 'inteiro' ([int]$a.codigo_cliente_destino))))
-            if ($dest.Count -eq 0) { throw ('Empresa de destino não encontrada: código ' + $a.codigo_cliente_destino + '. Pré-cliente não recebe contato transferido: promova antes.') }
-            if (-not [bool]$dest[0].ativo) { throw ('A empresa de destino ' + $dest[0].empresa + ' está inativa.') }
-            if ([int]$dest[0].id -ne [int]$atual.id_cliente) {
-                $mud['id_cliente'] = @{ Tipo = 'inteiro'; Novo = [int]$dest[0].id; Antigo = $atual.id_cliente }
-                [void]$avisos.Add('Código ' + $atual.codigo + ' mantido (é congelado). Atendimentos já abertos continuam na empresa em que foram abertos.')
-            }
-        }
         $acao = 'ALTERAR'
         if (Test-TemArg $a 'ativo') {
             $v = [bool]$a.ativo
@@ -1510,6 +1502,9 @@ function Invoke-AbrirAtendimento($a) {
         $ct = Get-ContatoNaTransacao $ctx $a
         if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo. Reative-o antes de abrir atendimento.') }
         $cli = $ctx.Consultar('SELECT * FROM clientes WHERE id=?', @((P 'inteiro' ([int]$ct.id_cliente))))[0]
+        # DEV-11 (C29): conferido na transação; a empresa do atendimento é a do contato
+        $mCt = Test-ContatoDoAtendimento $true ([bool]$ct.ativo) ([int]$ct.id_cliente) ([int]$cli.id)
+        if ($mCt) { throw $mCt }
         if (-not [bool]$cli.ativo) { throw ('A empresa ' + $cli.empresa + ' está inativa.') }
         $novo = [ordered]@{}
         foreach ($c in $script:DefsAtendimento.Keys) { $novo[$c] = $null }
@@ -2380,14 +2375,13 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'atualizar_contato'; title = 'Alterar contato'; handler = 'Invoke-AtualizarContato'; annotations = $script:Gravacao
-        description = ('Altera nome, cargo, telefone, e-mail, observações, empresa (codigo_cliente_destino) ou situação (ativo) de um contato. Leia antes com obter_contato e passe a "versao". ' +
-                       'Contato não se exclui: ativo=false desativa. O código CT não muda ao trocar de empresa; atendimentos já abertos ficam onde estão. Envie só os campos que mudam.')
+        description = ('Altera nome, cargo, telefone, e-mail, observações ou situação (ativo) de um contato. Leia antes com obter_contato e passe a "versao". ' +
+                       'Contato não se exclui: ativo=false desativa. O contato pertence a UMA empresa e não é transferido: se a pessoa mudou de empresa, desative-o e cadastre um novo (criar_contato) na empresa nova. Envie só os campos que mudam.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('versao'); properties = [ordered]@{
             codigo_contato = [ordered]@{ type = 'string'; pattern = '^[Cc][Tt]-\d{4}-\d{4}$' }; id_contato = [ordered]@{ type = 'integer' }
             versao = [ordered]@{ type = 'integer'; description = 'Versão lida em obter_contato' }
             nome = [ordered]@{ type = 'string'; maxLength = 120 }; cargo = [ordered]@{ type = @('string', 'null'); maxLength = 60 }
             telefone = [ordered]@{ type = @('string', 'null') }; email = [ordered]@{ type = @('string', 'null'); maxLength = 120 }
-            codigo_cliente_destino = [ordered]@{ type = 'integer'; description = 'Transfere o contato para esta empresa (precisa ser cliente ativo)' }
             ativo = [ordered]@{ type = 'boolean' }
             observacoes_acrescentar = [ordered]@{ type = 'string'; description = 'Acrescenta uma linha datada (nunca apaga o que existe)' }
             autor = $script:PropAutor } }

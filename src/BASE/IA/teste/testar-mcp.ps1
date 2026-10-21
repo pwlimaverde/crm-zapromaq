@@ -155,6 +155,13 @@ Conferir 'C27 reabrir limpa motivo, desfecho e retomada e orienta' ((@($trR.limp
 $avC28 = Get-CriticaAtendimento ([ordered]@{ etapa = 'Negociação'; responsavel = 'Vendedor A'; dt_entrada = '2026-10-10'; dt_proposta = '2026-10-01'; familia = 'X'; dt_prox_acao = '2026-12-01' })
 Conferir 'C28 proposta antes da entrada é aviso, não recusa' (@($avC28 | Where-Object { $_ -match 'proposta' }).Count -eq 1)
 
+Write-Host '--- DEV-11: contato do atendimento (mesmo caso C29 do front)'
+Conferir 'C29 contato de outra empresa é recusado' ((Test-ContatoDoAtendimento $true $true 7 8) -match 'outra empresa')
+Conferir 'C29 contato inativo é recusado' ((Test-ContatoDoAtendimento $true $false 7 7) -match 'inativo')
+Conferir 'C29 contato ativo da mesma empresa passa' ($null -eq (Test-ContatoDoAtendimento $true $true 7 7))
+$schemaCt = ($script:Ferramentas | Where-Object { $_.name -eq 'atualizar_contato' }).inputSchema.properties
+Conferir 'DEV-11 atualizar_contato não aceita mais codigo_cliente_destino (contato não é transferido)' (-not $schemaCt.Contains('codigo_cliente_destino'))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')

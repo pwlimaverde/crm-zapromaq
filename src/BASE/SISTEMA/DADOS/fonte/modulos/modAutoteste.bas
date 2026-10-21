@@ -130,6 +130,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     dT("dt_entrada") = DateSerial(2026, 10, 10): dT("dt_proposta") = DateSerial(2026, 10, 1)
     Confere "C28 proposta antes da entrada e aviso", (InStr(modValidacao.AvisoDatas(dT), "proposta") > 0), True
 
+    ' ---- DEV-11: contato do atendimento (mesmo caso C29 do conector)
+    Confere "C29 contato de outra empresa recusado", (InStr(modRegras.CriticarContatoDoAtendimento(True, True, 7, 8), "outra empresa") > 0), True
+    Confere "C29 contato inativo recusado", (InStr(modRegras.CriticarContatoDoAtendimento(True, False, 7, 7), "inativo") > 0), True
+    Confere "C29 contato ativo da mesma empresa passa", modRegras.CriticarContatoDoAtendimento(True, True, 7, 7), ""
+    Confere "DEV-11 empresa do contato gravado nao se troca", modCRM.BotaoVinculoAtivo("id_cliente", True, False, 5), False
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"
