@@ -510,11 +510,16 @@ End Function
 Public Sub LogEm(ByVal cn As Object, ByVal tabela As String, ByVal idRegistro As Long, _
                  ByVal campo As String, ByVal valorAntigo As String, ByVal valorNovo As String, _
                  ByVal acao As String)
+    ' DEV-06 parte B (esquema 1.2): estacao, usuario tecnico e versao do front
+    ' em colunas proprias (o autor declarado so existe no conector)
     ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo," & _
-                   " valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+                   " valor_novo, acao, usuario, quando, origem, usuario_tecnico, estacao, versao_cliente)" & _
+                   " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", _
         Array(P(adVarWChar, Left$(tabela, 30)), P(adInteger, idRegistro), P(adVarWChar, Left$(campo, 40)), _
               P(adLongVarWChar, valorAntigo), P(adLongVarWChar, valorNovo), P(adVarWChar, Left$(acao, 20)), _
-              P(adVarWChar, modConfig.UsuarioAtual()), P(adDate, Now), P(adVarWChar, "FRONT"))
+              P(adVarWChar, modConfig.UsuarioAtual()), P(adDate, Now), P(adVarWChar, "FRONT"), _
+              P(adVarWChar, modConfig.UsuarioAtual()), P(adVarWChar, Left$(modDiag.Estacao(), 50)), _
+              P(adVarWChar, "FRONT " & modConfig.VERSAO_FRONT))
 End Sub
 
 '----------------------------------------------------------

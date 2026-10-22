@@ -203,13 +203,16 @@ function Invoke-TransacaoUmaVez([scriptblock]$bloco) {
         $ctx | Add-Member -MemberType ScriptMethod -Name Log -Value {
             param($tabela, $idRegistro, $campo, $antigo, $novo, $acao)
             $this.ConferirEscrita()
-            $sql ='INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo,' +
-                   ' acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)'
+            # DEV-06 parte B (esquema 1.2): usuário técnico e estação pelo [Environment], versão do conector e o
+            # autor DECLARADO separado; `usuario` continua 'IA (autor)' por compatibilidade
+            $sql = 'INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo,' +
+                   ' acao, usuario, quando, origem, usuario_tecnico, estacao, versao_cliente, autor_declarado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
             $c = New-Comando $this.Cn $sql @(
                 (P 'texto' $tabela), (P 'inteiro' $idRegistro), (P 'texto' $campo),
                 (P 'memo' (Format-ValorLog $antigo)), (P 'memo' (Format-ValorLog $novo)),
                 (P 'texto' $acao), (P 'texto' $script:UsuarioLog), (P 'data' (Get-Date)),
-                (P 'texto' 'IA')) $this.Tx
+                (P 'texto' 'IA'), (P 'texto' ([Environment]::UserName)), (P 'texto' ([Environment]::MachineName)),
+                (P 'texto' ('CONECTOR ' + $script:VersaoServidor)), (P 'texto' $script:AutorDeclarado)) $this.Tx
             try { [void]$c.ExecuteNonQuery() } finally { $c.Dispose() }
         }
         try {

@@ -614,6 +614,9 @@ End Function
     $respR = [string]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT responsavel FROM planejamentos WHERE descricao='TESTE FRONT RESP'", '')
     Conferir 'planejamento: criar grava o responsável escolhido' ($rpR -eq '' -and $respR -eq 'Vendedor A') ($rpR + ' responsavel=[' + $respR + ']')
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE descricao='TESTE FRONT RESP'")
+    # DEV-06 parte B (ciclo 010): a linha de log do front identifica estação, usuário técnico e versão
+    $estLog = [string]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT TOP 1 estacao & '|' & usuario_tecnico & '|' & versao_cliente FROM log_alteracoes WHERE origem='FRONT' AND id > " + $maxLogQ + " ORDER BY id DESC", '')
+    Conferir 'log do front com estação, usuário técnico e versão do cliente' ($estLog -match '^[^|]+\|[^|]+\|FRONT ') $estLog
     # volta: visitas e planejamento de teste, e o log criado pelo teste
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)

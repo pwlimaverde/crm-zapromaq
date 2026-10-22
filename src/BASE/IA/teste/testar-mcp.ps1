@@ -581,6 +581,8 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli.versao; cidade = '  caxias   do sul ' })
         $g = Dados $res
         Conferir 'cidade normalizada em maiúsculas' ((-not $res.isError) -and ($g.alterados[0].depois -eq 'CAXIAS DO SUL')) $res.content[0].text
+        $ultLog = Linhas-Visita 'SELECT TOP 1 usuario, usuario_tecnico, estacao, versao_cliente, autor_declarado FROM log_alteracoes ORDER BY id DESC'
+        Conferir 'DEV-06B log do conector: estação, usuário técnico, versão e autor declarado separados' ([string]$ultLog[0].estacao -eq [Environment]::MachineName -and [string]$ultLog[0].usuario_tecnico -eq [Environment]::UserName -and [string]$ultLog[0].versao_cliente -match '^CONECTOR \d' -and ((([string]$ultLog[0].usuario -eq 'IA') -and -not $ultLog[0].autor_declarado) -or (([string]$ultLog[0].usuario -match '^IA \((.+)\)$') -and [string]$ultLog[0].autor_declarado -eq $Matches[1]))) ($ultLog[0] | ConvertTo-Json -Compress)
         $log = Dados (Chamar 'ultimas_alteracoes' ([ordered]@{ limite = 10 }))
         Conferir 'log de auditoria com origem IA' (@($log.alteracoes | Where-Object { $_.origem -eq 'IA' }).Count -ge 3)
 

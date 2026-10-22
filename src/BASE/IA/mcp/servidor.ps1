@@ -67,7 +67,9 @@ $script:AntesDaFerramenta = {
     $script:UsuarioLog = 'IA'
     $script:EmailsAdicionais = ''
     $autor = Get-Arg $a 'autor'
-    if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')') }
+    $script:AutorDeclarado = $null
+    if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')'); $script:AutorDeclarado = ([string]$autor).Trim() }
+    if ($script:AutorDeclarado -and $script:AutorDeclarado.Length -gt 60) { $script:AutorDeclarado = $script:AutorDeclarado.Substring(0, 60) }
     if ($script:UsuarioLog.Length -gt 50) { $script:UsuarioLog = $script:UsuarioLog.Substring(0, 50) }
 }
 
