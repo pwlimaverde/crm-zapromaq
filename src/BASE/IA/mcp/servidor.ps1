@@ -23,7 +23,9 @@ Add-Type -AssemblyName System.Data
 # recusa de gravação por manutenção (config.manutencao) e mensagem controlada durante o backup.
 # 1.6.1 (ciclo 008): moeda/inteiro sem perda (C17-C21), repetição de bloqueio antes do commit, resultado indeterminado.
 # 1.7.0 (ciclo 009): seção 5.1/5.2 nos três canais; atualizar_contato sem codigo_cliente_destino; reativar só a empresa.
-$script:VersaoServidor = '1.7.0'
+# 1.8.0 (ciclo 010): esquema 1.2; ctx_versao exigida no contexto; codigo_atendimento_anterior no atualizar_atendimento
+# (sem ciclo); id_operacao nas criações; log com estação, usuário técnico, versão e autor declarado.
+$script:VersaoServidor = '1.8.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.
@@ -67,7 +69,9 @@ $script:AntesDaFerramenta = {
     $script:UsuarioLog = 'IA'
     $script:EmailsAdicionais = ''
     $autor = Get-Arg $a 'autor'
-    if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')') }
+    $script:AutorDeclarado = $null
+    if ($autor) { $script:UsuarioLog = ('IA (' + ([string]$autor).Trim() + ')'); $script:AutorDeclarado = ([string]$autor).Trim() }
+    if ($script:AutorDeclarado -and $script:AutorDeclarado.Length -gt 60) { $script:AutorDeclarado = $script:AutorDeclarado.Substring(0, 60) }
     if ($script:UsuarioLog.Length -gt 50) { $script:UsuarioLog = $script:UsuarioLog.Substring(0, 50) }
 }
 

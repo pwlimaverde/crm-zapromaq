@@ -153,3 +153,6 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   `MensagemResultadoGravacao` (confirmada/indeterminada/desfeita/recusada); `ExecutarEm` repete só bloqueio (`EhBloqueio`).
 - Ciclo 009: `modRegras` (transição de etapa, retomada, contato do atendimento, `MesmoValor`); `modValidacao.Normalizar`
   na seção 5.1; `modCRM.Atualizar` confere vínculo na transação; `modAcoes` com versão lida; `modLote.CriticaCampos`.
+- Ciclo 010: `VERSAO_ESQUEMA = "1.2"`; anterior sem ciclo na conferência da ficha; `modDB.LogEm` grava estação, usuário
+  técnico e versão do cliente; identificador de operação na criação (`modDB.OperacaoAnteriorEm`/`RegistrarOperacaoEm`
+  na mesma transação; ficha: GUID mantido enquanto a digitação não muda; lote: um por linha).

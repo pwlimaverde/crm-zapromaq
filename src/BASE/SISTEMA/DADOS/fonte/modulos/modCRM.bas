@@ -20,6 +20,12 @@ Attribute VB_Name = "modCRM"
 '==========================================================
 Option Explicit
 
+' DEV-13 (esquema 1.2): identificador e conteúdo da criação em curso, dados
+' pela tela (ficha ou lote) antes de chamar CriarCliente/CriarContato/
+' AbrirAtendimento. Vazio = sem identificador (comportamento antigo).
+Public gIdOperacao As String
+Public gHashOperacao As String
+
 Private Const TENTATIVAS As Long = 5
 
 ' Listas suspensas (etapa, responsavel, origem...) mudam raramente e
@@ -415,15 +421,46 @@ Private Function CriticarVinculoEm(ByVal cn As Object, ByVal tabela As String, B
                     "empresa, desative este contato e cadastre um novo na empresa nova."
             End If
         Case "oportunidades"
-            If Not d.Exists("id_contato") Then Exit Function
-            novo = d("id_contato")
-            r = modDB.ConsultarEm(cn, "SELECT id_contato, id_cliente FROM oportunidades WHERE id=?", _
+            r = modDB.ConsultarEm(cn, "SELECT id_contato, id_cliente, id_atendimento_anterior FROM oportunidades WHERE id=?", _
                                   Array(modDB.P(modDB.adInteger, idRegistro)))
             If IsEmpty(r) Then Exit Function
             ' só se confere o contato que MUDOU: o legado inativo não trava a edição de outro campo
-            If CLng(modDB.Nz(novo, "0")) = CLng(modDB.Nz(r(1, 1), "0")) Then Exit Function
-            CriticarVinculoEm = CriticarContatoEm(cn, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+            If d.Exists("id_contato") Then
+                novo = d("id_contato")
+                If CLng(modDB.Nz(novo, "0")) <> CLng(modDB.Nz(r(1, 1), "0")) Then
+                    CriticarVinculoEm = CriticarContatoEm(cn, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+                    If CriticarVinculoEm <> "" Then Exit Function
+                End If
+            End If
+            ' DEV-16: anterior que MUDOU, conferido aqui (mesma empresa, não o próprio, sem ciclo - C33)
+            If d.Exists("id_atendimento_anterior") Then
+                novo = d("id_atendimento_anterior")
+                If CLng(modDB.Nz(novo, "0")) <> CLng(modDB.Nz(r(1, 3), "0")) Then
+                    CriticarVinculoEm = CriticarAnteriorEm(cn, idRegistro, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+                End If
+            End If
     End Select
+End Function
+
+' Anterior na transação: existe, mesma empresa, não é o próprio e não fecha ciclo.
+Private Function CriticarAnteriorEm(ByVal cn As Object, ByVal idProprio As Long, ByVal idAnterior As Long, _
+                                    ByVal idCliente As Long) As String
+    Dim m As Variant, i As Long, ids() As Long, ants() As Long, cliAnt As Long
+    If idAnterior = 0 Then Exit Function
+    cliAnt = CLng(modDB.ConsultarValorEm(cn, "SELECT id_cliente FROM oportunidades WHERE id=?", 0, _
+                                         Array(modDB.P(modDB.adInteger, idAnterior))))
+    CriticarAnteriorEm = CriticarAnterior(idProprio, idAnterior, idCliente, cliAnt)
+    If CriticarAnteriorEm <> "" Then Exit Function
+    m = modDB.ConsultarEm(cn, "SELECT id, id_atendimento_anterior FROM oportunidades WHERE id_cliente=?", _
+                          Array(modDB.P(modDB.adInteger, idCliente)))
+    If IsEmpty(m) Then Exit Function
+    ReDim ids(1 To UBound(m, 1)): ReDim ants(1 To UBound(m, 1))
+    For i = 1 To UBound(m, 1)
+        ids(i) = CLng(modDB.Nz(m(i, 1), "0")): ants(i) = CLng(modDB.Nz(m(i, 2), "0"))
+    Next i
+    If modRegras.FormaCiclo(idProprio, idAnterior, ids, ants) Then
+        CriticarAnteriorEm = "O atendimento anterior escolhido já vem DESTE atendimento (a corrente de anteriores fecharia um ciclo). Escolha outro ou remova o vínculo."
+    End If
 End Function
 
 Private Function CriticarContatoEm(ByVal cn As Object, ByVal idContato As Long, ByVal idCliente As Long) As String
@@ -578,6 +615,14 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
     Dim cn As Object, extras As Object
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ' DEV-13: reenvio da mesma criação devolve a empresa já cadastrada
+    Dim idAnteriorOp As Long, codAnteriorOp As String
+    If modDB.OperacaoAnteriorEm(cn, gIdOperacao, "clientes", gHashOperacao, idAnteriorOp, codAnteriorOp) Then
+        modDB.Desfazer cn
+        If IsNumeric(codAnteriorOp) Then codigoGerado = CLng(codAnteriorOp) Else codigoGerado = 0
+        TentarCriarCliente = idAnteriorOp
+        Exit Function
+    End If
     Set extras = CreateObject("Scripting.Dictionary")
     If comoCliente Then
         codigoGerado = ProximoNumeroEm(cn, "clientes", "codigo_cliente")
@@ -588,6 +633,7 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
         extras("estagio") = "Pré-cliente"
     End If
     TentarCriarCliente = InserirEm(cn, "clientes", d, extras, detalhe)
+    modDB.RegistrarOperacaoEm cn, gIdOperacao, "clientes", TentarCriarCliente, IIf(codigoGerado > 0, CStr(codigoGerado), ""), gHashOperacao
     modDB.Confirmar cn
     Exit Function
 falha:
@@ -602,6 +648,12 @@ falha:
     End If
     Err.Raise nErr, "modCRM.CriarCliente", sErr
 End Function
+
+' DEV-13: dá (ou limpa, com "") o identificador da próxima criação. Para a
+' automação de teste (Application.Run não alcança variável de módulo).
+Public Sub DefinirOperacao(ByVal idOperacao As String, ByVal hash As String)
+    gIdOperacao = idOperacao: gHashOperacao = hash
+End Sub
 
 ' DEV-10: contato com o mesmo nome na mesma empresa gera aviso e pede
 ' confirmação, sem bloquear ("" = nenhum homônimo).
@@ -649,6 +701,14 @@ Private Function TentarCriar(ByVal tabela As String, ByVal idCliente As Long, By
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ' DEV-13: a mesma criação já foi aplicada (reenvio): devolve o registro dela, sem gravar
+    Dim idAnteriorOp As Long, codAnteriorOp As String
+    If modDB.OperacaoAnteriorEm(cn, gIdOperacao, tabela, gHashOperacao, idAnteriorOp, codAnteriorOp) Then
+        modDB.Desfazer cn
+        codigoGerado = codAnteriorOp
+        TentarCriar = idAnteriorOp
+        Exit Function
+    End If
     codCliente = modDB.ConsultarValorEm(cn, "SELECT codigo_cliente FROM clientes WHERE id=?", Null, _
                                         Array(modDB.P(modDB.adInteger, idCliente)))
     If IsNull(codCliente) Then
@@ -680,6 +740,7 @@ Private Function TentarCriar(ByVal tabela As String, ByVal idCliente As Long, By
     extras("codigo") = codigoGerado
 
     TentarCriar = InserirEm(cn, tabela, d, extras, "cadastro novo pelo formulário")
+    modDB.RegistrarOperacaoEm cn, gIdOperacao, tabela, TentarCriar, codigoGerado, gHashOperacao
     modDB.Confirmar cn
     Exit Function
 falha:

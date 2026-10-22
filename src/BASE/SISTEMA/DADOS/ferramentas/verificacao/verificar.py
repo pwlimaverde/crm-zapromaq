@@ -606,9 +606,30 @@ def verificar_matriz_campos():
             falha('Matriz de campos', 'campos de lista da matriz x %s: só na matriz %s; só lá %s' % (nome, sorted(listas - lado), sorted(lado - listas)))
 
 
+def verificar_esquema_atual():
+    # Ciclo 010: o esquema exigido é UM só - última migração estrutural, front, conector e montagem
+    pasta = os.path.join(DADOS, 'banco', 'migracoes')
+    ultimo = ''
+    for nome in sorted(os.listdir(pasta)):
+        if nome.endswith('.ps1'):
+            m = re.search(r"EsquemaPara = '([\d.]+)'", open(os.path.join(pasta, nome), encoding='utf-8-sig').read())
+            if m:
+                ultimo = m.group(1)
+    fontes = {
+        'modConfig.VERSAO_ESQUEMA': (ler_cp1252(os.path.join(FONTE, 'modulos', 'modConfig.bas')), r'VERSAO_ESQUEMA As String = "([\d.]+)"'),
+        'Banco.ps1 EsquemasSuportados': (open(os.path.join(BASE, 'IA', 'mcp', 'lib', 'Banco.ps1'), encoding='utf-8-sig').read(), r"\$script:EsquemasSuportados = @\('([\d.]+)'\)"),
+        'Comum.ps1 EsquemaAtual': (open(os.path.join(DADOS, 'lib', 'Comum.ps1'), encoding='utf-8-sig').read(), r"\$script:EsquemaAtual = '([\d.]+)'"),
+    }
+    for nome, (txt, rx) in fontes.items():
+        m = re.search(rx, txt)
+        if not m or m.group(1) != ultimo:
+            falha('Esquema atual', '%s = %s; a última migração estrutural leva a %s' % (nome, m.group(1) if m else '?', ultimo))
+
+
 def main():
     vba = fontes_vba()
     verificar_contrato_conector()
+    verificar_esquema_atual()
     verificar_matriz_campos()
     verificar_espelho_backup()
     verificar_textos_de_etapa(vba)

@@ -96,3 +96,7 @@ o resultado; rodar duas vezes prova a idempotência.
   com `config.ambiente = TESTE` (`Assert-PodeSubstituirBanco`, leitura em `Mode=Read`).
 - `aplicar-migracoes.ps1` recusa migração ESTRUTURAL (exit 3) fora de banco TESTE ou de uma cópia de trabalho
   (`-CopiaDeTrabalho`, dentro de `execucao\publicacao` ou `execucao\ensaio`); as migrações só de dados continuam no lugar.
+
+Esquema 1.2 (migração 004, ciclo 010): controle único em contatos/oportunidades, `ctx_versao`, `ctx_familia`
+255, autor técnico no log e tabela `operacoes`; inventário antes da estrutura (para diante de achado).
+Detalhes em `docs/contrato-banco.md` §9.

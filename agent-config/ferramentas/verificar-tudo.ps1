@@ -90,6 +90,7 @@ if (-not $Rapido) {
     }
     # só em pasta temporária e com bancos fictícios (ver o cabeçalho de cada teste)
     Etapa 'migração 003 (casos de dados)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-migracao-003.ps1') }
+    Etapa 'migração 004 (esquema 1.2, inventário)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-migracao-004.ps1') }
     Etapa 'migração 005 (normalização da seção 5.1)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-migracao-005.ps1') }
     Etapa 'preparação da rede (spec 004)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'SISTEMA\DADOS\testes\testar-preparacao-rede.ps1') }
     Etapa 'recuperação, manutenção e diagnóstico (ciclo 007)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'SISTEMA\DADOS\testes\testar-recuperacao.ps1') }

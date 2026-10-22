@@ -28,7 +28,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     If versaoEsperada <> "" Then
         Confere "VERSAO_FRONT", modConfig.VERSAO_FRONT, versaoEsperada
     End If
-    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.1"
+    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.2"
 
     ' ---- caminho do banco sem fallback silencioso (spec 005): sem Config!B2 nao se inventa caminho
     Dim cfgB2 As Variant
@@ -153,6 +153,18 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "MesmoValor numero", modRegras.MesmoValor(CCur(10), CLng(10)), True
     Confere "MesmoValor texto diferente", modRegras.MesmoValor("A", "a"), False
     Confere "MesmoValor data", modRegras.MesmoValor(DateSerial(2026, 1, 2), DateSerial(2026, 1, 2)), True
+
+    ' ---- DEV-16: anterior sem ciclo (mesmo caso C33 do conector)
+    Confere "C33 anterior que fecha ciclo e recusado", modRegras.FormaCiclo(10, 20, Array(10, 20), Array(0, 10)), True
+    Confere "C33 corrente sem ciclo passa", modRegras.FormaCiclo(10, 20, Array(20, 30), Array(30, 0)), False
+
+    ' ---- DEV-13: identificador de operacao (impressao estavel do conteudo)
+    Dim dH As Object
+    Set dH = CreateObject("Scripting.Dictionary")
+    dH("b") = "2": dH("a") = "1"
+    Confere "hash do conteudo e estavel", modDB.HashTexto("abc"), modDB.HashTexto("abc")
+    Confere "hash muda com o conteudo", (modDB.HashTexto("abc") <> modDB.HashTexto("abd")), True
+    Confere "texto do dicionario em ordem de chave", modDB.TextoDoDicionario(dH), "a=1" & Chr$(31) & "b=2" & Chr$(31)
 
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao

@@ -267,9 +267,16 @@ O texto completo fica nos arquivos `CONTEXTO-GERAL.md` (pasta do cliente) e
 `CONTEXTO-ATENDIMENTO.md` (pasta do atendimento). No banco vai só o ponteiro:
 `atualizar_contexto_cliente` (`ctx_resumo` de uma linha, `ctx_familia`, `ctx_arquivo`)
 e `atualizar_contexto_atendimento`. Esses campos são só da IA e não conflitam com
-o vendedor: podem ser gravados sem ler a versão.
+o vendedor, mas duas sessões de IA podem gravar o mesmo contexto (ciclo 010): passe sempre a
+`ctx_versao` lida em `obter_cliente`/`obter_atendimento`. Se vier **"Conflito de contexto"**, a
+mensagem traz o contexto atual: junte o que for preciso e repita com a `ctx_versao` nova.
 
 ## Resultado das gravações
 
 Toda gravação entra no log de auditoria com origem **IA**. Informe ao usuário o
 que foi gravado (campos, valor anterior e novo, versão nova).
+
+Em `criar_cliente`, `criar_contato` e `abrir_atendimento`, gere um `id_operacao` novo (ex.: um GUID)
+para cada criação pedida. Se a resposta for "Resultado indeterminado" ou a conexão cair, repita a
+**mesma** chamada com o **mesmo** `id_operacao`: se já tinha gravado, volta `repetida = true` com o
+registro criado, sem duplicar. Nunca reaproveite o identificador para outra criação.

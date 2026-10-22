@@ -392,6 +392,77 @@ Public Function MensagemResultadoGravacao(ByVal estado As String, ByVal numero A
     End Select
 End Function
 
+'==========================================================
+' DEV-13: IDENTIFICADOR DE OPERACAO (esquema 1.2)
+' A criacao repetida com o mesmo identificador e o mesmo conteudo
+' devolve o registro da primeira, sem gravar de novo; o mesmo
+' identificador com outro conteudo e recusado. Gravado na tabela
+' operacoes na MESMA transacao do dado; guardado 60 dias.
+'==========================================================
+' Impressao do conteudo (dois restos modulares e o tamanho): igual para o
+' mesmo texto, diferente para quase qualquer mudanca. Nao e seguranca.
+Public Function HashTexto(ByVal s As String) As String
+    Dim i As Long, c As Long, h1 As Double, h2 As Double
+    For i = 1 To Len(s)
+        c = AscW(Mid$(s, i, 1)) And &HFFFF&
+        h1 = h1 * 31 + c: h1 = h1 - Int(h1 / 2147483629#) * 2147483629#
+        h2 = h2 * 37 + c: h2 = h2 - Int(h2 / 2147483587#) * 2147483587#
+    Next i
+    HashTexto = Right$("00000000" & Hex$(CLng(h1)), 8) & Right$("00000000" & Hex$(CLng(h2)), 8) & "-" & Len(s)
+End Function
+
+Public Function OperacaoAnteriorEm(ByVal cn As Object, ByVal idOp As String, ByVal tabela As String, _
+                                   ByVal hash As String, ByRef idRegistro As Long, ByRef codigo As String) As Boolean
+    Dim r As Variant
+    If idOp = "" Then Exit Function
+    r = ConsultarEm(cn, "SELECT tabela, id_registro, codigo, hash_conteudo FROM operacoes WHERE id_operacao=?", _
+                    Array(P(adVarWChar, idOp)))
+    If IsEmpty(r) Then Exit Function
+    If Nz(r(1, 1)) <> tabela Or Nz(r(1, 4)) <> hash Then
+        Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.OperacaoAnteriorEm", "Este identificador de opera" & ChrW$(231) & ChrW$(227) & _
+                  "o j" & ChrW$(225) & " foi usado com outro conte" & ChrW$(250) & "do. Nada foi gravado."
+    End If
+    idRegistro = CLng(Nz(r(1, 2), "0"))
+    codigo = Nz(r(1, 3))
+    OperacaoAnteriorEm = True
+End Function
+
+Public Sub RegistrarOperacaoEm(ByVal cn As Object, ByVal idOp As String, ByVal tabela As String, _
+                               ByVal idRegistro As Long, ByVal codigo As String, ByVal hash As String)
+    If idOp = "" Then Exit Sub
+    ExecutarEm cn, "DELETE FROM operacoes WHERE criado_em < ?", Array(P(adDate, Now - 60))
+    ExecutarEm cn, "INSERT INTO operacoes (id_operacao, tabela, id_registro, codigo, versao, hash_conteudo," & _
+                   " criado_em, origem, estacao) VALUES (?,?,?,?,?,?,?,?,?)", _
+        Array(P(adVarWChar, Left$(idOp, 120)), P(adVarWChar, tabela), P(adInteger, idRegistro), P(adVarWChar, Left$(codigo, 20)), _
+              P(adInteger, 1), P(adVarWChar, Left$(hash, 64)), P(adDate, Now), P(adVarWChar, "FRONT"), _
+              P(adVarWChar, Left$(modDiag.Estacao(), 50)))
+End Sub
+
+' Identificador novo: estacao, instante e um numero aleatorio (sem API externa)
+Public Function NovoIdOperacao(ByVal prefixo As String) As String
+    Randomize
+    NovoIdOperacao = prefixo & "-" & modDiag.Estacao() & "-" & Format$(Now, "yyyymmddhhnnss") & "-" & CLng(Rnd * 1000000000)
+End Function
+
+' Conteudo de um dicionario de gravacao, em texto estavel (chaves em ordem)
+Public Function TextoDoDicionario(ByVal d As Object) As String
+    Dim k As Variant, chaves() As String, i As Long, j As Long, t As String, s As String
+    If d.Count = 0 Then Exit Function
+    ReDim chaves(0 To d.Count - 1)
+    For Each k In d.Keys
+        chaves(i) = CStr(k): i = i + 1
+    Next k
+    For i = 0 To UBound(chaves) - 1
+        For j = i + 1 To UBound(chaves)
+            If chaves(j) < chaves(i) Then t = chaves(i): chaves(i) = chaves(j): chaves(j) = t
+        Next j
+    Next i
+    For i = 0 To UBound(chaves)
+        s = s & chaves(i) & "=" & TextoLog(d(chaves(i))) & Chr$(31)
+    Next i
+    TextoDoDicionario = s
+End Function
+
 ' DEV-14: erro transitorio do ACE (registro ou pagina bloqueada por outra
 ' estacao). So este se repete; regra, permissao e consulta invalida, nunca.
 Public Function EhBloqueio(ByVal descricao As String) As Boolean
@@ -510,11 +581,16 @@ End Function
 Public Sub LogEm(ByVal cn As Object, ByVal tabela As String, ByVal idRegistro As Long, _
                  ByVal campo As String, ByVal valorAntigo As String, ByVal valorNovo As String, _
                  ByVal acao As String)
+    ' DEV-06 parte B (esquema 1.2): estacao, usuario tecnico e versao do front
+    ' em colunas proprias (o autor declarado so existe no conector)
     ExecutarEm cn, "INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo," & _
-                   " valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)", _
+                   " valor_novo, acao, usuario, quando, origem, usuario_tecnico, estacao, versao_cliente)" & _
+                   " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", _
         Array(P(adVarWChar, Left$(tabela, 30)), P(adInteger, idRegistro), P(adVarWChar, Left$(campo, 40)), _
               P(adLongVarWChar, valorAntigo), P(adLongVarWChar, valorNovo), P(adVarWChar, Left$(acao, 20)), _
-              P(adVarWChar, modConfig.UsuarioAtual()), P(adDate, Now), P(adVarWChar, "FRONT"))
+              P(adVarWChar, modConfig.UsuarioAtual()), P(adDate, Now), P(adVarWChar, "FRONT"), _
+              P(adVarWChar, modConfig.UsuarioAtual()), P(adVarWChar, Left$(modDiag.Estacao(), 50)), _
+              P(adVarWChar, "FRONT " & modConfig.VERSAO_FRONT))
 End Sub
 
 '----------------------------------------------------------

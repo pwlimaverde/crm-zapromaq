@@ -115,6 +115,10 @@ try {
     . (Join-Path $raizBase 'SISTEMA\DADOS\lib\AtualizacaoBanco.ps1')
     # o runner (aplicar-migracoes) grava a versão do esquema depois da migração estrutural
     Set-ConfigBanco $cn 'versao_esquema' '1.1' $null
+    # a montagem aplica todas as pendentes: a 004 (esquema 1.2, ciclo 010) vem depois da 003
+    $m4 = & (Join-Path $pastaMig '004-esquema-1-2.ps1')
+    & $m4.Aplicar $cn $null (NovoLog) $pastaMig
+    Set-ConfigBanco $cn 'versao_esquema' $script:EsquemaAtual $null
     $problemas = Get-ProblemasDoBanco $cn 5571
     Conferir 'cópia migrada passa nas conferências do passo 8' ($problemas.Count -eq 0) ($problemas -join '; ')
 } finally {

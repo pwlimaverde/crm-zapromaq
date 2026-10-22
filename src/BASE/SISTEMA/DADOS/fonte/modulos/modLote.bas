@@ -497,6 +497,10 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
                 mLinhas(i)("motivo") = critica
                 GoTo proximaLinha
             End If
+            ' DEV-13: identificador ESTÁVEL por linha (CNPJ, nome e cidade): colar e gravar de novo a
+            ' mesma linha devolve a empresa já cadastrada em vez de duplicar
+            modCRM.gIdOperacao = Left$("LOTE|" & Valor(i, "cnpj") & "|" & NomeNormalizado(Valor(i, "empresa")) & "|" & Valor(i, "cidade"), 120)
+            modCRM.gHashOperacao = modDB.HashTexto(modDB.TextoDoDicionario(d))
             On Error Resume Next
             Err.Clear
             ' identificador do lote e da linha no log: o reprocessamento da mesma colagem é rastreável
@@ -515,6 +519,7 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
         End If
 proximaLinha:
     Next i
+    modCRM.gIdOperacao = "": modCRM.gHashOperacao = ""
     Application.Cursor = -4143                    ' xlDefault
 
     Gravar = (gravados > 0)

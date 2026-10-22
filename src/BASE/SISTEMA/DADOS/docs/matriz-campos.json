@@ -1,5 +1,5 @@
 {
-  "versao_matriz": "1.0",
+  "versao_matriz": "1.1",
   "descricao": "Matriz versionada de campos (DEV-10, ciclo 009): tipo, tamanho, normalização (seção 5.1), lista, obrigatoriedade e quem edita. Ficha (modSchema/modValidacao), lote (modLote) e conector (Regras.ps1/Ferramentas.ps1) seguem esta matriz; o verificar.py confere tamanhos contra o DDL e o conector, e os campos de lista contra as duas normalizações. Casos compartilhados C17-C31.",
   "normalizacoes": {
     "maiusculas": "texto comercial: MAIÚSCULAS, Trim, espaço repetido colapsado, acento preservado; URL, caminho e e-mail dentro do texto ficam como digitados",
@@ -23,7 +23,7 @@
     { "tabela": "clientes", "campo": "qualificacao", "tipo": "texto", "tamanho": 40, "normalizacao": "lista", "lista": "Qualificacao", "obrigatorio": false, "edita": "ficha, lote, conector" },
     { "tabela": "clientes", "campo": "observacoes", "tipo": "memo", "normalizacao": "maiusculas_multilinha", "obrigatorio": false, "edita": "ficha, lote; conector só acrescenta" },
     { "tabela": "clientes", "campo": "ctx_resumo", "tipo": "texto", "tamanho": 255, "normalizacao": "maiusculas_multilinha", "obrigatorio": false, "edita": "conector" },
-    { "tabela": "clientes", "campo": "ctx_familia", "tipo": "texto", "tamanho": 60, "normalizacao": "maiusculas", "obrigatorio": false, "edita": "conector" },
+    { "tabela": "clientes", "campo": "ctx_familia", "tipo": "texto", "tamanho": 255, "normalizacao": "maiusculas", "obrigatorio": false, "edita": "conector" },
     { "tabela": "clientes", "campo": "ctx_arquivo", "tipo": "texto", "tamanho": 255, "normalizacao": "caminho", "obrigatorio": false, "edita": "conector" },
     { "tabela": "contatos", "campo": "nome", "tipo": "texto", "tamanho": 120, "normalizacao": "maiusculas", "obrigatorio": true, "edita": "ficha, conector" },
     { "tabela": "contatos", "campo": "cargo", "tipo": "texto", "tamanho": 60, "normalizacao": "maiusculas", "obrigatorio": false, "edita": "ficha, conector" },

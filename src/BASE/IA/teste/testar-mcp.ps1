@@ -168,6 +168,10 @@ Conferir 'C30 CNPJ com DV errado é recusado' (-not (Test-CnpjValido '1122233300
 Conferir 'C31 nota fracionária é recusada' (Recusa { ConvertTo-Inteiro 'aderencia' 1.5 })
 Conferir 'C31 UF fora da lista é recusada' (-not (Test-UFValida 'XX'))
 
+Write-Host '--- DEV-16: atendimento anterior sem ciclo (mesmo caso C33 do front)'
+Conferir 'C33 anterior que fecha ciclo é recusado (A -> B -> A)' (Test-AnteriorFormaCiclo 10 20 @{ 20 = 10; 10 = 0 })
+Conferir 'C33 corrente sem ciclo passa' (-not (Test-AnteriorFormaCiclo 10 20 @{ 20 = 30; 30 = 0 }))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
@@ -540,7 +544,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'crm_status' (-not $res.isError) $res.content[0].text
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
-        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
+        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige ' + $script:EsquemasSuportados[0] + ')') ($st.versao_esquema -eq $script:EsquemasSuportados[0] -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
         # DEV-07: o consumidor (skill) descobre versão e capacidades pelo crm_status
         Conferir 'crm_status traz versao_conector, capacidades (o catálogo) e quantidade_ferramentas' ($st.versao_conector -match '^\d+\.\d+\.\d+$' -and [int]$st.quantidade_ferramentas -eq $script:FerramentasEsperadas.Count -and ((@($st.capacidades | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ','))) ($res.content[0].text)
 
@@ -569,14 +573,26 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'abrir_atendimento' ([ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'
                                                        codigo_atendimento_anterior = 'AT-0004-0005'; autor = 'teste' })
         Conferir 'anterior de outra empresa é recusado' ($res.isError -and $res.content[0].text -match 'outra empresa') $res.content[0].text
-        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_resumo = 'Cliente de teste; resumo gravado pelo MCP' })
-        Conferir 'atualizar_contexto_cliente' (-not $res.isError) $res.content[0].text
+        $cx = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 1 }))
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cx.ctx_versao; ctx_resumo = 'Cliente de teste; resumo gravado pelo MCP' })
+        Conferir 'atualizar_contexto_cliente com a ctx_versao lida' (-not $res.isError -and [int](Dados $res).ctx_versao -eq [int]$cx.ctx_versao + 1) $res.content[0].text
+        # DEV-17: a segunda sessão leu a mesma versão; a primeira gravou; a segunda recebe conflito com o conteúdo atual
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cx.ctx_versao; ctx_resumo = 'Outra sessão' })
+        Conferir 'DEV-17 segunda sessão com a ctx_versao antiga recebe conflito e o contexto atual' ($res.isError -and $res.content[0].text -match 'Conflito de contexto' -and $res.content[0].text -match 'RESUMO GRAVADO PELO MCP') $res.content[0].text
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_resumo = 'Sem versão' })
+        Conferir 'DEV-17 contexto sem ctx_versao é recusado' ($res.isError -and $res.content[0].text -match 'ctx_versao') $res.content[0].text
+        $cli1 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 1 }))
+        $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 1; versao = [int]$cli1.versao; observacoes_acrescentar = 'edição comercial em paralelo'; autor = 'teste' })
+        $res2 = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cli1.ctx_versao; ctx_familia = 'Família de teste' })
+        Conferir 'DEV-17 edição comercial em paralelo não gera conflito de contexto' ((-not $res.isError) -and (-not $res2.isError)) ($res.content[0].text + ' / ' + $res2.content[0].text)
         $cli = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
         $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli.versao; telefone = '123' })
         Conferir 'telefone inválido é recusado' ($res.isError -and $res.content[0].text -match 'Telefone')
         $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli.versao; cidade = '  caxias   do sul ' })
         $g = Dados $res
         Conferir 'cidade normalizada em maiúsculas' ((-not $res.isError) -and ($g.alterados[0].depois -eq 'CAXIAS DO SUL')) $res.content[0].text
+        $ultLog = Linhas-Visita 'SELECT TOP 1 usuario, usuario_tecnico, estacao, versao_cliente, autor_declarado FROM log_alteracoes ORDER BY id DESC'
+        Conferir 'DEV-06B log do conector: estação, usuário técnico, versão e autor declarado separados' ([string]$ultLog[0].estacao -eq [Environment]::MachineName -and [string]$ultLog[0].usuario_tecnico -eq [Environment]::UserName -and [string]$ultLog[0].versao_cliente -match '^CONECTOR \d' -and ((([string]$ultLog[0].usuario -eq 'IA') -and -not $ultLog[0].autor_declarado) -or (([string]$ultLog[0].usuario -match '^IA \((.+)\)$') -and [string]$ultLog[0].autor_declarado -eq $Matches[1]))) ($ultLog[0] | ConvertTo-Json -Compress)
         $log = Dados (Chamar 'ultimas_alteracoes' ([ordered]@{ limite = 10 }))
         Conferir 'log de auditoria com origem IA' (@($log.alteracoes | Where-Object { $_.origem -eq 'IA' }).Count -ge 3)
 
@@ -584,8 +600,8 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         # poder rodar de novo no mesmo banco (sem isto, a 2a execução falhava: o AT-0001-0001
         # deixava de estar atrasado e a cidade do cliente 2 já estava normalizada).
         Write-Host '--- manutenção (DEV-08): config.manutencao recusa gravação no ponto de escrita; leitura continua'
-        Conferir 'motivo puro: sem manutenção e esquema 1.1 grava' ((Get-MotivoRecusaEscrita '1.1' '') -eq '')
-        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita '1.1' 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
+        Conferir 'motivo puro: sem manutenção e esquema suportado grava' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '') -eq '')
+        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
         Conferir 'motivo puro: esquema desconhecido recusa' ((Get-MotivoRecusaEscrita '0.9' '') -match 'esquema')
         $atM = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         Executa-Visita "INSERT INTO config (chave, valor) VALUES ('manutencao', ?)" @((P 'texto' 'EST-TESTE|teste|1|2026-10-19 10:00|migração de teste'))
@@ -614,6 +630,35 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'DEV-15 reativar a empresa não reativa os contatos' ($r15.gravado -and [int]$r15.contatos_reativados -eq 0 -and [int]$r15.contatos_inativos -ge 1 -and $ct15.ativo -eq $false) ($r15 | ConvertTo-Json -Compress)
         $res = Chamar 'atualizar_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002'; versao = [int]$ct15.versao; ativo = $true; autor = 'teste' })
         Conferir 'o contato volta um a um (atualizar_contato ativo=true)' (-not $res.isError) $res.content[0].text
+
+        Write-Host '--- DEV-13: identificador de operação (reenvio não duplica)'
+        $maxLog13 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+        $nOp13 = [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @())
+        $arg13 = [ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'; id_operacao = 'TESTE-OP-0001-ABCDEF'; autor = 'teste' }
+        $r1 = Dados (Chamar 'abrir_atendimento' $arg13)
+        $r2 = Dados (Chamar 'abrir_atendimento' $arg13)
+        Conferir 'DEV-13 reenvio com o mesmo id_operacao devolve o mesmo atendimento sem criar outro' ($r1.gravado -and $r2.repetida -and $r2.codigo -eq $r1.codigo -and [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @()) -eq $nOp13 + 1) (($r1 | ConvertTo-Json -Compress) + ' / ' + ($r2 | ConvertTo-Json -Compress))
+        Conferir 'DEV-13 o reenvio não gera log novo' ([int](Invoke-Valor 'SELECT COUNT(*) FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog13))) -eq 1)
+        $arg13.etapa = 'Negociação'; $arg13.familia = 'X'
+        $res = Chamar 'abrir_atendimento' $arg13
+        Conferir 'DEV-13 mesmo id_operacao com outro conteúdo é recusado' ($res.isError -and $res.content[0].text -match 'outro conteúdo') $res.content[0].text
+        Executa-Visita 'DELETE FROM operacoes WHERE id_operacao=?' @((P 'texto' 'TESTE-OP-0001-ABCDEF'))
+        Executa-Visita 'DELETE FROM oportunidades WHERE codigo=?' @((P 'texto' ([string]$r1.codigo)))
+        Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog13))
+
+        Write-Host '--- DEV-16: anterior pelo atualizar_atendimento (mesma empresa, sem ciclo)'
+        $todos16 = Linhas-Visita 'SELECT codigo, id_cliente FROM oportunidades ORDER BY id'
+        $grupo16 = $todos16 | Group-Object { [int]$_.id_cliente } | Where-Object { $_.Count -ge 2 } | Select-Object -First 1
+        $par16 = @($grupo16.Group | Select-Object -First 2 | ForEach-Object { [string]$_.codigo })
+        $aA = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[0] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[0]; versao = [int]$aA.versao; codigo_atendimento_anterior = $par16[1]; autor = 'teste' })
+        Conferir 'atualizar_atendimento grava o anterior da mesma empresa' (-not $res.isError) $res.content[0].text
+        $aB = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[1] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[1]; versao = [int]$aB.versao; codigo_atendimento_anterior = $par16[0]; autor = 'teste' })
+        Conferir 'C33 anterior que fecharia ciclo é recusado no conector' ($res.isError -and $res.content[0].text -match 'ciclo') $res.content[0].text
+        $aA = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[0] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[0]; versao = [int]$aA.versao; codigo_atendimento_anterior = $null; autor = 'teste' })
+        Conferir 'anterior removido com null' (-not $res.isError) $res.content[0].text
 
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))

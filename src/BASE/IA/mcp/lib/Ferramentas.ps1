@@ -13,7 +13,7 @@ $script:TamanhoTexto = @{
     empresa = 120; cidade = 60; uf = 2; segmento = 60; telefone = 30; email = 120; cnpj = 20
     responsavel = 60; qualificacao = 40; maquina = 255; familia = 60; categoria = 60; tipo_venda = 40
     origem = 40; prioridade = 20; orcamento = 30; motivo_desfecho = 60; etapa = 40
-    ctx_resumo = 255; ctx_familia = 60; ctx_arquivo = 255; nome = 120; cargo = 60
+    ctx_resumo = 255; ctx_familia = 255; ctx_arquivo = 255; nome = 120; cargo = 60
 }
 
 # ------------------------------------------------------------------ utilidades
@@ -61,6 +61,38 @@ function Add-Observacao($atual, [string]$texto) {
     $linha = '[' + (Get-Date).ToString('dd/MM/yyyy') + ' ' + $script:UsuarioLog + '] ' + (ConvertTo-TextoComercial $texto.Trim() $true)
     if ($null -eq $atual -or [string]$atual -eq '') { return $linha }
     return ([string]$atual).TrimEnd() + "`r`n" + $linha
+}
+
+# DEV-13 (esquema 1.2): identificador de operação. A mesma criação repetida com o MESMO id_operacao e o mesmo
+# conteúdo devolve o resultado da primeira (sem gravar de novo nem gerar log); o mesmo id com outro conteúdo é
+# recusado. Gravado na tabela operacoes na MESMA transação do dado. Guardado 60 dias.
+$script:DiasOperacao = 60
+function Get-HashOperacao($a) {
+    $partes = @(); foreach ($p in ($a.PSObject.Properties | Where-Object { $_.Name -notin @('id_operacao', 'autor') } | Sort-Object Name)) { $partes += ($p.Name + '=' + (ConvertTo-Json -InputObject $p.Value -Compress -Depth 5)) }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($partes -join "`n")))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+}
+function Get-OperacaoAnterior($ctx, $a, [string]$tabela) {
+    if (-not (Test-TemArg $a 'id_operacao')) { return $null }
+    $l = $ctx.Consultar('SELECT tabela, id_registro, codigo, versao, hash_conteudo FROM operacoes WHERE id_operacao=?', @((P 'texto' ([string]$a.id_operacao))))
+    if ($l.Count -eq 0) { return $null }
+    if ([string]$l[0].hash_conteudo -ne (Get-HashOperacao $a) -or [string]$l[0].tabela -ne $tabela) {
+        throw ('O id_operacao ' + $a.id_operacao + ' já foi usado com outro conteúdo. Nada foi gravado: use um identificador novo para uma operação nova.')
+    }
+    $r = [ordered]@{ gravado = $false; repetida = $true; id_operacao = [string]$a.id_operacao; id = [int]$l[0].id_registro; codigo = $l[0].codigo; versao = $l[0].versao
+                     mensagem = 'Operação já aplicada antes com este id_operacao: nada foi gravado de novo (resultado da primeira).' }
+    switch ($tabela) {
+        'contatos' { $r['id_contato'] = $r.id; $r['codigo_contato'] = $r.codigo }
+        'clientes' { $r['id_cliente'] = $r.id; $r['codigo_cliente'] = $r.codigo }
+    }
+    return $r
+}
+function Save-Operacao($ctx, $a, [string]$tabela, [int]$id, $codigo, [int]$versao) {
+    if (-not (Test-TemArg $a 'id_operacao')) { return }
+    [void]$ctx.Executar('DELETE FROM operacoes WHERE criado_em < ?', @((P 'data' ((Get-Date).AddDays(-$script:DiasOperacao)))))
+    [void]$ctx.Executar('INSERT INTO operacoes (id_operacao, tabela, id_registro, codigo, versao, hash_conteudo, criado_em, origem, estacao) VALUES (?,?,?,?,?,?,?,?,?)',
+        @((P 'texto' ([string]$a.id_operacao)), (P 'texto' $tabela), (P 'inteiro' $id), (P 'texto' ([string]$codigo)), (P 'inteiro' $versao),
+          (P 'texto' (Get-HashOperacao $a)), (P 'data' (Get-Date)), (P 'texto' 'IA'), (P 'texto' ([Environment]::MachineName))))
 }
 
 # Seção 5.1: e-mails além do primeiro, recebidos em "email", vão para as observações (na mesma gravação).
@@ -990,6 +1022,20 @@ function Invoke-AtualizarAtendimento($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        # DEV-16: troca do atendimento anterior (null remove): mesma empresa, não o próprio, sem ciclo (C33)
+        if (Test-TemArg $a 'codigo_atendimento_anterior') {
+            $idAntNovo = $null
+            if ($null -ne $a.codigo_atendimento_anterior) {
+                $ant = Get-AtendimentoNaTransacao $ctx ([string]$a.codigo_atendimento_anterior)
+                if ([int]$ant.id -eq [int]$atual.id) { throw 'O atendimento anterior não pode ser o próprio atendimento.' }
+                if ([int]$ant.id_cliente -ne [int]$atual.id_cliente) { throw ('O atendimento ' + $ant.codigo + ' é de outra empresa. O atendimento anterior tem de ser da mesma empresa.') }
+                $mapa = @{}
+                foreach ($o in $ctx.Consultar('SELECT id, id_atendimento_anterior FROM oportunidades WHERE id_cliente=?', @((P 'inteiro' ([int]$atual.id_cliente))))) { $mapa[[int]$o.id] = [int]$(if ($null -eq $o.id_atendimento_anterior) { 0 } else { $o.id_atendimento_anterior }) }
+                if (Test-AnteriorFormaCiclo ([int]$atual.id) ([int]$ant.id) $mapa) { throw ('O atendimento ' + $ant.codigo + ' já vem deste atendimento: a corrente de anteriores fecharia um ciclo (C33).') }
+                $idAntNovo = [int]$ant.id
+            }
+            if (-not (Test-Igual $atual.id_atendimento_anterior $idAntNovo)) { $mud['id_atendimento_anterior'] = @{ Tipo = 'inteiro'; Novo = $idAntNovo; Antigo = $atual.id_atendimento_anterior } }
+        }
         # DEV-10: transições de etapa e retomada (seção 5.2), as mesmas do front (modRegras)
         $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
         $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
@@ -1077,6 +1123,13 @@ function Invoke-AtualizarCadastroCliente($a) {
   vendedor, e a IA pode gravar com a ficha aberta na tela de alguém.
   O log é gravado igual, e é por ele que as estações percebem a mudança.
 #>
+function Get-MensagemConflitoContexto($atual, [int]$lida) {
+    $agora = [ordered]@{ ctx_versao = $atual.ctx_versao; ctx_resumo = $atual.ctx_resumo; ctx_arquivo = $atual.ctx_arquivo; ctx_atualizado_por = $atual.ctx_atualizado_por; ctx_atualizado_em = (ConvertFrom-ValorBanco $atual.ctx_atualizado_em) }
+    if ($atual.Contains('ctx_familia')) { $agora['ctx_familia'] = $atual.ctx_familia }
+    return ('Conflito de contexto: você leu a ctx_versao ' + $lida + ', mas o contexto já está na ' + $atual.ctx_versao +
+            ' (outra sessão gravou antes). Nada foi gravado. Contexto atual: ' + (ConvertTo-Json -InputObject $agora -Compress) + '. Releia, junte o que for preciso e repita com a ctx_versao atual.')
+}
+
 function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
     $mud = [ordered]@{}
     foreach ($campo in $campos) {
@@ -1086,13 +1139,18 @@ function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
         Assert-Tamanho $campo $v
         if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Novo = $v; Antigo = $atual[$campo] } }
     }
+    # DEV-17 (esquema 1.2): versão PRÓPRIA do contexto, independente da comercial. Quem leu uma versão e outra
+    # sessão gravou antes recebe conflito com o conteúdo atual (nada se sobrescreve sem aviso).
+    $lida = [int](Get-Arg $a 'ctx_versao')
+    $atualCtx = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+    if ($lida -ne $atualCtx) { throw (Get-MensagemConflitoContexto $atual $lida) }
     if ($mud.Count -eq 0) { return @() }
     $sets = @(); $params = @()
     foreach ($c in $mud.Keys) { $sets += ($c + '=?'); $params += (P 'texto' $mud[$c].Novo) }
-    $sql = 'UPDATE ' + $tabela + ' SET ' + ($sets -join ', ') + ', ctx_atualizado_em=?, ctx_atualizado_por=? WHERE id=?'
-    $params += (P 'data' (Get-Date)); $params += (P 'texto' $script:UsuarioLog); $params += (P 'inteiro' ([int]$atual.id))
+    $sql = 'UPDATE ' + $tabela + ' SET ' + ($sets -join ', ') + ', ctx_versao=ctx_versao+1, ctx_atualizado_em=?, ctx_atualizado_por=? WHERE id=? AND ctx_versao=?'
+    $params += (P 'data' (Get-Date)); $params += (P 'texto' $script:UsuarioLog); $params += (P 'inteiro' ([int]$atual.id)); $params += (P 'inteiro' $lida)
     $n = $ctx.Executar($sql, $params)
-    if ($n -ne 1) { throw ('UPDATE afetou ' + $n + ' linha(s); nada foi gravado.') }
+    if ($n -ne 1) { throw (Get-MensagemConflitoContexto $atual $lida) }
     foreach ($c in $mud.Keys) { $ctx.Log($tabela, [int]$atual.id, $c, $mud[$c].Antigo, $mud[$c].Novo, 'CONTEXTO') }
     return @($mud.Keys)
 }
@@ -1103,7 +1161,8 @@ function Invoke-AtualizarContextoCliente($a) {
         param($ctx)
         $atual = Get-ClienteNaTransacao $ctx $a
         $alt = Set-Contexto $ctx 'clientes' $atual $a @('ctx_resumo', 'ctx_familia', 'ctx_arquivo')
-        return [ordered]@{ id_cliente = $atual.id; empresa = $atual.empresa; gravado = ($alt.Count -gt 0); campos = @($alt) }
+        $v = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+        return [ordered]@{ id_cliente = $atual.id; empresa = $atual.empresa; gravado = ($alt.Count -gt 0); campos = @($alt); ctx_versao = $(if ($alt.Count -gt 0) { $v + 1 } else { $v }) }
     }
 }
 
@@ -1114,7 +1173,8 @@ function Invoke-AtualizarContextoAtendimento($a) {
         param($ctx)
         $atual = Get-AtendimentoNaTransacao $ctx $codigo
         $alt = Set-Contexto $ctx 'oportunidades' $atual $a @('ctx_resumo', 'ctx_arquivo')
-        return [ordered]@{ codigo = $codigo; gravado = ($alt.Count -gt 0); campos = @($alt) }
+        $v = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+        return [ordered]@{ codigo = $codigo; gravado = ($alt.Count -gt 0); campos = @($alt); ctx_versao = $(if ($alt.Count -gt 0) { $v + 1 } else { $v }) }
     }
 }
 
@@ -1210,6 +1270,8 @@ function Invoke-CriarContato($a) {
         try {
             return Invoke-Transacao {
                 param($ctx)
+                $repetida = Get-OperacaoAnterior $ctx $a 'contatos'
+                if ($repetida) { return $repetida }
                 $cli = Get-ClienteNaTransacao $ctx $a
                 if (-not [bool]$cli.ativo) { throw ('A empresa ' + $cli.empresa + ' está inativa. Reative-a antes de cadastrar contato.') }
                 $codCli = $cli.codigo_cliente
@@ -1239,6 +1301,7 @@ function Invoke-CriarContato($a) {
                       (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog))) | Out-Null
                 $id = [int]$ctx.Valor('SELECT id FROM contatos WHERE codigo=?', @((P 'texto' $codigo)))
                 $ctx.Log('contatos', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+                Save-Operacao $ctx $a 'contatos' $id $codigo 1
                 return [ordered]@{
                     gravado = $true; id_contato = $id; codigo_contato = $codigo; versao = 1
                     empresa = $cli.empresa; codigo_cliente = Format-CodigoCliente $codCli; empresa_promovida = $promovida
@@ -1396,6 +1459,8 @@ function Invoke-CriarCliente($a) {
     $comoCliente = [bool](Get-Arg $a 'como_cliente' $false)
     return Invoke-ComRetentativa {
         param($ctx)
+        $repetida = Get-OperacaoAnterior $ctx $a 'clientes'
+        if ($repetida) { return $repetida }
         $campos = @('empresa', 'cnpj', 'cidade', 'uf', 'segmento', 'telefone', 'email', 'responsavel', 'aderencia', 'porte', 'qualificacao')
         $tipos = @{ aderencia = 'inteiro'; porte = 'inteiro' }
         $d = [ordered]@{}
@@ -1423,6 +1488,7 @@ function Invoke-CriarCliente($a) {
         [void]$ctx.Executar($sql, $par)
         $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
         $ctx.Log('clientes', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+        Save-Operacao $ctx $a 'clientes' $id (Format-CodigoCliente $cod) 1
         return [ordered]@{ gravado = $true; id_cliente = $id; codigo_cliente = Format-CodigoCliente $cod; estagio = $estagio; versao = 1; empresa = $d['empresa'] }
     }
 }
@@ -1500,6 +1566,8 @@ function Invoke-AbrirAtendimento($a) {
     $promover = [bool](Get-Arg $a 'promover_pre_cliente' $false)
     return Invoke-ComRetentativa {
         param($ctx)
+        $repetida = Get-OperacaoAnterior $ctx $a 'oportunidades'
+        if ($repetida) { return $repetida }
         $ct = Get-ContatoNaTransacao $ctx $a
         if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo. Reative-o antes de abrir atendimento.') }
         $cli = $ctx.Consultar('SELECT * FROM clientes WHERE id=?', @((P 'inteiro' ([int]$ct.id_cliente))))[0]
@@ -1544,6 +1612,7 @@ function Invoke-AbrirAtendimento($a) {
                             (($cols | ForEach-Object { '?' }) -join ',') + ',1,?,?,?)'), $par)
         $id = [int]$ctx.Valor('SELECT id FROM oportunidades WHERE codigo=?', @((P 'texto' $codigo)))
         $ctx.Log('oportunidades', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+        Save-Operacao $ctx $a 'oportunidades' $id $codigo 1
         return [ordered]@{ gravado = $true; codigo = $codigo; id = $id; versao = 1; empresa = $cli.empresa; contato = $ct.nome
                            empresa_promovida = $promovida; situacao = (Get-Situacao $true ([string]$novo.etapa) $novo.dt_prox_acao $novo.retomar_em)
                            avisos = @($avisos) }
@@ -2165,7 +2234,7 @@ function Write-RoteiroCsv([string]$arquivo, $linhas) {
 
 function Assert-Esquema11 {
     $v = Get-VersaoEsquema
-    if ($v -ne '1.1') { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema 1.1. Rode a montagem da base (MONTAR-FRONTEND.bat).") }
+    if ($script:EsquemasSuportados -notcontains $v) { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema " + ($script:EsquemasSuportados -join ', ') + '. Rode a montagem da base (MONTAR-FRONTEND.bat).') }
 }
 
 # Roteiro do planejamento: a linha BASE primeiro, depois uma linha por visita PENDENTE, em ordem de data.
@@ -2265,6 +2334,7 @@ $script:SoLeitura = [ordered]@{ readOnlyHint = $true; destructiveHint = $false; 
 $script:Gravacao  = [ordered]@{ readOnlyHint = $false; destructiveHint = $true; idempotentHint = $false; openWorldHint = $false }
 
 $script:PropAutor = [ordered]@{ type = 'string'; maxLength = 40; description = 'Quem pediu a alteração (ex.: "Paulo"). Vai para o log junto com "IA".' }
+$script:PropIdOperacao = [ordered]@{ type = 'string'; pattern = '^[A-Za-z0-9:_.|-]{8,120}$'; description = 'Identificador único desta operação (ex.: um GUID gerado por você). Repetir a chamada com o mesmo id e o mesmo conteúdo devolve o resultado da primeira, sem criar outro registro (reenvio seguro depois de resultado indeterminado).' }
 $script:PropData  = [ordered]@{ type = @('string', 'null'); pattern = '^\d{4}-\d{2}-\d{2}$'; description = 'Data AAAA-MM-DD; null limpa o campo.' }
 
 $script:Ferramentas = @(
@@ -2280,6 +2350,7 @@ $script:Ferramentas = @(
             responsavel = [ordered]@{ type = @('string', 'null') }; qualificacao = [ordered]@{ type = @('string', 'null'); maxLength = 40 }
             aderencia = [ordered]@{ type = @('integer', 'null'); minimum = 1; maximum = 3 }; porte = [ordered]@{ type = @('integer', 'null'); minimum = 1; maximum = 3 }
             observacoes = [ordered]@{ type = 'string' }; ignorar_homonimo = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -2315,6 +2386,7 @@ $script:Ferramentas = @(
             dt_proposta = $script:PropData; dt_desfecho = $script:PropData
             codigo_atendimento_anterior = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             observacoes = [ordered]@{ type = 'string' }; promover_pre_cliente = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -2372,6 +2444,7 @@ $script:Ferramentas = @(
             telefone = [ordered]@{ type = @('string', 'null') }; email = [ordered]@{ type = @('string', 'null'); maxLength = 120 }
             observacoes = [ordered]@{ type = 'string'; description = 'Primeira linha datada das observações' }
             promover_pre_cliente = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -2555,7 +2628,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'exportar_roteiro'; title = 'Exportar roteiro do planejamento'; handler = 'Invoke-ExportarRoteiro'; annotations = $script:Gravacao
-        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o banco no esquema 1.1.'
+        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o esquema que o conector suporta (crm_status).'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             id_planejamento = [ordered]@{ type = 'integer' }
             codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
@@ -2675,6 +2748,7 @@ $script:Ferramentas = @(
             dt_prox_acao = $script:PropData; retomar_em = $script:PropData; ultima_interacao = $script:PropData
             dt_proposta = $script:PropData; dt_desfecho = $script:PropData; dt_entrada = $script:PropData
             codigo_contato = [ordered]@{ type = 'string'; pattern = '^[Cc][Tt]-\d{4}-\d{4}$'; description = 'Troca o contato (só da mesma empresa)' }
+            codigo_atendimento_anterior = [ordered]@{ type = @('string', 'null'); pattern = '^AT-\d{4}-\d{4}$'; description = 'Atendimento de origem (retomada ou duplicação), da mesma empresa; null remove. Não pode fechar ciclo.' }
             observacoes_acrescentar = [ordered]@{ type = 'string'; description = 'Acrescenta uma linha datada às observações (nunca apaga o que existe)' }
             autor = $script:PropAutor } }
     },
@@ -2696,18 +2770,20 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'atualizar_contexto_cliente'; title = 'Atualizar contexto do cliente'; handler = 'Invoke-AtualizarContextoCliente'; annotations = $script:Gravacao
-        description = 'Grava o resumo de contexto da empresa (ctx_*): síntese de uma linha, família aderente e caminho do CONTEXTO-GERAL.md. Campos exclusivos da IA; não conflitam com o vendedor.'
-        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+        description = 'Grava o resumo de contexto da empresa (ctx_*): síntese de uma linha, família aderente e caminho do CONTEXTO-GERAL.md. Campos exclusivos da IA; não conflitam com o vendedor. Exige a ctx_versao lida em obter_cliente: se outra sessão gravou antes, volta conflito com o contexto atual.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('ctx_versao'); properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }
+            ctx_versao = [ordered]@{ type = 'integer'; minimum = 0; description = 'ctx_versao lida em obter_cliente (DEV-17)' }
             ctx_resumo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
-            ctx_familia = [ordered]@{ type = @('string', 'null'); maxLength = 60 }
+            ctx_familia = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_arquivo = [ordered]@{ type = @('string', 'null'); maxLength = 255; description = 'Caminho relativo do CONTEXTO-GERAL.md' }
             autor = $script:PropAutor } }
     },
     [ordered]@{
         name = 'atualizar_contexto_atendimento'; title = 'Atualizar contexto do atendimento'; handler = 'Invoke-AtualizarContextoAtendimento'; annotations = $script:Gravacao
-        description = 'Grava o resumo de contexto de um atendimento (ctx_resumo e caminho do CONTEXTO-ATENDIMENTO.md). Campos exclusivos da IA.'
-        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo'); properties = [ordered]@{
+        description = 'Grava o resumo de contexto de um atendimento (ctx_resumo e caminho do CONTEXTO-ATENDIMENTO.md). Campos exclusivos da IA. Exige a ctx_versao lida em obter_atendimento: se outra sessão gravou antes, volta conflito com o contexto atual.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo', 'ctx_versao'); properties = [ordered]@{
+            ctx_versao = [ordered]@{ type = 'integer'; minimum = 0; description = 'ctx_versao lida em obter_atendimento (DEV-17)' }
             codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             ctx_resumo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_arquivo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }

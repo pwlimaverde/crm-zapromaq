@@ -15,6 +15,9 @@
 Add-Type -AssemblyName System.Data
 
 $script:NomeBanco = 'crm_zapromaq.accdb'
+# Esquema que front, conector e montagem desta versão exigem (= EsquemaPara da última migração estrutural;
+# o verificar.py confere com modConfig.VERSAO_ESQUEMA e Banco.ps1).
+$script:EsquemaAtual = '1.2'
 $script:NomeFront = 'CRM_Zapromaq.xlsm'
 
 # ------------------------------------------------------------------ caminhos

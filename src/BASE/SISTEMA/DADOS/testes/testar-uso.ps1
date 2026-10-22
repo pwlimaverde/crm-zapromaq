@@ -614,6 +614,34 @@ End Function
     $respR = [string]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT responsavel FROM planejamentos WHERE descricao='TESTE FRONT RESP'", '')
     Conferir 'planejamento: criar grava o responsável escolhido' ($rpR -eq '' -and $respR -eq 'Vendedor A') ($rpR + ' responsavel=[' + $respR + ']')
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE descricao='TESTE FRONT RESP'")
+    # DEV-13 (ciclo 010): criar de novo com o mesmo identificador de operação devolve o mesmo registro
+    # O dicionário e o código gerado (ByRef) ficam dentro do Excel: um Scripting.Dictionary criado aqui e
+    # passado por Application.Run faz o Excel chamar de volta este processo, e a chamada trava (ciclo 010).
+    $mop = $wb.VBProject.VBComponents.Add(1); $mop.Name = 'modTesteOperacao'
+    $mop.CodeModule.AddFromString(@'
+Option Explicit
+Public Function Criar(ByVal empresa As String) As Long
+    Dim d As Object, codigo As Long
+    Set d = CreateObject("Scripting.Dictionary")
+    d("empresa") = empresa
+    Criar = modCRM.CriarCliente(d, False, codigo)
+End Function
+'@)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM operacoes WHERE id_operacao='TESTE-FRONT-OP-0001'")
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM clientes WHERE empresa='TESTE OPERACAO REPETIDA'")
+    $nCli = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM clientes', 0)
+    [void]$xl.Run($tq + 'modCRM.DefinirOperacao', 'TESTE-FRONT-OP-0001', 'H1')
+    $id1 = [int]$xl.Run($tq + 'modTesteOperacao.Criar', 'TESTE OPERACAO REPETIDA')
+    [void]$xl.Run($tq + 'modCRM.DefinirOperacao', 'TESTE-FRONT-OP-0001', 'H1')
+    $id2 = [int]$xl.Run($tq + 'modTesteOperacao.Criar', 'TESTE OPERACAO REPETIDA')
+    [void]$xl.Run($tq + 'modCRM.DefinirOperacao', '', '')
+    $nCli2 = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM clientes', 0)
+    Conferir 'DEV-13 reenvio da ficha com o mesmo identificador não duplica' ($id1 -gt 0 -and $id2 -eq $id1 -and $nCli2 -eq $nCli + 1) ('id1=' + $id1 + ' id2=' + $id2 + ' antes=' + $nCli + ' depois=' + $nCli2)
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM operacoes WHERE id_operacao='TESTE-FRONT-OP-0001'")
+    [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM clientes WHERE empresa='TESTE OPERACAO REPETIDA'")
+    # DEV-06 parte B (ciclo 010): a linha de log do front identifica estação, usuário técnico e versão
+    $estLog = [string]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT TOP 1 estacao & '|' & usuario_tecnico & '|' & versao_cliente FROM log_alteracoes WHERE origem='FRONT' AND id > " + $maxLogQ + " ORDER BY id DESC", '')
+    Conferir 'log do front com estação, usuário técnico e versão do cliente' ($estLog -match '^[^|]+\|[^|]+\|FRONT ') $estLog
     # volta: visitas e planejamento de teste, e o log criado pelo teste
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM visitas WHERE id_planejamento=" + $idQ)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM planejamentos WHERE id=" + $idQ)

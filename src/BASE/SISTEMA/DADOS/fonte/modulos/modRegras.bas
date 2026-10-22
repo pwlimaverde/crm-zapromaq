@@ -78,3 +78,24 @@ Public Function MesmoValor(ByVal a As Variant, ByVal b As Variant) As Boolean
     If IsNumeric(a) And IsNumeric(b) And VarType(a) <> vbString And VarType(b) <> vbString Then MesmoValor = (CDbl(a) = CDbl(b)): Exit Function
     MesmoValor = (StrComp(CStr(a), CStr(b), vbBinaryCompare) = 0)
 End Function
+
+
+' C33 (DEV-16): o atendimento anterior forma ciclo? Segue a corrente de
+' anteriores a partir do novo anterior (ids() e anteriores() em paralelo,
+' os atendimentos da empresa); chegar no proprio atendimento = ciclo.
+Public Function FormaCiclo(ByVal idAtual As Long, ByVal idAnterior As Long, ByVal ids As Variant, ByVal anteriores As Variant) As Boolean
+    Dim p As Long, passos As Long, i As Long, achou As Boolean
+    If idAtual = 0 Or idAnterior = 0 Then Exit Function
+    p = idAnterior
+    Do While p <> 0 And passos < 10000
+        If p = idAtual Then FormaCiclo = True: Exit Function
+        achou = False
+        If IsArray(ids) Then
+            For i = LBound(ids) To UBound(ids)
+                If CLng(ids(i)) = p Then p = CLng(anteriores(i)): achou = True: Exit For
+            Next i
+        End If
+        If Not achou Then Exit Function
+        passos = passos + 1
+    Loop
+End Function

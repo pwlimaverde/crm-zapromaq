@@ -554,7 +554,7 @@ try {
             if ($linha -match '^Log: (.+)$') { $relatorio = $matches[1].Trim() }
         }
         $log.L('')
-        $log.L('PRONTO. CRM ' + $versao + ' publicado; banco no esquema 1.1. Municípios: ' + $munic + '. Listas: ' + $unif +
+        $log.L('PRONTO. CRM ' + $versao + ' publicado; banco no esquema ' + $script:EsquemaAtual + '. Municípios: ' + $munic + '. Listas: ' + $unif +
                ' unificação(ões), ' + $inativos + ' valor(es) incluído(s) como inativo(s) (relatório: ' + $relatorio + '). Backup: ' + $pastaBkp + '.')
         $log.L('Usuários do Claude Desktop: fechem e abram o aplicativo e reinstalem a skill IA\instrucoes\crm-zapromaq.zip.')
         $sucesso = $true

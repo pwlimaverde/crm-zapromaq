@@ -204,6 +204,19 @@ function Test-ContatoDoAtendimento([bool]$existe, [bool]$ativo, [int]$idClienteC
     return $null
 }
 
+# C33 (DEV-16): o novo anterior fecha ciclo? $anteriores: id -> id_atendimento_anterior (atendimentos da empresa).
+# Espelho de modRegras.FormaCiclo (front).
+function Test-AnteriorFormaCiclo([int]$idAtual, [int]$idAnterior, $anteriores) {
+    if ($idAtual -eq 0 -or $idAnterior -eq 0) { return $false }
+    $p = $idAnterior; $passos = 0
+    while ($p -ne 0 -and $passos -lt 10000) {
+        if ($p -eq $idAtual) { return $true }
+        if (-not $anteriores.ContainsKey($p)) { return $false }
+        $p = [int]$anteriores[$p]; $passos++
+    }
+    return $false
+}
+
 # ---------------------------------------------------------------- modCalc
 function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm) {
     if (-not $temContato) { return '' }
