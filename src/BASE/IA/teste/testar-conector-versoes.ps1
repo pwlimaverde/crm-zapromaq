@@ -88,7 +88,7 @@ try {
     $incompat = Join-Path $versoes '1.0.0'
     Copy-Item -LiteralPath $pastaV -Destination $incompat -Recurse
     $bancoInc = Join-Path $incompat 'lib\Banco.ps1'
-    [IO.File]::WriteAllText($bancoInc, ([IO.File]::ReadAllText($bancoInc) -replace "(?m)^\`$script:EsquemasSuportados = @\('1\.1'\)", "`$script:EsquemasSuportados = @('1.0')"), (New-Object System.Text.UTF8Encoding($true)))
+    [IO.File]::WriteAllText($bancoInc, ([IO.File]::ReadAllText($bancoInc) -replace "(?m)^\`$script:EsquemasSuportados = @\([^)]*\)","`$script:EsquemasSuportados = @('1.0')"), (New-Object System.Text.UTF8Encoding($true)))
     $manInc = Get-Content -LiteralPath (Join-Path $incompat 'manifesto.json') -Raw | ConvertFrom-Json
     foreach ($a in $manInc.arquivos) { if ($a.caminho -eq 'lib\Banco.ps1') { $a.sha256 = (Get-FileHash -LiteralPath $bancoInc -Algorithm SHA256).Hash.ToLowerInvariant() } }
     [IO.File]::WriteAllText((Join-Path $incompat 'manifesto.json'), (ConvertTo-Json -InputObject $manInc -Depth 4))
