@@ -28,7 +28,7 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     If versaoEsperada <> "" Then
         Confere "VERSAO_FRONT", modConfig.VERSAO_FRONT, versaoEsperada
     End If
-    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.1"
+    Confere "VERSAO_ESQUEMA", modConfig.VERSAO_ESQUEMA, "1.2"
 
     ' ---- caminho do banco sem fallback silencioso (spec 005): sem Config!B2 nao se inventa caminho
     Dim cfgB2 As Variant

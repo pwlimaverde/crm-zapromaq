@@ -16,7 +16,8 @@ $script:ProvedorAce = $null
 # 1.1 = migração 003 (municípios, planejamentos, visitas, papel das listas). O conector lê colunas que só
 # existem no 1.1, então exige 1.1: com o banco ainda no 1.0 (entre extrair o pacote e terminar a montagem)
 # só o crm_status responde, dizendo que a atualização está pendente (spec 004, F9).
-$script:EsquemasSuportados = @('1.1')
+# 1.2 = migração 004 (ciclo 010): controle único, ctx_versao, autor técnico no log, tabela operacoes.
+$script:EsquemasSuportados = @('1.2')
 
 function Get-ProvedorAce {
     if ($script:ProvedorAce) { return $script:ProvedorAce }

@@ -60,10 +60,10 @@ try {
     Conferir '.xlsm publicado na raiz' (Test-Path -LiteralPath $xlsm)
     $cn = Open-BancoLeitura $banco
     try { $vf = [string](Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='versao_front'" @() $null); $esq = Get-VersaoEsquemaBanco $cn } finally { $cn.Close(); $cn.Dispose() }
-    Conferir ('config.versao_front = ' + $v1 + ' e esquema 1.1') ($vf -eq $v1 -and $esq -eq '1.1') ("versao_front=$vf esquema=$esq")
+    Conferir ('config.versao_front = ' + $v1 + ' e esquema ' + $script:EsquemaAtual) ($vf -eq $v1 -and $esq -eq $script:EsquemaAtual) ("versao_front=$vf esquema=$esq")
     $rel1 = Join-Path $base ('SISTEMA\DADOS\execucao\releases\release-' + $v1 + '.json')
     $m1 = if (Test-Path -LiteralPath $rel1) { Get-Content -LiteralPath $rel1 -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
-    Conferir ('DEV-04: manifesto de release ' + $v1 + ' com tipo, esquema, migrações e hash do .xlsm publicado') ($null -ne $m1 -and $m1.tipo -eq 'publicacao' -and $m1.esquema -eq '1.1' -and @($m1.migracoes).Count -ge 3 -and $m1.xlsm_sha256 -eq (Get-HashArquivo $xlsm)) $rel1
+    Conferir ('DEV-04: manifesto de release ' + $v1 + ' com tipo, esquema, migrações e hash do .xlsm publicado') ($null -ne $m1 -and $m1.tipo -eq 'publicacao' -and $m1.esquema -eq $script:EsquemaAtual -and @($m1.migracoes).Count -ge 3 -and $m1.xlsm_sha256 -eq (Get-HashArquivo $xlsm)) $rel1
 
     Write-Host '--- 2. segunda publicação: o anterior vai para o histórico'
     $hX1 = Hash $xlsm

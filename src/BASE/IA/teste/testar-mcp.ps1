@@ -540,7 +540,7 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'crm_status' (-not $res.isError) $res.content[0].text
         if ($res.isError) { throw 'Sem acesso ao banco - rode CRIAR-BANCO-TESTE.bat antes (e confira o ACE 64 bits).' }
         $st = Dados $res
-        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige 1.1)') ($st.versao_esquema -eq '1.1' -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
+        Conferir ('gravação liberada no esquema ' + $st.versao_esquema + ' (o conector exige ' + $script:EsquemasSuportados[0] + ')') ($st.versao_esquema -eq $script:EsquemasSuportados[0] -and $st.gravacao_liberada -eq $true -and $st.atualizacao_pendente -eq $false)
         # DEV-07: o consumidor (skill) descobre versão e capacidades pelo crm_status
         Conferir 'crm_status traz versao_conector, capacidades (o catálogo) e quantidade_ferramentas' ($st.versao_conector -match '^\d+\.\d+\.\d+$' -and [int]$st.quantidade_ferramentas -eq $script:FerramentasEsperadas.Count -and ((@($st.capacidades | Sort-Object) -join ',') -eq (@($script:FerramentasEsperadas | Sort-Object) -join ','))) ($res.content[0].text)
 
@@ -584,8 +584,8 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         # poder rodar de novo no mesmo banco (sem isto, a 2a execução falhava: o AT-0001-0001
         # deixava de estar atrasado e a cidade do cliente 2 já estava normalizada).
         Write-Host '--- manutenção (DEV-08): config.manutencao recusa gravação no ponto de escrita; leitura continua'
-        Conferir 'motivo puro: sem manutenção e esquema 1.1 grava' ((Get-MotivoRecusaEscrita '1.1' '') -eq '')
-        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita '1.1' 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
+        Conferir 'motivo puro: sem manutenção e esquema suportado grava' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '') -eq '')
+        Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
         Conferir 'motivo puro: esquema desconhecido recusa' ((Get-MotivoRecusaEscrita '0.9' '') -match 'esquema')
         $atM = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         Executa-Visita "INSERT INTO config (chave, valor) VALUES ('manutencao', ?)" @((P 'texto' 'EST-TESTE|teste|1|2026-10-19 10:00|migração de teste'))

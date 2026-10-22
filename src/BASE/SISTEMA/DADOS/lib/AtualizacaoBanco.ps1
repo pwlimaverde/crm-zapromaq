@@ -84,15 +84,18 @@ function New-ResultadoBanco([bool]$ok, [int]$passo, [string]$motivo, $extra = @{
 function Get-ProblemasDoBanco($cn, [int]$totalMunicipios) {
     $problemas = New-Object System.Collections.ArrayList
     $versao = [string](Invoke-Escalar $cn "SELECT valor FROM config WHERE chave='versao_esquema'" @() $null)
-    if ($versao -ne '1.1') { [void]$problemas.Add('esquema ' + $versao + ' (esperado 1.1)') }
+    if ($versao -ne $script:EsquemaAtual) { [void]$problemas.Add('esquema ' + $versao + ' (esperado ' + $script:EsquemaAtual + ')') }
     $municipios = [int](Invoke-Escalar $cn 'SELECT COUNT(*) FROM municipios' @() $null)
     if ($municipios -ne $totalMunicipios) { [void]$problemas.Add('municípios: ' + $municipios + ' (esperado ' + $totalMunicipios + ')') }
     if ([int](Invoke-Escalar $cn 'SELECT COUNT(*) FROM listas WHERE chave IS NULL' @() $null) -ne 0) { [void]$problemas.Add('há linhas de lista sem chave') }
     if ([int](Invoke-Escalar $cn "SELECT COUNT(*) FROM listas WHERE tipo='Etapa' AND quadro IS NULL" @() $null) -ne 0) { [void]$problemas.Add('há etapas sem papel') }
     $schema = $cn.GetSchema('Indexes')
-    $temIndice = $false
-    foreach ($r in $schema.Rows) { if ([string]$r['INDEX_NAME'] -eq 'ix_lis_tipo_chave') { $temIndice = $true } }
-    if (-not $temIndice) { [void]$problemas.Add('índice único ix_lis_tipo_chave ausente') }
+    $indices = @{}
+    foreach ($r in $schema.Rows) { $indices[[string]$r['INDEX_NAME']] = $true }
+    # 1.1: chave de lista; 1.2 (ciclo 010): controle único e identificador de operação
+    foreach ($ix in @('ix_lis_tipo_chave', 'ix_cto_controle', 'ix_opo_controle', 'ix_ope_id')) {
+        if (-not $indices.ContainsKey($ix)) { [void]$problemas.Add('índice único ' + $ix + ' ausente') }
+    }
 
     # nenhum valor em uso pode ficar sem linha na lista (pela chave)
     $linhas = New-ComandoBanco $cn 'SELECT tipo, chave FROM listas' @() $null

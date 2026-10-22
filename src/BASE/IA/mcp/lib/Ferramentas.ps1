@@ -13,7 +13,7 @@ $script:TamanhoTexto = @{
     empresa = 120; cidade = 60; uf = 2; segmento = 60; telefone = 30; email = 120; cnpj = 20
     responsavel = 60; qualificacao = 40; maquina = 255; familia = 60; categoria = 60; tipo_venda = 40
     origem = 40; prioridade = 20; orcamento = 30; motivo_desfecho = 60; etapa = 40
-    ctx_resumo = 255; ctx_familia = 60; ctx_arquivo = 255; nome = 120; cargo = 60
+    ctx_resumo = 255; ctx_familia = 255; ctx_arquivo = 255; nome = 120; cargo = 60
 }
 
 # ------------------------------------------------------------------ utilidades
@@ -2165,7 +2165,7 @@ function Write-RoteiroCsv([string]$arquivo, $linhas) {
 
 function Assert-Esquema11 {
     $v = Get-VersaoEsquema
-    if ($v -ne '1.1') { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema 1.1. Rode a montagem da base (MONTAR-FRONTEND.bat).") }
+    if ($script:EsquemasSuportados -notcontains $v) { throw ("Banco no esquema '" + $v + "': o roteiro exige o esquema " + ($script:EsquemasSuportados -join ', ') + '. Rode a montagem da base (MONTAR-FRONTEND.bat).') }
 }
 
 # Roteiro do planejamento: a linha BASE primeiro, depois uma linha por visita PENDENTE, em ordem de data.
@@ -2555,7 +2555,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'exportar_roteiro'; title = 'Exportar roteiro do planejamento'; handler = 'Invoke-ExportarRoteiro'; annotations = $script:Gravacao
-        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o banco no esquema 1.1.'
+        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o esquema que o conector suporta (crm_status).'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             id_planejamento = [ordered]@{ type = 'integer' }
             codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
@@ -2700,7 +2700,7 @@ $script:Ferramentas = @(
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }
             ctx_resumo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
-            ctx_familia = [ordered]@{ type = @('string', 'null'); maxLength = 60 }
+            ctx_familia = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_arquivo = [ordered]@{ type = @('string', 'null'); maxLength = 255; description = 'Caminho relativo do CONTEXTO-GERAL.md' }
             autor = $script:PropAutor } }
     },

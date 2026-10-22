@@ -132,7 +132,7 @@ try {
     $r = Executar $mig3 @('-Banco', $copia3, '-CopiaDeTrabalho')
     $cn3 = Open-Banco $copia3
     try { $esq3 = Get-VersaoEsquemaBanco $cn3 } finally { $cn3.Close(); $cn3.Dispose() }
-    Conferir 'cópia de trabalho em execucao\ensaio chega ao esquema 1.1' ($r.codigo -eq 0 -and $esq3 -eq '1.1') ($r.saida + ' esquema=' + $esq3)
+    Conferir ('cópia de trabalho em execucao\ensaio chega ao esquema ' + $script:EsquemaAtual) ($r.codigo -eq 0 -and $esq3 -eq $script:EsquemaAtual) ($r.saida + ' esquema=' + $esq3)
     Conferir 'produção continua igual depois da migração na cópia (hash)' ((Get-HashArquivo $p3) -eq $h)
 
     $t3 = Join-Path $tmp 'teste-1-0.accdb'
@@ -140,7 +140,7 @@ try {
     $r = Executar $mig3 @('-Banco', $t3)
     $cn3 = Open-Banco $t3
     try { $esq3 = Get-VersaoEsquemaBanco $cn3 } finally { $cn3.Close(); $cn3.Dispose() }
-    Conferir 'banco TESTE 1.0 migra no lugar até o 1.1' ($r.codigo -eq 0 -and $esq3 -eq '1.1') ($r.saida + ' esquema=' + $esq3)
+    Conferir ('banco TESTE 1.0 migra no lugar até o ' + $script:EsquemaAtual) ($r.codigo -eq 0 -and $esq3 -eq $script:EsquemaAtual) ($r.saida + ' esquema=' + $esq3)
 
     Write-Host '--- F4: ensaio (montar-frontend -Ensaio, passos 1 a 8, sem Excel e sem trocar o banco)'
     # banco "como a rede": esquema 1.0, ambiente PRODUCAO, sem nenhum registro migracao.*, com os casos da 003
@@ -170,7 +170,7 @@ try {
             $nm = [int](Invoke-Escalar $cn4 "SELECT COUNT(*) FROM config WHERE chave IN ('migracao.001','migracao.002','migracao.003')" @() $null)
             $esq4 = Get-VersaoEsquemaBanco $cn4
         } finally { $cn4.Close(); $cn4.Dispose() }
-        Conferir 'ensaio: 001, 002 e 003 registradas NA CÓPIA e esquema 1.1' ($nm -eq 3 -and $esq4 -eq '1.1') ('migracoes=' + $nm + ' esquema=' + $esq4)
+        Conferir ('ensaio: 001, 002 e 003 registradas NA CÓPIA e esquema ' + $script:EsquemaAtual) ($nm -eq 3 -and $esq4 -eq $script:EsquemaAtual) ('migracoes=' + $nm + ' esquema=' + $esq4)
     }
     $rel4 = @(Get-ChildItem -LiteralPath $ensaio4 -Filter 'relatorio-*.txt' -ErrorAction SilentlyContinue)
     Conferir 'ensaio: relatório gerado' ($rel4.Count -eq 1)
@@ -224,7 +224,7 @@ try {
     $hBk8 = Get-HashArquivo $bk8
     $man8 = New-ManifestoBackup $bk8 $ref8 'diario'
     $mj = Get-Content -LiteralPath ($bk8 + '.manifesto.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    Conferir 'manifesto: instante, sha256, esquema e contagens' ($mj.sha256 -eq $hBk8 -and $mj.esquema -eq '1.1' -and $mj.contagens.clientes -ge 1 -and [string]$mj.instante_utc -ne '')
+    Conferir 'manifesto: instante, sha256, esquema e contagens' ($mj.sha256 -eq $hBk8 -and $mj.esquema -eq $script:EsquemaAtual -and $mj.contagens.clientes -ge 1 -and [string]$mj.instante_utc -ne '')
     Conferir 'o arquivo de backup não foi aberto nem alterado (hash)' ((Get-HashArquivo $bk8) -eq $hBk8)
     $val8 = Test-BackupRestauravel $bk8
     Conferir 'backup restaurável é aprovado' ($val8.ok -and $val8.problemas.Count -eq 0) ($val8.problemas -join '; ')
@@ -283,7 +283,7 @@ try {
     $res = ChamarMcp $v10 'crm_status' ([ordered]@{})
     $st = $res.content[0].text | ConvertFrom-Json
     Conferir 'banco 1.0: crm_status responde, com atualizacao_pendente=true e gravacao_liberada=false' (-not $res.isError -and $st.atualizacao_pendente -eq $true -and $st.gravacao_liberada -eq $false) ($res.content[0].text)
-    Conferir 'crm_status informa esquemas_suportados = 1.1' (@($st.esquemas_suportados) -join ',' -eq '1.1') (@($st.esquemas_suportados) -join ',')
+    Conferir ('crm_status informa esquemas_suportados = ' + $script:EsquemaAtual) (@($st.esquemas_suportados) -join ',' -eq $script:EsquemaAtual) (@($st.esquemas_suportados) -join ',')
     $versaoFonte = ([regex]::Match([IO.File]::ReadAllText((Join-Path $raizBase 'IA\mcp\servidor.ps1')), "(?m)^\`$script:VersaoServidor = '([^']+)'")).Groups[1].Value
     Conferir ('crm_status informa versao_servidor_mcp da fonte (' + $versaoFonte + ')') ($st.versao_servidor_mcp -eq $versaoFonte -and $versaoFonte -ne '') $st.versao_servidor_mcp
     $res = ChamarMcp $v10 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' })
@@ -293,7 +293,7 @@ try {
     Conferir 'banco 1.0: nada foi gravado (hash)' ((Get-HashArquivo $v10) -eq $hv)
     $res = ChamarMcp $ref8 'crm_status' ([ordered]@{})
     $st = $res.content[0].text | ConvertFrom-Json
-    Conferir 'banco 1.1: crm_status normal, sem atualização pendente e gravação liberada' ($st.atualizacao_pendente -eq $false -and $st.gravacao_liberada -eq $true -and $st.versao_esquema -eq '1.1') ($res.content[0].text)
+    Conferir 'banco no esquema atual: crm_status normal, sem atualização pendente e gravação liberada' ($st.atualizacao_pendente -eq $false -and $st.gravacao_liberada -eq $true -and $st.versao_esquema -eq $script:EsquemaAtual) ($res.content[0].text)
 
     Write-Host '--- 005: homologação declarada (config.homologacao) e pasta execucao\homologacao'
     $cnH = Open-BancoLeitura $teste
