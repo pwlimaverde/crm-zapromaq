@@ -1,3 +1,18 @@
+## Conector 1.8.0 — esquema 1.2 (ciclo 010)
+
+**Nota de mudança (DEV-16, DEV-17, DEV-06B, DEV-13) - exige o banco no esquema 1.2 (montagem 1.6 em diante).**
+- **QUEBRA DE CONTRATO avisada:** `atualizar_contexto_cliente` e `atualizar_contexto_atendimento` passam a
+  **exigir** `ctx_versao` (lida em `obter_cliente`/`obter_atendimento`, que agora a devolvem). Se outra sessão
+  gravou antes, volta "Conflito de contexto" com o contexto atual e nada é gravado. Edição comercial em paralelo
+  não gera conflito de contexto. `ctx_familia` aceita até 255 caracteres.
+- `atualizar_atendimento` aceita `codigo_atendimento_anterior` (null remove): mesma empresa, não aponta para si
+  e não fecha ciclo; o mesmo vale em `abrir_atendimento`.
+- `criar_cliente`, `criar_contato` e `abrir_atendimento` aceitam `id_operacao` (opcional): repetir a chamada com
+  o mesmo id e o mesmo conteúdo devolve `repetida = true` com o registro já criado, sem gravar nem gerar log; o
+  mesmo id com outro conteúdo é recusado. Guardado 60 dias.
+- O log grava `estacao`, `usuario_tecnico`, `versao_cliente` e, separado, o `autor` declarado (`autor_declarado`);
+  `usuario` continua como antes.
+
 ## Conector 1.7.0 — regras iguais nos três canais (ciclo 009)
 
 **Nota de mudança (DEV-10, DEV-11, DEV-15) - QUEBRA DE CONTRATO avisada:**

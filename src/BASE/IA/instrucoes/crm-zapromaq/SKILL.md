@@ -275,3 +275,8 @@ mensagem traz o contexto atual: junte o que for preciso e repita com a `ctx_vers
 
 Toda gravação entra no log de auditoria com origem **IA**. Informe ao usuário o
 que foi gravado (campos, valor anterior e novo, versão nova).
+
+Em `criar_cliente`, `criar_contato` e `abrir_atendimento`, gere um `id_operacao` novo (ex.: um GUID)
+para cada criação pedida. Se a resposta for "Resultado indeterminado" ou a conexão cair, repita a
+**mesma** chamada com o **mesmo** `id_operacao`: se já tinha gravado, volta `repetida = true` com o
+registro criado, sem duplicar. Nunca reaproveite o identificador para outra criação.
