@@ -461,10 +461,3 @@ End Function
 Private Function Texto(ByVal v As Variant) As String
     If IsNull(v) Then Texto = "(nulo)" Else Texto = CStr(v)
 End Function
-
-' Para o teste de uso: Application.Run nao devolve parametro ByRef (o [ref] do
-' PowerShell travou o Excel no ciclo 010), entao o codigo gerado fica aqui dentro.
-Public Function CriarClienteTeste(ByVal d As Object, ByVal comoCliente As Boolean) As Long
-    Dim codigo As Long
-    CriarClienteTeste = modCRM.CriarCliente(d, comoCliente, codigo)
-End Function
