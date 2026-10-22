@@ -267,7 +267,9 @@ O texto completo fica nos arquivos `CONTEXTO-GERAL.md` (pasta do cliente) e
 `CONTEXTO-ATENDIMENTO.md` (pasta do atendimento). No banco vai só o ponteiro:
 `atualizar_contexto_cliente` (`ctx_resumo` de uma linha, `ctx_familia`, `ctx_arquivo`)
 e `atualizar_contexto_atendimento`. Esses campos são só da IA e não conflitam com
-o vendedor: podem ser gravados sem ler a versão.
+o vendedor, mas duas sessões de IA podem gravar o mesmo contexto (ciclo 010): passe sempre a
+`ctx_versao` lida em `obter_cliente`/`obter_atendimento`. Se vier **"Conflito de contexto"**, a
+mensagem traz o contexto atual: junte o que for preciso e repita com a `ctx_versao` nova.
 
 ## Resultado das gravações
 

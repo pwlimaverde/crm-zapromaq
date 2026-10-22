@@ -573,8 +573,18 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'abrir_atendimento' ([ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'
                                                        codigo_atendimento_anterior = 'AT-0004-0005'; autor = 'teste' })
         Conferir 'anterior de outra empresa é recusado' ($res.isError -and $res.content[0].text -match 'outra empresa') $res.content[0].text
-        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_resumo = 'Cliente de teste; resumo gravado pelo MCP' })
-        Conferir 'atualizar_contexto_cliente' (-not $res.isError) $res.content[0].text
+        $cx = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 1 }))
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cx.ctx_versao; ctx_resumo = 'Cliente de teste; resumo gravado pelo MCP' })
+        Conferir 'atualizar_contexto_cliente com a ctx_versao lida' (-not $res.isError -and [int](Dados $res).ctx_versao -eq [int]$cx.ctx_versao + 1) $res.content[0].text
+        # DEV-17: a segunda sessão leu a mesma versão; a primeira gravou; a segunda recebe conflito com o conteúdo atual
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cx.ctx_versao; ctx_resumo = 'Outra sessão' })
+        Conferir 'DEV-17 segunda sessão com a ctx_versao antiga recebe conflito e o contexto atual' ($res.isError -and $res.content[0].text -match 'Conflito de contexto' -and $res.content[0].text -match 'RESUMO GRAVADO PELO MCP') $res.content[0].text
+        $res = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_resumo = 'Sem versão' })
+        Conferir 'DEV-17 contexto sem ctx_versao é recusado' ($res.isError -and $res.content[0].text -match 'ctx_versao') $res.content[0].text
+        $cli1 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 1 }))
+        $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 1; versao = [int]$cli1.versao; observacoes_acrescentar = 'edição comercial em paralelo'; autor = 'teste' })
+        $res2 = Chamar 'atualizar_contexto_cliente' ([ordered]@{ codigo_cliente = 1; ctx_versao = [int]$cli1.ctx_versao; ctx_familia = 'Família de teste' })
+        Conferir 'DEV-17 edição comercial em paralelo não gera conflito de contexto' ((-not $res.isError) -and (-not $res2.isError)) ($res.content[0].text + ' / ' + $res2.content[0].text)
         $cli = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
         $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cli.versao; telefone = '123' })
         Conferir 'telefone inválido é recusado' ($res.isError -and $res.content[0].text -match 'Telefone')

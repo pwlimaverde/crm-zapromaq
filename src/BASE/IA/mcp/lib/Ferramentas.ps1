@@ -1091,6 +1091,13 @@ function Invoke-AtualizarCadastroCliente($a) {
   vendedor, e a IA pode gravar com a ficha aberta na tela de alguém.
   O log é gravado igual, e é por ele que as estações percebem a mudança.
 #>
+function Get-MensagemConflitoContexto($atual, [int]$lida) {
+    $agora = [ordered]@{ ctx_versao = $atual.ctx_versao; ctx_resumo = $atual.ctx_resumo; ctx_arquivo = $atual.ctx_arquivo; ctx_atualizado_por = $atual.ctx_atualizado_por; ctx_atualizado_em = (ConvertFrom-ValorBanco $atual.ctx_atualizado_em) }
+    if ($atual.Contains('ctx_familia')) { $agora['ctx_familia'] = $atual.ctx_familia }
+    return ('Conflito de contexto: você leu a ctx_versao ' + $lida + ', mas o contexto já está na ' + $atual.ctx_versao +
+            ' (outra sessão gravou antes). Nada foi gravado. Contexto atual: ' + (ConvertTo-Json -InputObject $agora -Compress) + '. Releia, junte o que for preciso e repita com a ctx_versao atual.')
+}
+
 function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
     $mud = [ordered]@{}
     foreach ($campo in $campos) {
@@ -1100,13 +1107,18 @@ function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
         Assert-Tamanho $campo $v
         if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Novo = $v; Antigo = $atual[$campo] } }
     }
+    # DEV-17 (esquema 1.2): versão PRÓPRIA do contexto, independente da comercial. Quem leu uma versão e outra
+    # sessão gravou antes recebe conflito com o conteúdo atual (nada se sobrescreve sem aviso).
+    $lida = [int](Get-Arg $a 'ctx_versao')
+    $atualCtx = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+    if ($lida -ne $atualCtx) { throw (Get-MensagemConflitoContexto $atual $lida) }
     if ($mud.Count -eq 0) { return @() }
     $sets = @(); $params = @()
     foreach ($c in $mud.Keys) { $sets += ($c + '=?'); $params += (P 'texto' $mud[$c].Novo) }
-    $sql = 'UPDATE ' + $tabela + ' SET ' + ($sets -join ', ') + ', ctx_atualizado_em=?, ctx_atualizado_por=? WHERE id=?'
-    $params += (P 'data' (Get-Date)); $params += (P 'texto' $script:UsuarioLog); $params += (P 'inteiro' ([int]$atual.id))
+    $sql = 'UPDATE ' + $tabela + ' SET ' + ($sets -join ', ') + ', ctx_versao=ctx_versao+1, ctx_atualizado_em=?, ctx_atualizado_por=? WHERE id=? AND ctx_versao=?'
+    $params += (P 'data' (Get-Date)); $params += (P 'texto' $script:UsuarioLog); $params += (P 'inteiro' ([int]$atual.id)); $params += (P 'inteiro' $lida)
     $n = $ctx.Executar($sql, $params)
-    if ($n -ne 1) { throw ('UPDATE afetou ' + $n + ' linha(s); nada foi gravado.') }
+    if ($n -ne 1) { throw (Get-MensagemConflitoContexto $atual $lida) }
     foreach ($c in $mud.Keys) { $ctx.Log($tabela, [int]$atual.id, $c, $mud[$c].Antigo, $mud[$c].Novo, 'CONTEXTO') }
     return @($mud.Keys)
 }
@@ -1117,7 +1129,8 @@ function Invoke-AtualizarContextoCliente($a) {
         param($ctx)
         $atual = Get-ClienteNaTransacao $ctx $a
         $alt = Set-Contexto $ctx 'clientes' $atual $a @('ctx_resumo', 'ctx_familia', 'ctx_arquivo')
-        return [ordered]@{ id_cliente = $atual.id; empresa = $atual.empresa; gravado = ($alt.Count -gt 0); campos = @($alt) }
+        $v = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+        return [ordered]@{ id_cliente = $atual.id; empresa = $atual.empresa; gravado = ($alt.Count -gt 0); campos = @($alt); ctx_versao = $(if ($alt.Count -gt 0) { $v + 1 } else { $v }) }
     }
 }
 
@@ -1128,7 +1141,8 @@ function Invoke-AtualizarContextoAtendimento($a) {
         param($ctx)
         $atual = Get-AtendimentoNaTransacao $ctx $codigo
         $alt = Set-Contexto $ctx 'oportunidades' $atual $a @('ctx_resumo', 'ctx_arquivo')
-        return [ordered]@{ codigo = $codigo; gravado = ($alt.Count -gt 0); campos = @($alt) }
+        $v = [int]$(if ($null -eq $atual.ctx_versao) { 0 } else { $atual.ctx_versao })
+        return [ordered]@{ codigo = $codigo; gravado = ($alt.Count -gt 0); campos = @($alt); ctx_versao = $(if ($alt.Count -gt 0) { $v + 1 } else { $v }) }
     }
 }
 
@@ -2711,9 +2725,10 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'atualizar_contexto_cliente'; title = 'Atualizar contexto do cliente'; handler = 'Invoke-AtualizarContextoCliente'; annotations = $script:Gravacao
-        description = 'Grava o resumo de contexto da empresa (ctx_*): síntese de uma linha, família aderente e caminho do CONTEXTO-GERAL.md. Campos exclusivos da IA; não conflitam com o vendedor.'
-        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+        description = 'Grava o resumo de contexto da empresa (ctx_*): síntese de uma linha, família aderente e caminho do CONTEXTO-GERAL.md. Campos exclusivos da IA; não conflitam com o vendedor. Exige a ctx_versao lida em obter_cliente: se outra sessão gravou antes, volta conflito com o contexto atual.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('ctx_versao'); properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }
+            ctx_versao = [ordered]@{ type = 'integer'; minimum = 0; description = 'ctx_versao lida em obter_cliente (DEV-17)' }
             ctx_resumo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_familia = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_arquivo = [ordered]@{ type = @('string', 'null'); maxLength = 255; description = 'Caminho relativo do CONTEXTO-GERAL.md' }
@@ -2721,8 +2736,9 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'atualizar_contexto_atendimento'; title = 'Atualizar contexto do atendimento'; handler = 'Invoke-AtualizarContextoAtendimento'; annotations = $script:Gravacao
-        description = 'Grava o resumo de contexto de um atendimento (ctx_resumo e caminho do CONTEXTO-ATENDIMENTO.md). Campos exclusivos da IA.'
-        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo'); properties = [ordered]@{
+        description = 'Grava o resumo de contexto de um atendimento (ctx_resumo e caminho do CONTEXTO-ATENDIMENTO.md). Campos exclusivos da IA. Exige a ctx_versao lida em obter_atendimento: se outra sessão gravou antes, volta conflito com o contexto atual.'
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo', 'ctx_versao'); properties = [ordered]@{
+            ctx_versao = [ordered]@{ type = 'integer'; minimum = 0; description = 'ctx_versao lida em obter_atendimento (DEV-17)' }
             codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             ctx_resumo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
             ctx_arquivo = [ordered]@{ type = @('string', 'null'); maxLength = 255 }
