@@ -990,6 +990,20 @@ function Invoke-AtualizarAtendimento($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        # DEV-16: troca do atendimento anterior (null remove): mesma empresa, não o próprio, sem ciclo (C33)
+        if (Test-TemArg $a 'codigo_atendimento_anterior') {
+            $idAntNovo = $null
+            if ($null -ne $a.codigo_atendimento_anterior) {
+                $ant = Get-AtendimentoNaTransacao $ctx ([string]$a.codigo_atendimento_anterior)
+                if ([int]$ant.id -eq [int]$atual.id) { throw 'O atendimento anterior não pode ser o próprio atendimento.' }
+                if ([int]$ant.id_cliente -ne [int]$atual.id_cliente) { throw ('O atendimento ' + $ant.codigo + ' é de outra empresa. O atendimento anterior tem de ser da mesma empresa.') }
+                $mapa = @{}
+                foreach ($o in $ctx.Consultar('SELECT id, id_atendimento_anterior FROM oportunidades WHERE id_cliente=?', @((P 'inteiro' ([int]$atual.id_cliente))))) { $mapa[[int]$o.id] = [int]$(if ($null -eq $o.id_atendimento_anterior) { 0 } else { $o.id_atendimento_anterior }) }
+                if (Test-AnteriorFormaCiclo ([int]$atual.id) ([int]$ant.id) $mapa) { throw ('O atendimento ' + $ant.codigo + ' já vem deste atendimento: a corrente de anteriores fecharia um ciclo (C33).') }
+                $idAntNovo = [int]$ant.id
+            }
+            if (-not (Test-Igual $atual.id_atendimento_anterior $idAntNovo)) { $mud['id_atendimento_anterior'] = @{ Tipo = 'inteiro'; Novo = $idAntNovo; Antigo = $atual.id_atendimento_anterior } }
+        }
         # DEV-10: transições de etapa e retomada (seção 5.2), as mesmas do front (modRegras)
         $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
         $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
@@ -2675,6 +2689,7 @@ $script:Ferramentas = @(
             dt_prox_acao = $script:PropData; retomar_em = $script:PropData; ultima_interacao = $script:PropData
             dt_proposta = $script:PropData; dt_desfecho = $script:PropData; dt_entrada = $script:PropData
             codigo_contato = [ordered]@{ type = 'string'; pattern = '^[Cc][Tt]-\d{4}-\d{4}$'; description = 'Troca o contato (só da mesma empresa)' }
+            codigo_atendimento_anterior = [ordered]@{ type = @('string', 'null'); pattern = '^AT-\d{4}-\d{4}$'; description = 'Atendimento de origem (retomada ou duplicação), da mesma empresa; null remove. Não pode fechar ciclo.' }
             observacoes_acrescentar = [ordered]@{ type = 'string'; description = 'Acrescenta uma linha datada às observações (nunca apaga o que existe)' }
             autor = $script:PropAutor } }
     },

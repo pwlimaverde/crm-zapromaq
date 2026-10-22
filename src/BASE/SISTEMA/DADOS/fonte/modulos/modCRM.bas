@@ -415,15 +415,46 @@ Private Function CriticarVinculoEm(ByVal cn As Object, ByVal tabela As String, B
                     "empresa, desative este contato e cadastre um novo na empresa nova."
             End If
         Case "oportunidades"
-            If Not d.Exists("id_contato") Then Exit Function
-            novo = d("id_contato")
-            r = modDB.ConsultarEm(cn, "SELECT id_contato, id_cliente FROM oportunidades WHERE id=?", _
+            r = modDB.ConsultarEm(cn, "SELECT id_contato, id_cliente, id_atendimento_anterior FROM oportunidades WHERE id=?", _
                                   Array(modDB.P(modDB.adInteger, idRegistro)))
             If IsEmpty(r) Then Exit Function
             ' só se confere o contato que MUDOU: o legado inativo não trava a edição de outro campo
-            If CLng(modDB.Nz(novo, "0")) = CLng(modDB.Nz(r(1, 1), "0")) Then Exit Function
-            CriticarVinculoEm = CriticarContatoEm(cn, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+            If d.Exists("id_contato") Then
+                novo = d("id_contato")
+                If CLng(modDB.Nz(novo, "0")) <> CLng(modDB.Nz(r(1, 1), "0")) Then
+                    CriticarVinculoEm = CriticarContatoEm(cn, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+                    If CriticarVinculoEm <> "" Then Exit Function
+                End If
+            End If
+            ' DEV-16: anterior que MUDOU, conferido aqui (mesma empresa, não o próprio, sem ciclo - C33)
+            If d.Exists("id_atendimento_anterior") Then
+                novo = d("id_atendimento_anterior")
+                If CLng(modDB.Nz(novo, "0")) <> CLng(modDB.Nz(r(1, 3), "0")) Then
+                    CriticarVinculoEm = CriticarAnteriorEm(cn, idRegistro, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+                End If
+            End If
     End Select
+End Function
+
+' Anterior na transação: existe, mesma empresa, não é o próprio e não fecha ciclo.
+Private Function CriticarAnteriorEm(ByVal cn As Object, ByVal idProprio As Long, ByVal idAnterior As Long, _
+                                    ByVal idCliente As Long) As String
+    Dim m As Variant, i As Long, ids() As Long, ants() As Long, cliAnt As Long
+    If idAnterior = 0 Then Exit Function
+    cliAnt = CLng(modDB.ConsultarValorEm(cn, "SELECT id_cliente FROM oportunidades WHERE id=?", 0, _
+                                         Array(modDB.P(modDB.adInteger, idAnterior))))
+    CriticarAnteriorEm = CriticarAnterior(idProprio, idAnterior, idCliente, cliAnt)
+    If CriticarAnteriorEm <> "" Then Exit Function
+    m = modDB.ConsultarEm(cn, "SELECT id, id_atendimento_anterior FROM oportunidades WHERE id_cliente=?", _
+                          Array(modDB.P(modDB.adInteger, idCliente)))
+    If IsEmpty(m) Then Exit Function
+    ReDim ids(1 To UBound(m, 1)): ReDim ants(1 To UBound(m, 1))
+    For i = 1 To UBound(m, 1)
+        ids(i) = CLng(modDB.Nz(m(i, 1), "0")): ants(i) = CLng(modDB.Nz(m(i, 2), "0"))
+    Next i
+    If modRegras.FormaCiclo(idProprio, idAnterior, ids, ants) Then
+        CriticarAnteriorEm = "O atendimento anterior escolhido já vem DESTE atendimento (a corrente de anteriores fecharia um ciclo). Escolha outro ou remova o vínculo."
+    End If
 End Function
 
 Private Function CriticarContatoEm(ByVal cn As Object, ByVal idContato As Long, ByVal idCliente As Long) As String

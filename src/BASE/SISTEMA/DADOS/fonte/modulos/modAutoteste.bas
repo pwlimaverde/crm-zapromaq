@@ -154,6 +154,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "MesmoValor texto diferente", modRegras.MesmoValor("A", "a"), False
     Confere "MesmoValor data", modRegras.MesmoValor(DateSerial(2026, 1, 2), DateSerial(2026, 1, 2)), True
 
+    ' ---- DEV-16: anterior sem ciclo (mesmo caso C33 do conector)
+    Confere "C33 anterior que fecha ciclo e recusado", modRegras.FormaCiclo(10, 20, Array(10, 20), Array(0, 10)), True
+    Confere "C33 corrente sem ciclo passa", modRegras.FormaCiclo(10, 20, Array(20, 30), Array(30, 0)), False
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"

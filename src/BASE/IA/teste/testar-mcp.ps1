@@ -168,6 +168,10 @@ Conferir 'C30 CNPJ com DV errado é recusado' (-not (Test-CnpjValido '1122233300
 Conferir 'C31 nota fracionária é recusada' (Recusa { ConvertTo-Inteiro 'aderencia' 1.5 })
 Conferir 'C31 UF fora da lista é recusada' (-not (Test-UFValida 'XX'))
 
+Write-Host '--- DEV-16: atendimento anterior sem ciclo (mesmo caso C33 do front)'
+Conferir 'C33 anterior que fecha ciclo é recusado (A -> B -> A)' (Test-AnteriorFormaCiclo 10 20 @{ 20 = 10; 10 = 0 })
+Conferir 'C33 corrente sem ciclo passa' (-not (Test-AnteriorFormaCiclo 10 20 @{ 20 = 30; 30 = 0 }))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
@@ -614,6 +618,20 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'DEV-15 reativar a empresa não reativa os contatos' ($r15.gravado -and [int]$r15.contatos_reativados -eq 0 -and [int]$r15.contatos_inativos -ge 1 -and $ct15.ativo -eq $false) ($r15 | ConvertTo-Json -Compress)
         $res = Chamar 'atualizar_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002'; versao = [int]$ct15.versao; ativo = $true; autor = 'teste' })
         Conferir 'o contato volta um a um (atualizar_contato ativo=true)' (-not $res.isError) $res.content[0].text
+
+        Write-Host '--- DEV-16: anterior pelo atualizar_atendimento (mesma empresa, sem ciclo)'
+        $todos16 = Linhas-Visita 'SELECT codigo, id_cliente FROM oportunidades ORDER BY id'
+        $grupo16 = $todos16 | Group-Object { [int]$_.id_cliente } | Where-Object { $_.Count -ge 2 } | Select-Object -First 1
+        $par16 = @($grupo16.Group | Select-Object -First 2 | ForEach-Object { [string]$_.codigo })
+        $aA = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[0] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[0]; versao = [int]$aA.versao; codigo_atendimento_anterior = $par16[1]; autor = 'teste' })
+        Conferir 'atualizar_atendimento grava o anterior da mesma empresa' (-not $res.isError) $res.content[0].text
+        $aB = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[1] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[1]; versao = [int]$aB.versao; codigo_atendimento_anterior = $par16[0]; autor = 'teste' })
+        Conferir 'C33 anterior que fecharia ciclo é recusado no conector' ($res.isError -and $res.content[0].text -match 'ciclo') $res.content[0].text
+        $aA = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[0] }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[0]; versao = [int]$aA.versao; codigo_atendimento_anterior = $null; autor = 'teste' })
+        Conferir 'anterior removido com null' (-not $res.isError) $res.content[0].text
 
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
