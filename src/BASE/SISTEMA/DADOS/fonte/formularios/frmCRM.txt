@@ -65,6 +65,8 @@ Private mRestaurando As Boolean    ' devolvendo a selecao da lista, sem reexibir
 Private mUltimoIndice As Long      ' linha da lista do registro exibido
 Private mSalvando As Boolean       ' DEV-13: gravação em andamento (sem reentrada)
 Private mLidos As Object           ' valores lidos do banco ao entrar em edição (transição de etapa, conflito)
+Private mIdOperacao As String      ' DEV-13: identificador da criação em curso
+Private mHashOperacao As String    ' conteúdo da última tentativa: mudou a digitação, muda o identificador
 
 '==========================================================
 Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long = 0, _
@@ -1265,6 +1267,15 @@ Private Sub Salvar()
     Me.MousePointer = fmMousePointerHourGlass
 
     If mNovo Then
+        ' DEV-13: o reenvio do MESMO registro novo (depois de um resultado indeterminado) usa o mesmo
+        ' identificador e não cria outro; digitação diferente é operação nova
+        Dim hashAgora As String
+        hashAgora = modDB.HashTexto(mTabela & "|" & VinculoDe(CampoPrincipal()) & "|" & modDB.TextoDoDicionario(d))
+        If mIdOperacao = "" Or hashAgora <> mHashOperacao Then
+            mIdOperacao = modDB.NovoIdOperacao("FRONT")
+            mHashOperacao = hashAgora
+        End If
+        modCRM.gIdOperacao = mIdOperacao: modCRM.gHashOperacao = mHashOperacao
         Select Case mTabela
             Case "clientes"
                 Dim codNovo As Long
@@ -1275,8 +1286,10 @@ Private Sub Salvar()
             Case "oportunidades"
                 novoId = modCRM.AbrirAtendimento(VinculoDe("id_contato"), d, codigo)
         End Select
+        modCRM.gIdOperacao = "": modCRM.gHashOperacao = ""
         Me.MousePointer = fmMousePointerDefault
         If novoId = 0 Then Exit Sub
+        mIdOperacao = "": mHashOperacao = ""
         mID = novoId: mNovo = False
         If mUsarConjunto Then AcrescentarAoConjunto mID
         modConfig.gGravados = modConfig.gGravados & mID & ","
@@ -1322,6 +1335,7 @@ trata:
     ' (indeterminado) ou depois de confirmado (só a tela não foi atualizada)
     Dim nErrS As Long, sErrS As String, sOrigS As String, estadoS As String
     nErrS = Err.Number: sErrS = Err.Description: sOrigS = Err.Source
+    modCRM.gIdOperacao = "": modCRM.gHashOperacao = ""
     estadoS = modDB.EstadoGravacao()
     Me.MousePointer = fmMousePointerDefault
     modDiag.Registrar "frmCRM", IIf(mNovo, "salvar novo", "salvar"), mTabela & ":" & mID, nErrS, sErrS, estadoS

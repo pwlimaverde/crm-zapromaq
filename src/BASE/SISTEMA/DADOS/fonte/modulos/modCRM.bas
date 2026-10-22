@@ -20,6 +20,12 @@ Attribute VB_Name = "modCRM"
 '==========================================================
 Option Explicit
 
+' DEV-13 (esquema 1.2): identificador e conteúdo da criação em curso, dados
+' pela tela (ficha ou lote) antes de chamar CriarCliente/CriarContato/
+' AbrirAtendimento. Vazio = sem identificador (comportamento antigo).
+Public gIdOperacao As String
+Public gHashOperacao As String
+
 Private Const TENTATIVAS As Long = 5
 
 ' Listas suspensas (etapa, responsavel, origem...) mudam raramente e
@@ -609,6 +615,14 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
     Dim cn As Object, extras As Object
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ' DEV-13: reenvio da mesma criação devolve a empresa já cadastrada
+    Dim idAnteriorOp As Long, codAnteriorOp As String
+    If modDB.OperacaoAnteriorEm(cn, gIdOperacao, "clientes", gHashOperacao, idAnteriorOp, codAnteriorOp) Then
+        modDB.Desfazer cn
+        If IsNumeric(codAnteriorOp) Then codigoGerado = CLng(codAnteriorOp) Else codigoGerado = 0
+        TentarCriarCliente = idAnteriorOp
+        Exit Function
+    End If
     Set extras = CreateObject("Scripting.Dictionary")
     If comoCliente Then
         codigoGerado = ProximoNumeroEm(cn, "clientes", "codigo_cliente")
@@ -619,6 +633,7 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
         extras("estagio") = "Pré-cliente"
     End If
     TentarCriarCliente = InserirEm(cn, "clientes", d, extras, detalhe)
+    modDB.RegistrarOperacaoEm cn, gIdOperacao, "clientes", TentarCriarCliente, IIf(codigoGerado > 0, CStr(codigoGerado), ""), gHashOperacao
     modDB.Confirmar cn
     Exit Function
 falha:
@@ -633,6 +648,12 @@ falha:
     End If
     Err.Raise nErr, "modCRM.CriarCliente", sErr
 End Function
+
+' DEV-13: dá (ou limpa, com "") o identificador da próxima criação. Para a
+' automação de teste (Application.Run não alcança variável de módulo).
+Public Sub DefinirOperacao(ByVal idOperacao As String, ByVal hash As String)
+    gIdOperacao = idOperacao: gHashOperacao = hash
+End Sub
 
 ' DEV-10: contato com o mesmo nome na mesma empresa gera aviso e pede
 ' confirmação, sem bloquear ("" = nenhum homônimo).
@@ -680,6 +701,14 @@ Private Function TentarCriar(ByVal tabela As String, ByVal idCliente As Long, By
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ' DEV-13: a mesma criação já foi aplicada (reenvio): devolve o registro dela, sem gravar
+    Dim idAnteriorOp As Long, codAnteriorOp As String
+    If modDB.OperacaoAnteriorEm(cn, gIdOperacao, tabela, gHashOperacao, idAnteriorOp, codAnteriorOp) Then
+        modDB.Desfazer cn
+        codigoGerado = codAnteriorOp
+        TentarCriar = idAnteriorOp
+        Exit Function
+    End If
     codCliente = modDB.ConsultarValorEm(cn, "SELECT codigo_cliente FROM clientes WHERE id=?", Null, _
                                         Array(modDB.P(modDB.adInteger, idCliente)))
     If IsNull(codCliente) Then
@@ -711,6 +740,7 @@ Private Function TentarCriar(ByVal tabela As String, ByVal idCliente As Long, By
     extras("codigo") = codigoGerado
 
     TentarCriar = InserirEm(cn, tabela, d, extras, "cadastro novo pelo formulário")
+    modDB.RegistrarOperacaoEm cn, gIdOperacao, tabela, TentarCriar, codigoGerado, gHashOperacao
     modDB.Confirmar cn
     Exit Function
 falha:
