@@ -631,6 +631,21 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'atualizar_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002'; versao = [int]$ct15.versao; ativo = $true; autor = 'teste' })
         Conferir 'o contato volta um a um (atualizar_contato ativo=true)' (-not $res.isError) $res.content[0].text
 
+        Write-Host '--- DEV-13: identificador de operação (reenvio não duplica)'
+        $maxLog13 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+        $nOp13 = [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @())
+        $arg13 = [ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'; id_operacao = 'TESTE-OP-0001-ABCDEF'; autor = 'teste' }
+        $r1 = Dados (Chamar 'abrir_atendimento' $arg13)
+        $r2 = Dados (Chamar 'abrir_atendimento' $arg13)
+        Conferir 'DEV-13 reenvio com o mesmo id_operacao devolve o mesmo atendimento sem criar outro' ($r1.gravado -and $r2.repetida -and $r2.codigo -eq $r1.codigo -and [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @()) -eq $nOp13 + 1) (($r1 | ConvertTo-Json -Compress) + ' / ' + ($r2 | ConvertTo-Json -Compress))
+        Conferir 'DEV-13 o reenvio não gera log novo' ([int](Invoke-Valor 'SELECT COUNT(*) FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog13))) -eq 1)
+        $arg13.etapa = 'Negociação'; $arg13.familia = 'X'
+        $res = Chamar 'abrir_atendimento' $arg13
+        Conferir 'DEV-13 mesmo id_operacao com outro conteúdo é recusado' ($res.isError -and $res.content[0].text -match 'outro conteúdo') $res.content[0].text
+        Executa-Visita 'DELETE FROM operacoes WHERE id_operacao=?' @((P 'texto' 'TESTE-OP-0001-ABCDEF'))
+        Executa-Visita 'DELETE FROM oportunidades WHERE codigo=?' @((P 'texto' ([string]$r1.codigo)))
+        Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog13))
+
         Write-Host '--- DEV-16: anterior pelo atualizar_atendimento (mesma empresa, sem ciclo)'
         $todos16 = Linhas-Visita 'SELECT codigo, id_cliente FROM oportunidades ORDER BY id'
         $grupo16 = $todos16 | Group-Object { [int]$_.id_cliente } | Where-Object { $_.Count -ge 2 } | Select-Object -First 1

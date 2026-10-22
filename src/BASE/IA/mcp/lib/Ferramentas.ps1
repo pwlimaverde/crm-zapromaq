@@ -63,6 +63,38 @@ function Add-Observacao($atual, [string]$texto) {
     return ([string]$atual).TrimEnd() + "`r`n" + $linha
 }
 
+# DEV-13 (esquema 1.2): identificador de operação. A mesma criação repetida com o MESMO id_operacao e o mesmo
+# conteúdo devolve o resultado da primeira (sem gravar de novo nem gerar log); o mesmo id com outro conteúdo é
+# recusado. Gravado na tabela operacoes na MESMA transação do dado. Guardado 60 dias.
+$script:DiasOperacao = 60
+function Get-HashOperacao($a) {
+    $partes = @(); foreach ($p in ($a.PSObject.Properties | Where-Object { $_.Name -notin @('id_operacao', 'autor') } | Sort-Object Name)) { $partes += ($p.Name + '=' + (ConvertTo-Json -InputObject $p.Value -Compress -Depth 5)) }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($partes -join "`n")))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+}
+function Get-OperacaoAnterior($ctx, $a, [string]$tabela) {
+    if (-not (Test-TemArg $a 'id_operacao')) { return $null }
+    $l = $ctx.Consultar('SELECT tabela, id_registro, codigo, versao, hash_conteudo FROM operacoes WHERE id_operacao=?', @((P 'texto' ([string]$a.id_operacao))))
+    if ($l.Count -eq 0) { return $null }
+    if ([string]$l[0].hash_conteudo -ne (Get-HashOperacao $a) -or [string]$l[0].tabela -ne $tabela) {
+        throw ('O id_operacao ' + $a.id_operacao + ' já foi usado com outro conteúdo. Nada foi gravado: use um identificador novo para uma operação nova.')
+    }
+    $r = [ordered]@{ gravado = $false; repetida = $true; id_operacao = [string]$a.id_operacao; id = [int]$l[0].id_registro; codigo = $l[0].codigo; versao = $l[0].versao
+                     mensagem = 'Operação já aplicada antes com este id_operacao: nada foi gravado de novo (resultado da primeira).' }
+    switch ($tabela) {
+        'contatos' { $r['id_contato'] = $r.id; $r['codigo_contato'] = $r.codigo }
+        'clientes' { $r['id_cliente'] = $r.id; $r['codigo_cliente'] = $r.codigo }
+    }
+    return $r
+}
+function Save-Operacao($ctx, $a, [string]$tabela, [int]$id, $codigo, [int]$versao) {
+    if (-not (Test-TemArg $a 'id_operacao')) { return }
+    [void]$ctx.Executar('DELETE FROM operacoes WHERE criado_em < ?', @((P 'data' ((Get-Date).AddDays(-$script:DiasOperacao)))))
+    [void]$ctx.Executar('INSERT INTO operacoes (id_operacao, tabela, id_registro, codigo, versao, hash_conteudo, criado_em, origem, estacao) VALUES (?,?,?,?,?,?,?,?,?)',
+        @((P 'texto' ([string]$a.id_operacao)), (P 'texto' $tabela), (P 'inteiro' $id), (P 'texto' ([string]$codigo)), (P 'inteiro' $versao),
+          (P 'texto' (Get-HashOperacao $a)), (P 'data' (Get-Date)), (P 'texto' 'IA'), (P 'texto' ([Environment]::MachineName))))
+}
+
 # Seção 5.1: e-mails além do primeiro, recebidos em "email", vão para as observações (na mesma gravação).
 function Add-EmailsNasObservacoes($a, $atual, $mud) {
     if (-not (Test-TemArg $a 'email')) { return }
@@ -1238,6 +1270,8 @@ function Invoke-CriarContato($a) {
         try {
             return Invoke-Transacao {
                 param($ctx)
+                $repetida = Get-OperacaoAnterior $ctx $a 'contatos'
+                if ($repetida) { return $repetida }
                 $cli = Get-ClienteNaTransacao $ctx $a
                 if (-not [bool]$cli.ativo) { throw ('A empresa ' + $cli.empresa + ' está inativa. Reative-a antes de cadastrar contato.') }
                 $codCli = $cli.codigo_cliente
@@ -1267,6 +1301,7 @@ function Invoke-CriarContato($a) {
                       (P 'data' $agora), (P 'data' $agora), (P 'texto' $script:UsuarioLog))) | Out-Null
                 $id = [int]$ctx.Valor('SELECT id FROM contatos WHERE codigo=?', @((P 'texto' $codigo)))
                 $ctx.Log('contatos', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+                Save-Operacao $ctx $a 'contatos' $id $codigo 1
                 return [ordered]@{
                     gravado = $true; id_contato = $id; codigo_contato = $codigo; versao = 1
                     empresa = $cli.empresa; codigo_cliente = Format-CodigoCliente $codCli; empresa_promovida = $promovida
@@ -1424,6 +1459,8 @@ function Invoke-CriarCliente($a) {
     $comoCliente = [bool](Get-Arg $a 'como_cliente' $false)
     return Invoke-ComRetentativa {
         param($ctx)
+        $repetida = Get-OperacaoAnterior $ctx $a 'clientes'
+        if ($repetida) { return $repetida }
         $campos = @('empresa', 'cnpj', 'cidade', 'uf', 'segmento', 'telefone', 'email', 'responsavel', 'aderencia', 'porte', 'qualificacao')
         $tipos = @{ aderencia = 'inteiro'; porte = 'inteiro' }
         $d = [ordered]@{}
@@ -1451,6 +1488,7 @@ function Invoke-CriarCliente($a) {
         [void]$ctx.Executar($sql, $par)
         $id = [int]$ctx.Valor('SELECT @@IDENTITY', @())
         $ctx.Log('clientes', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+        Save-Operacao $ctx $a 'clientes' $id (Format-CodigoCliente $cod) 1
         return [ordered]@{ gravado = $true; id_cliente = $id; codigo_cliente = Format-CodigoCliente $cod; estagio = $estagio; versao = 1; empresa = $d['empresa'] }
     }
 }
@@ -1528,6 +1566,8 @@ function Invoke-AbrirAtendimento($a) {
     $promover = [bool](Get-Arg $a 'promover_pre_cliente' $false)
     return Invoke-ComRetentativa {
         param($ctx)
+        $repetida = Get-OperacaoAnterior $ctx $a 'oportunidades'
+        if ($repetida) { return $repetida }
         $ct = Get-ContatoNaTransacao $ctx $a
         if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo. Reative-o antes de abrir atendimento.') }
         $cli = $ctx.Consultar('SELECT * FROM clientes WHERE id=?', @((P 'inteiro' ([int]$ct.id_cliente))))[0]
@@ -1572,6 +1612,7 @@ function Invoke-AbrirAtendimento($a) {
                             (($cols | ForEach-Object { '?' }) -join ',') + ',1,?,?,?)'), $par)
         $id = [int]$ctx.Valor('SELECT id FROM oportunidades WHERE codigo=?', @((P 'texto' $codigo)))
         $ctx.Log('oportunidades', $id, '', '', 'cadastro novo pela IA', 'INSERIR')
+        Save-Operacao $ctx $a 'oportunidades' $id $codigo 1
         return [ordered]@{ gravado = $true; codigo = $codigo; id = $id; versao = 1; empresa = $cli.empresa; contato = $ct.nome
                            empresa_promovida = $promovida; situacao = (Get-Situacao $true ([string]$novo.etapa) $novo.dt_prox_acao $novo.retomar_em)
                            avisos = @($avisos) }
@@ -2293,6 +2334,7 @@ $script:SoLeitura = [ordered]@{ readOnlyHint = $true; destructiveHint = $false; 
 $script:Gravacao  = [ordered]@{ readOnlyHint = $false; destructiveHint = $true; idempotentHint = $false; openWorldHint = $false }
 
 $script:PropAutor = [ordered]@{ type = 'string'; maxLength = 40; description = 'Quem pediu a alteração (ex.: "Paulo"). Vai para o log junto com "IA".' }
+$script:PropIdOperacao = [ordered]@{ type = 'string'; pattern = '^[A-Za-z0-9:_.|-]{8,120}$'; description = 'Identificador único desta operação (ex.: um GUID gerado por você). Repetir a chamada com o mesmo id e o mesmo conteúdo devolve o resultado da primeira, sem criar outro registro (reenvio seguro depois de resultado indeterminado).' }
 $script:PropData  = [ordered]@{ type = @('string', 'null'); pattern = '^\d{4}-\d{2}-\d{2}$'; description = 'Data AAAA-MM-DD; null limpa o campo.' }
 
 $script:Ferramentas = @(
@@ -2308,6 +2350,7 @@ $script:Ferramentas = @(
             responsavel = [ordered]@{ type = @('string', 'null') }; qualificacao = [ordered]@{ type = @('string', 'null'); maxLength = 40 }
             aderencia = [ordered]@{ type = @('integer', 'null'); minimum = 1; maximum = 3 }; porte = [ordered]@{ type = @('integer', 'null'); minimum = 1; maximum = 3 }
             observacoes = [ordered]@{ type = 'string' }; ignorar_homonimo = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -2343,6 +2386,7 @@ $script:Ferramentas = @(
             dt_proposta = $script:PropData; dt_desfecho = $script:PropData
             codigo_atendimento_anterior = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$' }
             observacoes = [ordered]@{ type = 'string' }; promover_pre_cliente = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
@@ -2400,6 +2444,7 @@ $script:Ferramentas = @(
             telefone = [ordered]@{ type = @('string', 'null') }; email = [ordered]@{ type = @('string', 'null'); maxLength = 120 }
             observacoes = [ordered]@{ type = 'string'; description = 'Primeira linha datada das observações' }
             promover_pre_cliente = [ordered]@{ type = 'boolean'; default = $false }
+            id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },
     [ordered]@{
