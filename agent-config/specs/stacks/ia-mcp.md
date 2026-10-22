@@ -105,3 +105,5 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
 - O aviso de backup por janela é cópia fiel de `SISTEMA\DADOS\lib\Backup.ps1` (o `verificar.py` compara).
 - Ciclo 008: `ConvertTo-Moeda`/`ConvertTo-Inteiro` (Regras.ps1) em vez de `[decimal]`/`[int]`; `Invoke-Transacao` repete
   a transação inteira só em bloqueio (`Test-ErroTransitorio`), antes do commit; falha no commit vira "resultado indeterminado".
+- Ciclo 009 (1.7.0): `ConvertTo-Normalizado` da seção 5.1 (atenção: função que devolve lista precisa de `@()` no chamador);
+  `Get-TransicaoEtapa`, `Test-RetomadaPermitida`, `Test-ContatoDoAtendimento`; `atualizar_contato` sem transferência.

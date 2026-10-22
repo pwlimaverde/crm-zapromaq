@@ -28,6 +28,26 @@ Attribute VB_Name = "modAcoes"
 '==========================================================
 Option Explicit
 
+' DEV-15: versão lida pela ficha para a ação em curso (0 = sem conferência, chamada antiga)
+Private mVersaoLida As Long
+Public Const ERRO_CONFLITO_ACAO As Long = vbObjectError + 7002
+
+'----------------------------------------------------------
+' DEV-15: o registro principal da ação ainda está na versão lida? Dentro da
+' transação: com outra versão, nada muda (nem os dependentes).
+'----------------------------------------------------------
+Private Sub ConferirVersaoEm(ByVal cn As Object, ByVal tabela As String, ByVal idRegistro As Long)
+    Dim v As Variant
+    If mVersaoLida = 0 Then Exit Sub
+    v = modDB.ConsultarValorEm(cn, "SELECT versao FROM " & tabela & " WHERE id=?", Null, _
+                               Array(modDB.P(modDB.adInteger, idRegistro)))
+    If IsNull(v) Then Err.Raise ERRO_CONFLITO_ACAO, "modAcoes", "O registro não existe mais. Atualize a lista. Nada foi alterado."
+    If CLng(v) <> mVersaoLida Then
+        Err.Raise ERRO_CONFLITO_ACAO, "modAcoes", "O registro foi alterado por outra pessoa depois que você abriu a ficha " & _
+                  "(versão " & mVersaoLida & ", agora " & CLng(v) & "). Nada foi alterado: confira a versão atual antes de repetir."
+    End If
+End Sub
+
 '----------------------------------------------------------
 ' O QUE A FICHA PERGUNTA ANTES DE MOSTRAR O BOTAO
 '   pre-cliente ....... Excluir   (nao tem dependente)
@@ -47,13 +67,16 @@ End Function
 ' Executa o que o rotulo promete. Devolve True se mexeu no
 ' banco - a ficha recarrega a lista so nesse caso.
 '----------------------------------------------------------
+' versaoLida (DEV-15): a versão que a ficha mostra. Se o registro mudou
+' depois disso, a ação é recusada sem mexer nele nem nos dependentes.
 Public Function AcaoStatus(ByVal tabela As String, ByVal idRegistro As Long, _
-                           ByVal ativo As Boolean) As Boolean
+                           ByVal ativo As Boolean, Optional ByVal versaoLida As Long = 0) As Boolean
     If idRegistro = 0 Then Exit Function
     If tabela = "oportunidades" Then Exit Function
     If Not modMenu.Pronto() Then Exit Function
 
     On Error GoTo erro
+    mVersaoLida = versaoLida
     If tabela = "clientes" Then
         If EhPreCliente(idRegistro) Then
             AcaoStatus = ExcluirPreCliente(idRegistro)
@@ -87,6 +110,7 @@ Private Function AlternarSimples(ByVal tabela As String, ByVal idRegistro As Lon
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ConferirVersaoEm cn, tabela, idRegistro
     If MudarAtivo(cn, tabela, "id=?", idRegistro, Not ativo, IIf(ativo, "DESATIVACAO", "REATIVACAO"), "") = 0 Then
         modDB.Desfazer cn
         MsgBox "O registro já estava " & IIf(ativo, "inativo", "ativo") & ". Atualize a lista.", vbInformation, "CRM Zapromaq"
@@ -103,23 +127,24 @@ falha:
 End Function
 
 '----------------------------------------------------------
-' Reativar cliente traz junto os contatos que estao inativos.
-' Sem isso o cliente volta sem ninguem para ligar, e a falta
-' so aparece na hora de lancar atendimento.
+' Reativar a empresa reativa SÓ a empresa (seção 5.2, DEV-15): o
+' contato que saiu da empresa não volta sozinho; quem precisar
+' reativa um a um, na ficha do contato.
 '----------------------------------------------------------
 Public Function ReativarCliente(ByVal idCliente As Long) As Boolean
     Dim nCt As Long, cn As Object
 
     nCt = Contar("SELECT COUNT(*) FROM contatos WHERE id_cliente=? AND ativo=False", idCliente)
     If MsgBox("Reativar este cliente?" & vbCrLf & vbCrLf & TextoDoCliente(idCliente) & vbCrLf & vbCrLf & _
-              IIf(nCt > 0, "Os " & nCt & " contato(s) inativos dele voltam junto.", _
-                           "Ele não tem contato inativo para voltar junto."), _
+              IIf(nCt > 0, "Os " & nCt & " contato(s) inativos dele CONTINUAM inativos: reative um a um, " & _
+                           "na ficha do contato, só quem ainda trabalha lá.", _
+                           "Ele não tem contato inativo."), _
               vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Function
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ConferirVersaoEm cn, "clientes", idCliente
     MudarAtivo cn, "clientes", "id=?", idCliente, True, "REATIVACAO", ""
-    nCt = MudarAtivo(cn, "contatos", "id_cliente=?", idCliente, True, "REATIVACAO", "cascata da reativação do cliente")
     modDB.Confirmar cn
     ReativarCliente = True
     Exit Function
@@ -152,6 +177,7 @@ Public Function DesativarCliente(ByVal idCliente As Long) As Boolean
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ConferirVersaoEm cn, "clientes", idCliente
     MudarAtivo cn, "clientes", "id=?", idCliente, False, "DESATIVACAO", _
                nOp & " oportunidade(s) em aberto mantida(s)"
     nCt = MudarAtivo(cn, "contatos", "id_cliente=?", idCliente, False, "DESATIVACAO", "cascata da desativação do cliente")
@@ -184,6 +210,7 @@ Public Function ExcluirPreCliente(ByVal idCliente As Long) As Boolean
 
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
+    ConferirVersaoEm cn, "clientes", idCliente
     nCt = CLng(modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM contatos WHERE id_cliente=?", 0, _
                                       Array(modDB.P(modDB.adInteger, idCliente))))
     nOp = CLng(modDB.ConsultarValorEm(cn, "SELECT COUNT(*) FROM oportunidades WHERE id_cliente=?", 0, _

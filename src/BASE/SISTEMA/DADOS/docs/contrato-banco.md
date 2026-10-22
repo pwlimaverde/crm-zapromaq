@@ -57,12 +57,24 @@ controle de versão (não há conflito possível entre os dois).
 
 | Campos | Regra |
 |---|---|
-| `empresa`, `cidade`, `uf`, `maquina`, `orcamento` | MAIÚSCULAS, trim, espaço duplo colapsado |
-| `nome`, `cargo`, `responsavel` | trim; preserva a digitação |
-| `email` | minúsculas |
+| todo texto comercial (`empresa`, `cidade`, `uf`, `nome`, `cargo`, `maquina`, `orcamento`, `tipo_venda`, `ctx_familia`...) | MAIÚSCULAS, trim, espaço repetido colapsado; URL, caminho e e-mail dentro do texto ficam como digitados (seção 5.1, ciclo 009) |
+| `email` | minúsculas; UM endereço por campo, os demais vão para `observacoes` (`E-MAIL ADICIONAL: ...`) |
 | `cnpj`, `telefone` | só dígitos; telefone com 10 ou 11 dígitos, um número por campo |
 | listas (`etapa`, `familia`, `origem`, `prioridade`, `motivo_desfecho`, `segmento`, `uf`, `qualificacao`, `categoria`; nas visitas `tipo` = `TipoVisita` e `resultado` = `ResultadoVisita`) | valor exato da tabela `listas`; valor inativo só se já era o gravado no registro |
-| memo (`observacoes`, `prox_acao`, `ctx_resumo`) | como digitado, só trim |
+| memo (`observacoes`, `prox_acao`, `ctx_resumo`) | MAIÚSCULAS por linha, quebras de linha preservadas, URL/caminho/e-mail como digitados |
+| `ctx_arquivo` | caminho, como gravado |
+
+A matriz versionada de campos está em `docs\matriz-campos.json` (o `verificar.py` confere tamanhos e listas).
+Textos gravados antes do ciclo 009 são normalizados pela migração 005 (origem `MIGRACAO`, valor antigo no log).
+
+### Regras de etapa e vínculo (seção 5.2, ciclo 009)
+
+- Encerrar em Perdido/Descartado (encerra + PERDA) limpa `prox_acao` e `dt_prox_acao`; reabrir limpa
+  `motivo_desfecho`, `dt_desfecho` e `retomar_em` (e orienta "interesse novo = atendimento novo").
+- `retomar_em` nova ou alterada só em Perdido/Descartado; proposta/desfecho antes da entrada = aviso.
+- Contato pertence a uma empresa (não é transferido); o contato do atendimento é conferido na transação
+  (existe, ativo, mesma empresa). Reativar a empresa reativa só a empresa.
+- Ações (desativar/reativar/excluir) conferem a versão lida dentro da transação.
 
 Texto vazio grava **NULL**, nunca cadeia vazia (o índice único de CNPJ aceita vários nulos).
 Acento é preservado.

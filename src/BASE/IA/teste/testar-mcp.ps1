@@ -133,6 +133,41 @@ Conferir 'C21 valor negativo recusado' (Recusa { ConvertTo-CampoAtendimento $nul
 Conferir 'inteiro fora do Long recusado' (Recusa { ConvertTo-Inteiro 'meta_pedidos' 2147483648 })
 Conferir 'moeda nula continua nula (limpar o campo)' ($null -eq (ConvertTo-Moeda 'valor' $null))
 
+Write-Host '--- DEV-10: normalização da seção 5.1 (mesmos casos C22-C24 do front)'
+Conferir 'C22 nome em maiúsculas, acento preservado e espaço colapsado' ((ConvertTo-Normalizado 'nome' ('  jo' + [char]0x00E3 + 'o   da  silva ')) -ceq ('JO' + [char]0x00C3 + 'O DA SILVA'))
+Conferir 'C22 observações: maiúsculas e quebra de linha preservada' ((ConvertTo-Normalizado 'observacoes' ("linha  um  `r`n`r`n  linha dois")) -ceq "LINHA UM`r`n`r`nLINHA DOIS")
+Conferir 'C22 campo de lista fica como na lista' ((ConvertTo-Normalizado 'etapa' ' Proposta em Análise ') -ceq 'Proposta em Análise')
+$script:EmailsAdicionais = ''
+Conferir 'C23 e-mail minúsculo e só o primeiro endereço' ((ConvertTo-Normalizado 'email' 'Ana@X.COM; b@y.com') -ceq 'ana@x.com' -and $script:EmailsAdicionais -eq 'b@y.com')
+Conferir 'C23 e-mail com um endereço só fica inteiro' ((ConvertTo-Normalizado 'email' ' Compras@Exemplo.com.BR ') -ceq 'compras@exemplo.com.br' -and $script:EmailsAdicionais -eq '')
+Conferir 'C23 e-mail adicional vai para as observações' ((Add-EmailsAdicionais 'OBS' 'b@y.com') -ceq "OBS`r`nE-MAIL ADICIONAL: b@y.com")
+Conferir 'C24 URL, caminho e e-mail dentro das observações ficam como digitados' ((ConvertTo-Normalizado 'observacoes' 'ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com') -ceq 'VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com')
+Conferir 'C24 caminho de contexto como gravado' ((ConvertTo-Normalizado 'ctx_arquivo' ' Clientes\0001\Contexto.md ') -ceq 'Clientes\0001\Contexto.md')
+
+Write-Host '--- DEV-10: transições de etapa e retomada (mesmos casos C25-C28 do front)'
+$trP = Get-TransicaoEtapa $false $true $true
+Conferir 'C25 encerrar em Perdido/Descartado limpa a próxima ação e a data' ((@($trP.limpar) -join ',') -eq 'prox_acao,dt_prox_acao' -and $trP.orientacao -eq '')
+Conferir 'C25 encerrar em Pedido Fechado (GANHO) não limpa a próxima ação' (@((Get-TransicaoEtapa $false $true $false).limpar).Count -eq 0)
+Conferir 'C26 retomada em etapa aberta é recusada' ((Test-RetomadaPermitida $false $false '2026-12-01' $null) -match 'C26')
+Conferir 'C26 retomada em Perdido/Descartado passa' ($null -eq (Test-RetomadaPermitida $true $true '2026-12-01' $null))
+Conferir 'C26 retomada antiga que não mudou não trava a edição' ($null -eq (Test-RetomadaPermitida $false $false '2026-12-01' '2026-12-01'))
+$trR = Get-TransicaoEtapa $true $false $false
+Conferir 'C27 reabrir limpa motivo, desfecho e retomada e orienta' ((@($trR.limpar) -join ',') -eq 'motivo_desfecho,dt_desfecho,retomar_em' -and $trR.orientacao -match 'atendimento NOVO')
+$avC28 = Get-CriticaAtendimento ([ordered]@{ etapa = 'Negociação'; responsavel = 'Vendedor A'; dt_entrada = '2026-10-10'; dt_proposta = '2026-10-01'; familia = 'X'; dt_prox_acao = '2026-12-01' })
+Conferir 'C28 proposta antes da entrada é aviso, não recusa' (@($avC28 | Where-Object { $_ -match 'proposta' }).Count -eq 1)
+
+Write-Host '--- DEV-11: contato do atendimento (mesmo caso C29 do front)'
+Conferir 'C29 contato de outra empresa é recusado' ((Test-ContatoDoAtendimento $true $true 7 8) -match 'outra empresa')
+Conferir 'C29 contato inativo é recusado' ((Test-ContatoDoAtendimento $true $false 7 7) -match 'inativo')
+Conferir 'C29 contato ativo da mesma empresa passa' ($null -eq (Test-ContatoDoAtendimento $true $true 7 7))
+$schemaCt = ($script:Ferramentas | Where-Object { $_.name -eq 'atualizar_contato' }).inputSchema.properties
+Conferir 'DEV-11 atualizar_contato não aceita mais codigo_cliente_destino (contato não é transferido)' (-not $schemaCt.Contains('codigo_cliente_destino'))
+
+Write-Host '--- DEV-12: as regras do lote valem no conector (mesmos casos C30-C31 do front)'
+Conferir 'C30 CNPJ com DV errado é recusado' (-not (Test-CnpjValido '11222333000182'))
+Conferir 'C31 nota fracionária é recusada' (Recusa { ConvertTo-Inteiro 'aderencia' 1.5 })
+Conferir 'C31 UF fora da lista é recusada' (-not (Test-UFValida 'XX'))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
@@ -566,6 +601,19 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         } finally { Executa-Visita "DELETE FROM config WHERE chave='manutencao'" }
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = [int]$atM.tentativas; observacoes_acrescentar = 'depois da manutenção'; autor = 'teste' })
         Conferir 'manutenção desligada: gravação volta a funcionar' (-not $res.isError) $res.content[0].text
+
+        Write-Host '--- DEV-15: reativar a empresa reativa só a empresa; ação com versão antiga é recusada'
+        $c15 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
+        $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'desativar'; autor = 'teste' }))
+        Conferir 'desativar a empresa desativa os contatos (cascata)' ($r15.gravado -and [int]$r15.contatos_desativados -ge 1) ($r15 | ConvertTo-Json -Compress)
+        $res = Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'reativar'; autor = 'teste' })
+        Conferir 'DEV-15 ação com a versão antiga é recusada (conflito)' ($res.isError -and $res.content[0].text -match 'Conflito') $res.content[0].text
+        $c15b = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
+        $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15b.versao; acao = 'reativar'; autor = 'teste' }))
+        $ct15 = Dados (Chamar 'obter_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002' }))
+        Conferir 'DEV-15 reativar a empresa não reativa os contatos' ($r15.gravado -and [int]$r15.contatos_reativados -eq 0 -and [int]$r15.contatos_inativos -ge 1 -and $ct15.ativo -eq $false) ($r15 | ConvertTo-Json -Compress)
+        $res = Chamar 'atualizar_contato' ([ordered]@{ codigo_contato = 'CT-0002-0002'; versao = [int]$ct15.versao; ativo = $true; autor = 'teste' })
+        Conferir 'o contato volta um a um (atualizar_contato ativo=true)' (-not $res.isError) $res.content[0].text
 
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))

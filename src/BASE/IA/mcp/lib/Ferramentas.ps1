@@ -57,9 +57,20 @@ function Assert-Tamanho([string]$campo, $valor) {
 }
 
 function Add-Observacao($atual, [string]$texto) {
-    $linha = '[' + (Get-Date).ToString('dd/MM/yyyy') + ' ' + $script:UsuarioLog + '] ' + $texto.Trim()
+    # seção 5.1: o texto comercial acrescentado entra em maiúsculas (URL, caminho e e-mail preservados)
+    $linha = '[' + (Get-Date).ToString('dd/MM/yyyy') + ' ' + $script:UsuarioLog + '] ' + (ConvertTo-TextoComercial $texto.Trim() $true)
     if ($null -eq $atual -or [string]$atual -eq '') { return $linha }
     return ([string]$atual).TrimEnd() + "`r`n" + $linha
+}
+
+# Seção 5.1: e-mails além do primeiro, recebidos em "email", vão para as observações (na mesma gravação).
+function Add-EmailsNasObservacoes($a, $atual, $mud) {
+    if (-not (Test-TemArg $a 'email')) { return }
+    [void](ConvertTo-Normalizado 'email' $a.email)
+    if (-not $script:EmailsAdicionais) { return }
+    $base = if ($mud.Contains('observacoes')) { $mud['observacoes'].Novo } else { $atual.observacoes }
+    $novo = Add-EmailsAdicionais $base $script:EmailsAdicionais
+    if (-not (Test-Igual $atual.observacoes $novo)) { $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $novo; Antigo = $atual.observacoes } }
 }
 
 function Test-Igual($a, $b) {
@@ -970,15 +981,27 @@ function Invoke-AtualizarAtendimento($a) {
         # troca do contato: só dentro da mesma empresa (o código AT é congelado e nomeia a pasta do cliente)
         if ((Test-TemArg $a 'codigo_contato') -or (Test-TemArg $a 'id_contato')) {
             $ct = Get-ContatoNaTransacao $ctx $a
-            if ([int]$ct.id_cliente -ne [int]$atual.id_cliente) { throw ('O contato ' + $ct.codigo + ' é de outra empresa. O atendimento só troca de contato dentro da mesma empresa.') }
-            if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo.') }
+            # DEV-11: conferido dentro da transação (C29)
+            $mCt = Test-ContatoDoAtendimento $true ([bool]$ct.ativo) ([int]$ct.id_cliente) ([int]$atual.id_cliente)
+            if ($mCt) { throw ($ct.codigo + ': ' + $mCt) }
             if ([int]$ct.id -ne [int]$atual.id_contato) { $mud['id_contato'] = @{ Tipo = 'inteiro'; Novo = [int]$ct.id; Antigo = $atual.id_contato } }
         }
         if (Test-TemArg $a 'observacoes_acrescentar') {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        # DEV-10: transições de etapa e retomada (seção 5.2), as mesmas do front (modRegras)
+        $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
+        $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
+        $mRet = Test-RetomadaPermitida $papelNovo.encerra $perdaNova $novo.retomar_em $atual.retomar_em
+        if ($mRet) { throw $mRet }
+        $tr = Get-TransicaoEtapa (Get-PapelEtapa ([string]$atual.etapa)).encerra $papelNovo.encerra $perdaNova
+        foreach ($c in $tr.limpar) {
+            $novo[$c] = $null
+            if (Test-Igual $atual[$c] $null) { $mud.Remove($c) } else { $mud[$c] = @{ Tipo = $script:DefsAtendimento[$c][0]; Novo = $null; Antigo = $atual[$c] } }
+        }
         $avisos = Get-CriticaAtendimento $novo
+        if ($tr.orientacao) { [void]$avisos.Add($tr.orientacao) }
         if ($mud.Count -eq 0) {
             return [ordered]@{ codigo = $codigo; gravado = $false; mensagem = 'Nada a alterar: os valores já estão iguais.'; versao = $atual.versao }
         }
@@ -1035,6 +1058,7 @@ function Invoke-AtualizarCadastroCliente($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        Add-EmailsNasObservacoes $a $atual $mud
         if ($mud.Count -eq 0) {
             return [ordered]@{ id_cliente = $atual.id; gravado = $false; mensagem = 'Nada a alterar: os valores já estão iguais.'; versao = $atual.versao }
         }
@@ -1057,9 +1081,8 @@ function Set-Contexto($ctx, [string]$tabela, $atual, $a, [string[]]$campos) {
     $mud = [ordered]@{}
     foreach ($campo in $campos) {
         if (-not (Test-TemArg $a $campo)) { continue }
-        $v = [string]$a.$campo
-        if ($null -ne $a.$campo) { $v = $v.Trim() }
-        if ($v -eq '') { $v = $null }
+        # seção 5.1 (ciclo 009): resumo e família em maiúsculas; ctx_arquivo é caminho, como gravado
+        $v = ConvertTo-Normalizado $campo $a.$campo
         Assert-Tamanho $campo $v
         if (-not (Test-Igual $atual[$campo] $v)) { $mud[$campo] = @{ Novo = $v; Antigo = $atual[$campo] } }
     }
@@ -1177,8 +1200,10 @@ function Invoke-CriarContato($a) {
     foreach ($campo in @('nome', 'cargo', 'telefone', 'email')) {
         if ($campo -eq 'nome' -or (Test-TemArg $a $campo)) { $d[$campo] = ConvertTo-CampoContato $campo (Get-Arg $a $campo) }
     }
+    $extrasEmail = $(if (Test-TemArg $a 'email') { $script:EmailsAdicionais } else { '' })
     $obs = $null
     if ((Test-TemArg $a 'observacoes') -and [string]$a.observacoes -ne '') { $obs = Add-Observacao $null ([string]$a.observacoes) }
+    $obs = Add-EmailsAdicionais $obs $extrasEmail
     $promover = [bool](Get-Arg $a 'promover_pre_cliente' $false)
 
     for ($tentativa = 1; $tentativa -le 5; $tentativa++) {
@@ -1202,6 +1227,8 @@ function Invoke-CriarContato($a) {
                     $ctx.Log('clientes', [int]$cli.id, 'estagio', ('Pr' + [char]0x00E9 + '-cliente'), 'Cliente', 'PROMOVER')
                     $promovida = $true
                 }
+                # DEV-10: contato com o mesmo nome na mesma empresa é aviso, não bloqueio
+                $homonimos = @($ctx.Consultar('SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?', @((P 'inteiro' ([int]$cli.id)), (P 'texto' $d['nome']))) | ForEach-Object { [string]$_.codigo })
                 $controle = [int]$ctx.Valor('SELECT MAX(controle) FROM contatos', @()) + 1
                 $codigo = 'CT-' + ([int]$codCli).ToString('0000') + '-' + $controle.ToString('0000')
                 $agora = Get-Date
@@ -1216,6 +1243,7 @@ function Invoke-CriarContato($a) {
                     gravado = $true; id_contato = $id; codigo_contato = $codigo; versao = 1
                     empresa = $cli.empresa; codigo_cliente = Format-CodigoCliente $codCli; empresa_promovida = $promovida
                     nome = $d['nome']; cargo = $d['cargo']; telefone = $d['telefone']; email = $d['email']
+                    avisos = @($(if ($homonimos.Count -gt 0) { 'Já existe contato com o mesmo nome nesta empresa (' + ($homonimos -join ', ') + '). Confira com o usuário se não é o mesmo.' }))
                 }
             }
         } catch {
@@ -1241,16 +1269,8 @@ function Invoke-AtualizarContato($a) {
             $obs = Add-Observacao $atual.observacoes ([string]$a.observacoes_acrescentar)
             $mud['observacoes'] = @{ Tipo = 'memo'; Novo = $obs; Antigo = $atual.observacoes }
         }
+        Add-EmailsNasObservacoes $a $atual $mud
         $avisos = New-Object System.Collections.ArrayList
-        if (Test-TemArg $a 'codigo_cliente_destino') {
-            $dest = $ctx.Consultar('SELECT id, empresa, ativo FROM clientes WHERE codigo_cliente=?', @((P 'inteiro' ([int]$a.codigo_cliente_destino))))
-            if ($dest.Count -eq 0) { throw ('Empresa de destino não encontrada: código ' + $a.codigo_cliente_destino + '. Pré-cliente não recebe contato transferido: promova antes.') }
-            if (-not [bool]$dest[0].ativo) { throw ('A empresa de destino ' + $dest[0].empresa + ' está inativa.') }
-            if ([int]$dest[0].id -ne [int]$atual.id_cliente) {
-                $mud['id_cliente'] = @{ Tipo = 'inteiro'; Novo = [int]$dest[0].id; Antigo = $atual.id_cliente }
-                [void]$avisos.Add('Código ' + $atual.codigo + ' mantido (é congelado). Atendimentos já abertos continuam na empresa em que foram abertos.')
-            }
-        }
         $acao = 'ALTERAR'
         if (Test-TemArg $a 'ativo') {
             $v = [bool]$a.ativo
@@ -1286,8 +1306,6 @@ function Get-CriticaAtendimento($novo) {
     $dEnt = ConvertTo-DataOuNulo $novo.dt_entrada
     $dPro = ConvertTo-DataOuNulo $novo.dt_proposta
     $dDes = ConvertTo-DataOuNulo $novo.dt_desfecho
-    if ($dEnt -and $dPro -and $dPro -lt $dEnt) { throw 'A data da proposta é anterior à data de entrada.' }
-    if ($dEnt -and $dDes -and $dDes -lt $dEnt) { throw 'A data do desfecho é anterior à data de entrada.' }
     if ((Get-PapelEtapa $etapa).encerra) {
         if ([string]$novo.motivo_desfecho -eq '') { throw ('Etapa "' + $etapa + '" exige motivo_desfecho.') }
         if (-not $dDes) { throw ('Etapa "' + $etapa + '" exige dt_desfecho.') }
@@ -1296,6 +1314,9 @@ function Get-CriticaAtendimento($novo) {
         throw ('Etapa "' + $etapa + '" exige a família de máquina.')
     }
     $avisos = New-Object System.Collections.ArrayList
+    # C28 (seção 5.2): datas fora de ordem são aviso, não recusa
+    if ($dEnt -and $dPro -and $dPro -lt $dEnt) { [void]$avisos.Add('A data da proposta é anterior à data de entrada.') }
+    if ($dEnt -and $dDes -and $dDes -lt $dEnt) { [void]$avisos.Add('A data do desfecho é anterior à data de entrada.') }
     if ((Get-PapelEtapa $etapa).resultado -eq 'GANHO' -and $null -eq $novo.valor) { [void]$avisos.Add('Pedido fechado sem valor informado.') }
     if ((-not (Get-PapelEtapa $etapa).encerra) -and -not $novo.dt_prox_acao -and -not $novo.retomar_em) {
         [void]$avisos.Add('Sem próxima ação e sem data de retomada: o atendimento some da fila da manhã.')
@@ -1388,6 +1409,7 @@ function Invoke-CriarCliente($a) {
         if ($comoCliente) { $cod = [int]$ctx.Valor('SELECT MAX(codigo_cliente) FROM clientes', @()) + 1; $estagio = 'Cliente' }
         $obs = $null
         if ((Test-TemArg $a 'observacoes') -and [string]$a.observacoes -ne '') { $obs = Add-Observacao $null ([string]$a.observacoes) }
+        if (Test-TemArg $a 'email') { [void](ConvertTo-Normalizado 'email' $a.email); $obs = Add-EmailsAdicionais $obs $script:EmailsAdicionais }
         $cols = @('codigo_cliente', 'estagio'); $par = @((P 'inteiro' $cod), (P 'texto' $estagio))
         foreach ($c in $d.Keys) {
             $t = 'texto'; if ($tipos.ContainsKey($c)) { $t = $tipos[$c] }
@@ -1449,9 +1471,11 @@ function Invoke-SituacaoCliente($a) {
             }
             'reativar' {
                 if ([bool]$cli.ativo) { throw 'A empresa já está ativa.' }
+                # DEV-15 (seção 5.2): reativar a empresa reativa SÓ a empresa; contato volta um a um (atualizar_contato ativo=true)
                 [void](Set-AtivoEm $ctx 'clientes' 'id=?' $id $true 'REATIVACAO' '')
-                $nCt = Set-AtivoEm $ctx 'contatos' 'id_cliente=?' $id $true 'REATIVACAO' 'cascata da reativação do cliente'
-                return [ordered]@{ gravado = $true; empresa = $cli.empresa; ativo = $true; contatos_reativados = $nCt }
+                $inativos = [int]$ctx.Valor('SELECT COUNT(*) FROM contatos WHERE id_cliente=? AND ativo=False', @((P 'inteiro' $id)))
+                return [ordered]@{ gravado = $true; empresa = $cli.empresa; ativo = $true; contatos_reativados = 0; contatos_inativos = $inativos
+                                   aviso = $(if ($inativos -gt 0) { [string]$inativos + ' contato(s) continuam inativos: reative um a um (atualizar_contato ativo=true) só quem ainda trabalha na empresa.' } else { $null }) }
             }
             'excluir_pre_cliente' {
                 if ($null -ne $cli.codigo_cliente) { throw 'Cliente com código nunca é excluído: use acao=desativar.' }
@@ -1479,11 +1503,20 @@ function Invoke-AbrirAtendimento($a) {
         $ct = Get-ContatoNaTransacao $ctx $a
         if (-not [bool]$ct.ativo) { throw ('O contato ' + $ct.codigo + ' está inativo. Reative-o antes de abrir atendimento.') }
         $cli = $ctx.Consultar('SELECT * FROM clientes WHERE id=?', @((P 'inteiro' ([int]$ct.id_cliente))))[0]
+        # DEV-11 (C29): conferido na transação; a empresa do atendimento é a do contato
+        $mCt = Test-ContatoDoAtendimento $true ([bool]$ct.ativo) ([int]$ct.id_cliente) ([int]$cli.id)
+        if ($mCt) { throw $mCt }
         if (-not [bool]$cli.ativo) { throw ('A empresa ' + $cli.empresa + ' está inativa.') }
         $novo = [ordered]@{}
         foreach ($c in $script:DefsAtendimento.Keys) { $novo[$c] = $null }
         $novo['dt_entrada'] = (Get-Date).Date
         foreach ($c in $script:DefsAtendimento.Keys) { if (Test-TemArg $a $c) { $novo[$c] = ConvertTo-CampoAtendimento $ctx $c $a.$c } }
+        # DEV-10: retomada só em Perdido/Descartado; nascer encerrado em perda não tem próxima ação
+        $papelNovo = Get-PapelEtapa ([string]$novo.etapa)
+        $perdaNova = ($papelNovo.encerra -and $papelNovo.resultado -eq 'PERDA')
+        $mRet = Test-RetomadaPermitida $papelNovo.encerra $perdaNova $novo.retomar_em $null
+        if ($mRet) { throw $mRet }
+        foreach ($c in (Get-TransicaoEtapa $false $papelNovo.encerra $perdaNova).limpar) { $novo[$c] = $null }
         $avisos = Get-CriticaAtendimento $novo
         $idAnt = $null
         if (Test-TemArg $a 'codigo_atendimento_anterior') {
@@ -2257,7 +2290,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'alterar_situacao_cliente'; title = 'Desativar, reativar ou excluir empresa'; handler = 'Invoke-SituacaoCliente'; annotations = $script:Gravacao
-        description = ('desativar: a empresa e seus contatos ficam inativos (atendimentos em aberto continuam no funil). reativar: volta com os contatos inativos. ' +
+        description = ('desativar: a empresa e seus contatos ficam inativos (atendimentos em aberto continuam no funil). reativar: reativa SÓ a empresa; os contatos continuam inativos e voltam um a um por atualizar_contato (ativo=true). ' +
                        'excluir_pre_cliente: apaga de vez um pré-cliente sem contato nem atendimento (cliente com código nunca é excluído). Leia antes com obter_cliente e passe a "versao"; confirme com o usuário.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('acao', 'versao'); properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }
@@ -2343,14 +2376,13 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'atualizar_contato'; title = 'Alterar contato'; handler = 'Invoke-AtualizarContato'; annotations = $script:Gravacao
-        description = ('Altera nome, cargo, telefone, e-mail, observações, empresa (codigo_cliente_destino) ou situação (ativo) de um contato. Leia antes com obter_contato e passe a "versao". ' +
-                       'Contato não se exclui: ativo=false desativa. O código CT não muda ao trocar de empresa; atendimentos já abertos ficam onde estão. Envie só os campos que mudam.')
+        description = ('Altera nome, cargo, telefone, e-mail, observações ou situação (ativo) de um contato. Leia antes com obter_contato e passe a "versao". ' +
+                       'Contato não se exclui: ativo=false desativa. O contato pertence a UMA empresa e não é transferido: se a pessoa mudou de empresa, desative-o e cadastre um novo (criar_contato) na empresa nova. Envie só os campos que mudam.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('versao'); properties = [ordered]@{
             codigo_contato = [ordered]@{ type = 'string'; pattern = '^[Cc][Tt]-\d{4}-\d{4}$' }; id_contato = [ordered]@{ type = 'integer' }
             versao = [ordered]@{ type = 'integer'; description = 'Versão lida em obter_contato' }
             nome = [ordered]@{ type = 'string'; maxLength = 120 }; cargo = [ordered]@{ type = @('string', 'null'); maxLength = 60 }
             telefone = [ordered]@{ type = @('string', 'null') }; email = [ordered]@{ type = @('string', 'null'); maxLength = 120 }
-            codigo_cliente_destino = [ordered]@{ type = 'integer'; description = 'Transfere o contato para esta empresa (precisa ser cliente ativo)' }
             ativo = [ordered]@{ type = 'boolean' }
             observacoes_acrescentar = [ordered]@{ type = 'string'; description = 'Acrescenta uma linha datada (nunca apaga o que existe)' }
             autor = $script:PropAutor } }

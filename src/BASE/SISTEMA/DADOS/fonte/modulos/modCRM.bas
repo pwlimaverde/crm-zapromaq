@@ -351,6 +351,10 @@ Public Function Atualizar(ByVal tabela As String, ByVal d As Object, _
         Atualizar = 0
         Exit Function
     End If
+    ' DEV-11: vínculo conferido DENTRO da transação (o filtro da tela não basta)
+    Dim critVinculo As String
+    critVinculo = CriticarVinculoEm(cn, tabela, idRegistro, d)
+    If critVinculo <> "" Then Err.Raise vbObjectError + 515, "modCRM.Atualizar", critVinculo
 
     For i = LBound(lista) To UBound(lista)
         spec = Split(lista(i), "|")
@@ -392,6 +396,46 @@ falha:
     nErr = Err.Number: sErr = Err.Description
     modDB.Desfazer cn
     Err.Raise nErr, "modCRM.Atualizar", sErr
+End Function
+
+'----------------------------------------------------------
+' DEV-11 (C29): contato fixo por empresa e contato do atendimento
+' conferidos na transação, contra o que está no banco agora.
+'----------------------------------------------------------
+Private Function CriticarVinculoEm(ByVal cn As Object, ByVal tabela As String, ByVal idRegistro As Long, _
+                                   ByVal d As Object) As String
+    Dim r As Variant, novo As Variant
+    Select Case tabela
+        Case "contatos"
+            If Not d.Exists("id_cliente") Then Exit Function
+            r = modDB.ConsultarValorEm(cn, "SELECT id_cliente FROM contatos WHERE id=?", 0, _
+                                       Array(modDB.P(modDB.adInteger, idRegistro)))
+            If CLng(modDB.Nz(d("id_cliente"), "0")) <> CLng(r) Then
+                CriticarVinculoEm = "O contato pertence a uma única empresa e não é transferido. Se a pessoa mudou de " & _
+                    "empresa, desative este contato e cadastre um novo na empresa nova."
+            End If
+        Case "oportunidades"
+            If Not d.Exists("id_contato") Then Exit Function
+            novo = d("id_contato")
+            r = modDB.ConsultarEm(cn, "SELECT id_contato, id_cliente FROM oportunidades WHERE id=?", _
+                                  Array(modDB.P(modDB.adInteger, idRegistro)))
+            If IsEmpty(r) Then Exit Function
+            ' só se confere o contato que MUDOU: o legado inativo não trava a edição de outro campo
+            If CLng(modDB.Nz(novo, "0")) = CLng(modDB.Nz(r(1, 1), "0")) Then Exit Function
+            CriticarVinculoEm = CriticarContatoEm(cn, CLng(modDB.Nz(novo, "0")), CLng(modDB.Nz(r(1, 2), "0")))
+    End Select
+End Function
+
+Private Function CriticarContatoEm(ByVal cn As Object, ByVal idContato As Long, ByVal idCliente As Long) As String
+    Dim r As Variant
+    r = modDB.ConsultarEm(cn, "SELECT ativo, id_cliente FROM contatos WHERE id=?", _
+                          Array(modDB.P(modDB.adInteger, idContato)))
+    If IsEmpty(r) Then
+        CriticarContatoEm = modRegras.CriticarContatoDoAtendimento(False, False, 0, idCliente)
+    Else
+        CriticarContatoEm = modRegras.CriticarContatoDoAtendimento(True, CBool(modDB.Nz(r(1, 1), "False")), _
+                                                                   CLng(modDB.Nz(r(1, 2), "0")), idCliente)
+    End If
 End Function
 
 ' Mesmo valor, considerando o tipo: nulo = vazio; numero e data
@@ -513,13 +557,14 @@ Public Function CriarContato(ByVal idCliente As Long, ByVal d As Object, _
 End Function
 
 Public Function CriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
-                             ByRef codigoGerado As Long) As Long
+                             ByRef codigoGerado As Long, _
+                             Optional ByVal detalhe As String = "cadastro novo pelo formulário") As Long
     Dim tentativa As Long, duplicou As Boolean, novoId As Long
     ' Pre-cliente nao recebe numero: nao ha o que repetir. Cliente
     ' recebe MAX+1; so a colisao DESSE numero justifica nova tentativa.
     For tentativa = 1 To TENTATIVAS
         duplicou = False
-        novoId = TentarCriarCliente(d, comoCliente, codigoGerado, duplicou)
+        novoId = TentarCriarCliente(d, comoCliente, codigoGerado, duplicou, detalhe)
         If novoId > 0 Then CriarCliente = novoId: Exit Function
         If Not duplicou Then Exit Function
     Next tentativa
@@ -528,7 +573,8 @@ Public Function CriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
 End Function
 
 Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Boolean, _
-                                    ByRef codigoGerado As Long, ByRef duplicou As Boolean) As Long
+                                    ByRef codigoGerado As Long, ByRef duplicou As Boolean, _
+                                    ByVal detalhe As String) As Long
     Dim cn As Object, extras As Object
     On Error GoTo falha
     Set cn = modDB.AbrirTransacao()
@@ -541,7 +587,7 @@ Private Function TentarCriarCliente(ByVal d As Object, ByVal comoCliente As Bool
         codigoGerado = 0
         extras("estagio") = "Pré-cliente"
     End If
-    TentarCriarCliente = InserirEm(cn, "clientes", d, extras, "cadastro novo pelo formulário")
+    TentarCriarCliente = InserirEm(cn, "clientes", d, extras, detalhe)
     modDB.Confirmar cn
     Exit Function
 falha:
@@ -555,6 +601,21 @@ falha:
         Exit Function
     End If
     Err.Raise nErr, "modCRM.CriarCliente", sErr
+End Function
+
+' DEV-10: contato com o mesmo nome na mesma empresa gera aviso e pede
+' confirmação, sem bloquear ("" = nenhum homônimo).
+Public Function AvisoHomonimo(ByVal idCliente As Long, ByVal nome As String) As String
+    Dim d As Variant, i As Long, cods As String
+    If idCliente = 0 Or nome = "" Then Exit Function
+    d = modDB.Consultar("SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?", _
+                        Array(modDB.P(modDB.adInteger, idCliente), modDB.P(modDB.adVarWChar, nome)))
+    If IsEmpty(d) Then Exit Function
+    For i = 1 To UBound(d, 1)
+        cods = cods & IIf(cods = "", "", ", ") & modDB.Nz(d(i, 1))
+    Next i
+    AvisoHomonimo = "Já existe contato com o nome " & nome & " nesta empresa (" & cods & ")." & vbCrLf & vbCrLf & _
+                    "Se for a mesma pessoa, use o cadastro existente. Cadastrar assim mesmo?"
 End Function
 
 Private Function CnpjJaExiste(ByVal cnpj As Variant) As Boolean
@@ -599,6 +660,12 @@ Private Function TentarCriar(ByVal tabela As String, ByVal idCliente As Long, By
         End If
     End If
     If IsNull(codCliente) Then Err.Raise vbObjectError + 514, , "Empresa sem código de cliente."
+    ' DEV-11: o contato do atendimento novo existe, está ativo e é da empresa (na transação)
+    If tabela = "oportunidades" Then
+        Dim critCt As String
+        critCt = CriticarContatoEm(cn, idContato, idCliente)
+        If critCt <> "" Then Err.Raise vbObjectError + 515, "modCRM.TentarCriar", critCt
+    End If
 
     Set extras = CreateObject("Scripting.Dictionary")
     controle = ProximoNumeroEm(cn, tabela, "controle")
@@ -910,6 +977,8 @@ Public Function BotaoVinculoAtivo(ByVal nomeCampo As String, ByVal editando As B
     If Not editando Then Exit Function
     Select Case nomeCampo
         Case "id_contato":              BotaoVinculoAtivo = Not novo
+        ' DEV-11: a empresa do contato só se escolhe no cadastro (contato não é transferido)
+        Case "id_cliente":              BotaoVinculoAtivo = novo
         Case "id_atendimento_anterior": BotaoVinculoAtivo = (idContato <> 0)
         Case Else:                      BotaoVinculoAtivo = True
     End Select

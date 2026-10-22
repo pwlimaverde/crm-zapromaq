@@ -19,20 +19,59 @@ function Get-SoDigitos([string]$s) {
     return ($s -replace '[^0-9]', '')
 }
 
-# Normaliza pelo NOME do campo. Campo desconhecido so leva Trim.
+# Normaliza pelo NOME do campo (seção 5.1 do plano de 19/10/2026, ciclo 009). Espelho de
+# modValidacao.Normalizar (front), casos C22 a C24:
+#   todo texto comercial em MAIÚSCULAS, aparado e com espaço horizontal repetido colapsado; observações, próxima
+#   ação e contexto mantêm as quebras de linha; URL, caminho e e-mail dentro do texto ficam como digitados;
+#   e-mail minúsculo e UM endereço (os demais ficam em $script:EmailsAdicionais, para ir às observações);
+#   CNPJ e telefone só dígitos; lista = valor exato (só apara); ctx_arquivo = caminho como gravado.
 # Devolve $null quando vazio - nunca cadeia vazia (indice unico de CNPJ).
+$script:EmailsAdicionais = ''
+$script:CamposLista = @('etapa', 'responsavel', 'familia', 'origem', 'categoria', 'prioridade', 'motivo_desfecho', 'qualificacao', 'segmento')
+function ConvertTo-EspacosColapsados([string]$s) {
+    $s = $s.Replace("`t", ' ').Trim()
+    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
+    return $s
+}
+function ConvertTo-MaiusculasProtegidas([string]$s) {
+    if ($s -eq '') { return '' }
+    $pt = [Globalization.CultureInfo]'pt-BR'
+    return ((@($s.Split(' ') | ForEach-Object {
+        if ($_.Contains('@') -or $_.Contains('://') -or $_.Contains('\') -or $_.ToLowerInvariant().StartsWith('www.')) { $_ } else { $_.ToUpper($pt) }
+    })) -join ' ')
+}
+function ConvertTo-TextoComercial([string]$s, [bool]$multilinha) {
+    $linhas = $s.Replace("`r`n", "`n").Replace("`r", "`n").Split("`n")
+    $saida = @($linhas | ForEach-Object { ConvertTo-MaiusculasProtegidas (ConvertTo-EspacosColapsados $_) })
+    if ($multilinha) { return (($saida -join "`r`n").Trim("`r", "`n")) }
+    return ((@($saida | Where-Object { $_ -ne '' })) -join ' ')
+}
+function Get-ListaEmails([string]$s) {
+    return @(($s -replace '[;,/]', ' ').Split(' ') | Where-Object { $_.Trim() -ne '' } | ForEach-Object { $_.Trim().ToLowerInvariant() })
+}
 function ConvertTo-Normalizado([string]$campo, $valor) {
     if ($null -eq $valor) { return $null }
-    $s = ([string]$valor).Replace([string][char]160, ' ').Trim()
-    while ($s.Contains('  ')) { $s = $s.Replace('  ', ' ') }
-    switch ($campo.ToLowerInvariant()) {
-        { $_ -in @('empresa', 'cidade', 'uf', 'maquina', 'orcamento') } { $s = $s.ToUpper([Globalization.CultureInfo]'pt-BR') }
-        'email'    { $s = $s.ToLowerInvariant() }
-        'cnpj'     { $s = Get-SoDigitos $s }
-        'telefone' { $s = Get-SoDigitos $s }
+    $s = ([string]$valor).Replace([string][char]160, ' ')
+    $c = $campo.ToLowerInvariant()
+    if ($c -eq 'email') {
+        $todos = @(Get-ListaEmails $s)   # @(): um endereço só voltaria como texto, e [0] seria a 1ª letra
+        $s = if ($todos.Count -gt 0) { $todos[0] } else { '' }
+        $script:EmailsAdicionais = if ($todos.Count -gt 1) { (@($todos | Select-Object -Skip 1)) -join '; ' } else { '' }
     }
+    elseif ($c -in @('cnpj', 'telefone')) { $s = Get-SoDigitos $s }
+    elseif ($script:CamposLista -contains $c) { $s = ConvertTo-EspacosColapsados $s }
+    elseif ($c -eq 'ctx_arquivo') { $s = $s.Trim() }
+    elseif ($c -in @('observacoes', 'prox_acao', 'ctx_resumo')) { $s = ConvertTo-TextoComercial $s $true }
+    else { $s = ConvertTo-TextoComercial $s $false }
     if ($s.Length -eq 0) { return $null }
     return $s
+}
+# Endereços além do primeiro vão para as observações, numa linha própria (mesma regra do front).
+function Add-EmailsAdicionais($observacoes, [string]$adicionais) {
+    if (-not $adicionais) { return $observacoes }
+    if ($null -eq $observacoes -or [string]$observacoes -eq '') { return ('E-MAIL ADICIONAL: ' + $adicionais) }
+    if (([string]$observacoes).Contains($adicionais)) { return $observacoes }
+    return ([string]$observacoes + "`r`n" + 'E-MAIL ADICIONAL: ' + $adicionais)
 }
 
 # Chave de comparacao de lista (C01): sem caixa, sem acento, espacos aparados e colapsados.
@@ -132,6 +171,37 @@ function ConvertTo-DataOuNulo($v) {
     if ($null -eq $v -or [string]$v -eq '') { return $null }
     if ($v -is [datetime]) { return $v.Date }
     return [datetime]::ParseExact(([string]$v).Substring(0, 10), 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+# Regras de etapa da seção 5.2 (ciclo 009, DEV-10). Espelho de modRegras (front), casos C25 a C27.
+# Devolve @{ limpar = campos a limpar; orientacao = texto da reabertura ou '' }.
+function Get-TransicaoEtapa([bool]$encerraAntiga, [bool]$encerraNova, [bool]$perdaNova) {
+    $limpar = @()
+    $orientacao = ''
+    if ($encerraNova -and $perdaNova) { $limpar += @('prox_acao', 'dt_prox_acao') }
+    if ($encerraAntiga -and -not $encerraNova) {
+        $limpar += @('motivo_desfecho', 'dt_desfecho', 'retomar_em')
+        $orientacao = ('Reabrir serve para corrigir um encerramento indevido: motivo, data do desfecho e retomada foram limpos ' +
+                       '(os valores anteriores ficam no histórico). Interesse novo é atendimento NOVO: use duplicar_atendimento no encerrado.')
+    }
+    return @{ limpar = $limpar; orientacao = $orientacao }
+}
+# C26: retomar_em nova ou alterada só em Perdido/Descartado (encerra + PERDA). Devolve a mensagem ou $null.
+function Test-RetomadaPermitida([bool]$encerraNova, [bool]$perdaNova, $retomarNova, $retomarLida) {
+    $n = ConvertTo-DataOuNulo $retomarNova
+    if ($null -eq $n) { return $null }
+    if ($encerraNova -and $perdaNova) { return $null }
+    if ((ConvertTo-DataOuNulo $retomarLida) -eq $n) { return $null }
+    return 'A data de retomada só existe em atendimento Perdido ou Descartado. Para um atendimento aberto, use a próxima ação (dt_prox_acao) (C26).'
+}
+
+# C29 (DEV-11): o contato do atendimento existe, está ativo e é da empresa do atendimento. Espelho de
+# modRegras.CriticarContatoDoAtendimento. Devolve a mensagem ou $null.
+function Test-ContatoDoAtendimento([bool]$existe, [bool]$ativo, [int]$idClienteContato, [int]$idClienteAtendimento) {
+    if (-not $existe) { return 'Contato não encontrado: nada foi gravado.' }
+    if ($idClienteContato -ne $idClienteAtendimento) { return 'O contato é de outra empresa: o atendimento só usa contato da empresa dele. Nada foi gravado.' }
+    if (-not $ativo) { return 'O contato está inativo: escolha um contato ativo da empresa. Nada foi gravado.' }
+    return $null
 }
 
 # ---------------------------------------------------------------- modCalc

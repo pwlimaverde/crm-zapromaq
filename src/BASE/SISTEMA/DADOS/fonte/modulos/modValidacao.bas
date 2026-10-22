@@ -7,39 +7,128 @@ Attribute VB_Name = "modValidacao"
 ' Padrao definido na secao 5.1 do estudo de migracao.
 '==========================================================
 Option Explicit
-
 '----------------------------------------------------------
-' Normaliza pelo NOME do campo. Campo desconhecido so leva
-' Trim - nunca se inventa regra por semelhanca de nome.
+' Normaliza pelo NOME do campo (seção 5.1 do plano de
+' 19/10/2026, ciclo 009 - a mesma regra de ConvertTo-Normalizado
+' no conector, casos C22 a C24):
+'   - todo texto comercial em MAIÚSCULAS, com Trim e espaço
+'     horizontal repetido colapsado; acento preservado;
+'   - observações, próxima ação e contexto: as quebras de linha
+'     ficam; URL, caminho e e-mail dentro do texto ficam como
+'     digitados;
+'   - e-mail minúsculo, um endereço por campo (os demais saem
+'     por EmailsAdicionais e vão para as observações);
+'   - CNPJ e telefone só dígitos;
+'   - campo de lista: o valor exato da lista (só apara);
+'   - ctx_arquivo: caminho, como gravado.
 '----------------------------------------------------------
 Public Function Normalizar(ByVal campo As String, ByVal valor As Variant) As Variant
     Dim s As String
     If IsNull(valor) Then Normalizar = Null: Exit Function
-    s = Trim$(Replace(CStr(valor), Chr$(160), " "))
-    Do While InStr(s, "  ") > 0
-        s = Replace(s, "  ", " ")
-    Loop
+    s = Replace(CStr(valor), Chr$(160), " ")
 
     Select Case LCase$(campo)
-        ' MAIUSCULAS: identificacao e cadastro curto
-        Case "empresa", "cidade", "uf", "maquina", "orcamento"
-            s = UCase$(s)
-        ' minusculas
         Case "email"
-            s = LCase$(s)
-        ' so digitos
-        Case "cnpj"
+            s = LCase$(PrimeiroEmail(s))
+        Case "cnpj", "telefone"
             s = SoDigitos(s)
-        ' telefone: SO DIGITOS, um numero por campo.
-        ' Nome de pessoa vai no campo Contato ou em Observacoes -
-        ' na migracao, 344 cadastros traziam nome junto do numero.
-        Case "telefone"
-            s = SoDigitos(s)
-        ' como digitado: nome, cargo, responsavel, observacoes,
-        ' prox_acao, ctx_resumo e as listas suspensas
+        Case "etapa", "responsavel", "familia", "origem", "categoria", "prioridade", _
+             "motivo_desfecho", "qualificacao", "segmento"
+            s = ColapsarEspacos(s)
+        Case "ctx_arquivo"
+            s = Trim$(s)
+        Case "observacoes", "prox_acao", "ctx_resumo"
+            s = TextoComercial(s, True)
+        Case Else
+            s = TextoComercial(s, False)
     End Select
 
     If Len(s) = 0 Then Normalizar = Null Else Normalizar = s
+End Function
+
+' Texto comercial: maiúsculas por palavra, menos URL, caminho e e-mail.
+Public Function TextoComercial(ByVal s As String, ByVal multilinha As Boolean) As String
+    Dim linhas As Variant, i As Long, r As String, ln As String
+    s = Replace(Replace(s, vbCrLf, vbLf), vbCr, vbLf)
+    linhas = Split(s, vbLf)
+    For i = LBound(linhas) To UBound(linhas)
+        ln = MaiusculasProtegidas(ColapsarEspacos(CStr(linhas(i))))
+        If multilinha Then
+            r = r & IIf(i > LBound(linhas), vbCrLf, "") & ln
+        ElseIf ln <> "" Then
+            r = r & IIf(r = "", "", " ") & ln
+        End If
+    Next i
+    If multilinha Then
+        ' linhas vazias nas pontas saem; as do meio ficam
+        Do While Left$(r, 2) = vbCrLf
+            r = Mid$(r, 3)
+        Loop
+        Do While Right$(r, 2) = vbCrLf
+            r = Left$(r, Len(r) - 2)
+        Loop
+    End If
+    TextoComercial = r
+End Function
+
+' Espaço e tabulação repetidos viram um espaço; aparado nas pontas.
+Public Function ColapsarEspacos(ByVal s As String) As String
+    s = Trim$(Replace(s, vbTab, " "))
+    Do While InStr(s, "  ") > 0
+        s = Replace(s, "  ", " ")
+    Loop
+    ColapsarEspacos = s
+End Function
+
+Private Function MaiusculasProtegidas(ByVal s As String) As String
+    Dim p As Variant, i As Long, t As String
+    If s = "" Then Exit Function
+    p = Split(s, " ")
+    For i = LBound(p) To UBound(p)
+        t = CStr(p(i))
+        If Not (InStr(t, "@") > 0 Or InStr(t, "://") > 0 Or InStr(t, "\") > 0 Or LCase$(Left$(t, 4)) = "www.") Then t = UCase$(t)
+        p(i) = t
+    Next i
+    MaiusculasProtegidas = Join(p, " ")
+End Function
+
+' "a@x.com; b@y.com" -> "a@x.com" (o primeiro endereço)
+Public Function PrimeiroEmail(ByVal s As String) As String
+    Dim p As Variant
+    p = ListaEmails(s)
+    If UBound(p) >= 0 Then PrimeiroEmail = CStr(p(0))
+End Function
+
+' Os demais endereços, separados por "; " ("" = só havia um)
+Public Function EmailsAdicionais(ByVal s As String) As String
+    Dim p As Variant, i As Long, r As String
+    p = ListaEmails(s)
+    For i = 1 To UBound(p)
+        r = r & IIf(r = "", "", "; ") & LCase$(CStr(p(i)))
+    Next i
+    EmailsAdicionais = r
+End Function
+
+Private Function ListaEmails(ByVal s As String) As Variant
+    Dim p As Variant, i As Long, r As String
+    s = Replace(Replace(Replace(s, ";", " "), ",", " "), "/", " ")
+    p = Split(ColapsarEspacos(s), " ")
+    For i = LBound(p) To UBound(p)
+        If Trim$(CStr(p(i))) <> "" Then r = r & IIf(r = "", "", "|") & Trim$(CStr(p(i)))
+    Next i
+    If r = "" Then ListaEmails = Split("", "|") Else ListaEmails = Split(r, "|")
+End Function
+
+' Endereços além do primeiro vão para as observações, numa linha própria.
+Public Function ObservacoesComEmails(ByVal observacoes As Variant, ByVal adicionais As String) As Variant
+    If adicionais = "" Then ObservacoesComEmails = observacoes: Exit Function
+    If IsNull(observacoes) Or IsEmpty(observacoes) Then
+        ObservacoesComEmails = "E-MAIL ADICIONAL: " & adicionais
+    ElseIf InStr(CStr(observacoes), adicionais) > 0 Then
+        ObservacoesComEmails = observacoes
+    Else
+        ObservacoesComEmails = CStr(observacoes) & vbCrLf & "E-MAIL ADICIONAL: " & adicionais
+    End If
 End Function
 
 ' Chave de comparacao de lista (C01): sem caixa, sem acento, espacos aparados e colapsados.
@@ -301,19 +390,8 @@ Public Function CriticarOportunidade(ByVal d As Object) As String
         If CDbl(d("valor")) < 0 Then CriticarOportunidade = "O valor não pode ser negativo.": Exit Function
     End If
 
-    ' datas coerentes entre si
-    If Not IsNull(d("dt_proposta")) And Not IsNull(d("dt_entrada")) Then
-        If CDate(d("dt_proposta")) < CDate(d("dt_entrada")) Then
-            CriticarOportunidade = "A data da proposta é anterior à data de entrada."
-            Exit Function
-        End If
-    End If
-    If Not IsNull(d("dt_desfecho")) And Not IsNull(d("dt_entrada")) Then
-        If CDate(d("dt_desfecho")) < CDate(d("dt_entrada")) Then
-            CriticarOportunidade = "A data do desfecho é anterior à data de entrada."
-            Exit Function
-        End If
-    End If
+    ' datas fora de ordem (proposta/desfecho antes da entrada) são AVISO, não
+    ' recusa (seção 5.2, C28): ver AvisoDatas em AvisarOportunidade
 
     ' o que a etapa exige
     ' o que a etapa exige: o papel vem da lista (Encerra e Exige familia)
@@ -338,9 +416,29 @@ End Function
 '----------------------------------------------------------
 ' Aviso, nao impedimento: o vendedor decide seguir.
 '----------------------------------------------------------
+' C28: proposta ou desfecho antes da entrada é aviso ("" = datas em ordem). Pura.
+Public Function AvisoDatas(ByVal d As Object) As String
+    If Not d.Exists("dt_entrada") Then Exit Function
+    If IsNull(d("dt_entrada")) Then Exit Function
+    If d.Exists("dt_proposta") Then
+        If Not IsNull(d("dt_proposta")) Then
+            If CDate(d("dt_proposta")) < CDate(d("dt_entrada")) Then AvisoDatas = "A data da proposta é anterior à data de entrada."
+        End If
+    End If
+    If d.Exists("dt_desfecho") Then
+        If Not IsNull(d("dt_desfecho")) Then
+            If CDate(d("dt_desfecho")) < CDate(d("dt_entrada")) Then AvisoDatas = AvisoDatas & IIf(AvisoDatas = "", "", " ") & "A data do desfecho é anterior à data de entrada."
+        End If
+    End If
+End Function
+
 Public Function AvisarOportunidade(ByVal d As Object) As String
     Dim etapa As String
     etapa = modDB.Nz(d("etapa"))
+    If AvisoDatas(d) <> "" Then
+        AvisarOportunidade = AvisoDatas(d) & " Confira as datas. Deseja salvar assim mesmo?"
+        Exit Function
+    End If
     If modCRM.EtapaResultado(etapa) = "GANHO" And IsNull(d("valor")) Then
         AvisarOportunidade = "Pedido fechado sem valor informado. Deseja salvar assim mesmo?"
         Exit Function

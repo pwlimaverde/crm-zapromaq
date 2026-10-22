@@ -645,6 +645,14 @@ End Function
     [void]$xl.Run($rl + 'Analisar', $lote)
     $mot = [string]$xl.Run($rl + 'Valor', 2, 'motivo')
     Conferir 'lote: DUPLICADO de SUSPEITO pede incluir a linha 1' ([string]$xl.Run($rl + 'Valor', 1, 'status') -eq 'SUSPEITO' -and $mot -match 'inclua a linha 1') $mot
+    # DEV-12 (ciclo 009): 12 colunas, DV do CNPJ errado, UF fora da lista e nota fracionária são ERRO
+    $lote = @(('2' + $t + '2' + $t + $t + 'LOTE DOZE COLUNAS' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + $t + $t + 'SOBRA'),
+              ('2' + $t + '2' + $t + $t + 'LOTE DV ERRADO' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + '11222333000182' + $t),
+              ('2' + $t + '2' + $t + $t + 'LOTE UF ERRADA' + $t + 'CURITIBA' + $t + 'XX' + $t + $t + $t + $t + $t),
+              ('1,5' + $t + '2' + $t + $t + 'LOTE NOTA QUEBRADA' + $t + 'CURITIBA' + $t + 'PR' + $t + $t + $t + $t + $t)) -join "`r`n"
+    [void]$xl.Run($rl + 'Analisar', $lote)
+    $est = @(foreach ($i in 1..4) { [string]$xl.Run($rl + 'Valor', $i, 'status') }) -join ','
+    Conferir ('lote DEV-12: 12 colunas, DV errado, UF XX e nota 1,5 são ERRO (' + $est + ')') ($est -eq 'ERRO,ERRO,ERRO,ERRO') $est
 
     $ini = Get-Date
     $xl.Run("'" + $n + "'!modPainel.AtualizarBasePainel")

@@ -1,3 +1,17 @@
+## Conector 1.7.0 — regras iguais nos três canais (ciclo 009)
+
+**Nota de mudança (DEV-10, DEV-11, DEV-15) - QUEBRA DE CONTRATO avisada:**
+- `atualizar_contato` **perdeu** o parâmetro `codigo_cliente_destino`: o contato pertence a uma empresa e não é
+  transferido. A skill deve desativar o contato e cadastrar um novo na empresa nova.
+- `alterar_situacao_cliente` com `reativar` reativa **só a empresa**: devolve `contatos_reativados = 0`,
+  `contatos_inativos` e `aviso`; os contatos voltam um a um por `atualizar_contato` (`ativo=true`).
+- Todo texto comercial é gravado em MAIÚSCULAS (nomes também; URL/caminho/e-mail no texto preservados); e-mail
+  com mais de um endereço fica com o primeiro e os demais vão para as observações.
+- Atendimento: encerrar em Perdido/Descartado limpa a próxima ação; reabrir limpa motivo, desfecho e retomada
+  (aviso com a orientação); `retomar_em` nova fora de Perdido/Descartado é recusada; proposta/desfecho antes
+  da entrada viram aviso; contato do atendimento conferido na transação (outra empresa ou inativo: recusa).
+- `criar_contato` devolve `avisos` quando já há contato com o mesmo nome na empresa.
+
 ## Conector 1.6.1 — tipos e resultado da gravação (ciclo 008)
 
 **Nota de mudança (DEV-09, DEV-13, DEV-14).** Nenhuma ferramenta muda de nome ou parâmetro.

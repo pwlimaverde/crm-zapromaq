@@ -106,6 +106,54 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: nota 2 valida", modLote.NotaValida("2"), True
     Confere "lote: nota vazia valida", modLote.NotaValida(""), True
 
+    ' ---- DEV-10: normalizacao da secao 5.1 (mesmos casos C22-C24 do conector)
+    Confere "C22 nome em maiusculas com acento", modValidacao.Normalizar("nome", "  jo" & ChrW$(227) & "o   da  silva "), "JO" & ChrW$(195) & "O DA SILVA"
+    Confere "C22 observacoes com quebra preservada", modValidacao.Normalizar("observacoes", "linha  um  " & vbCrLf & vbCrLf & "  linha dois"), "LINHA UM" & vbCrLf & vbCrLf & "LINHA DOIS"
+    Confere "C22 lista fica como na lista", modValidacao.Normalizar("etapa", " Proposta em An" & ChrW$(225) & "lise "), "Proposta em An" & ChrW$(225) & "lise"
+    Confere "C23 email minusculo e so o primeiro", modValidacao.Normalizar("email", "Ana@X.COM; b@y.com"), "ana@x.com"
+    Confere "C23 email adicional sai para as observacoes", modValidacao.ObservacoesComEmails("OBS", modValidacao.EmailsAdicionais("Ana@X.COM; b@y.com")), "OBS" & vbCrLf & "E-MAIL ADICIONAL: b@y.com"
+    Confere "C24 URL caminho e email preservados", modValidacao.Normalizar("observacoes", "ver http://site.com/Ab e C:\Pasta\Arq.txt com Ana@Ex.com"), "VER http://site.com/Ab E C:\Pasta\Arq.txt COM Ana@Ex.com"
+    Confere "C24 caminho de contexto como gravado", modValidacao.Normalizar("ctx_arquivo", " Clientes\0001\Contexto.md "), "Clientes\0001\Contexto.md"
+
+    ' ---- DEV-10: transicoes de etapa (mesmos casos C25-C28 do conector)
+    Dim dT As Object
+    Set dT = CreateObject("Scripting.Dictionary")
+    dT("prox_acao") = "LIGAR": dT("dt_prox_acao") = DateSerial(2026, 11, 1): dT("motivo_desfecho") = "PRECO": dT("dt_desfecho") = DateSerial(2026, 10, 1): dT("retomar_em") = DateSerial(2027, 1, 1)
+    Confere "C25 encerrar em perda nao orienta", modRegras.TransicaoEtapa(False, True, True, dT), ""
+    Confere "C25 encerrar em perda limpa a proxima acao", IsNull(dT("prox_acao")) And IsNull(dT("dt_prox_acao")), True
+    Confere "C26 retomada em etapa aberta recusada", (modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), Null) <> ""), True
+    Confere "C26 retomada em perda passa", modRegras.CriticarRetomada(True, True, DateSerial(2026, 12, 1), Null), ""
+    Confere "C26 retomada antiga sem mudar nao trava", modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), DateSerial(2026, 12, 1)), ""
+    Confere "C27 reabrir orienta", (InStr(modRegras.TransicaoEtapa(True, False, False, dT), "atendimento NOVO") > 0), True
+    Confere "C27 reabrir limpa motivo desfecho e retomada", IsNull(dT("motivo_desfecho")) And IsNull(dT("dt_desfecho")) And IsNull(dT("retomar_em")), True
+    Set dT = CreateObject("Scripting.Dictionary")
+    dT("dt_entrada") = DateSerial(2026, 10, 10): dT("dt_proposta") = DateSerial(2026, 10, 1)
+    Confere "C28 proposta antes da entrada e aviso", (InStr(modValidacao.AvisoDatas(dT), "proposta") > 0), True
+
+    ' ---- DEV-11: contato do atendimento (mesmo caso C29 do conector)
+    Confere "C29 contato de outra empresa recusado", (InStr(modRegras.CriticarContatoDoAtendimento(True, True, 7, 8), "outra empresa") > 0), True
+    Confere "C29 contato inativo recusado", (InStr(modRegras.CriticarContatoDoAtendimento(True, False, 7, 7), "inativo") > 0), True
+    Confere "C29 contato ativo da mesma empresa passa", modRegras.CriticarContatoDoAtendimento(True, True, 7, 7), ""
+    Confere "DEV-11 empresa do contato gravado nao se troca", modCRM.BotaoVinculoAtivo("id_cliente", True, False, 5), False
+
+    ' ---- DEV-12: lote com as regras do cadastro (mesmos casos C30-C31 do conector)
+    Dim dL As Object
+    Set dL = CreateObject("Scripting.Dictionary")
+    dL("empresa") = "EMPRESA X": dL("uf") = "PR": dL("aderencia") = "2": dL("porte") = "": dL("cnpj") = "11222333000182"
+    dL("cidade") = "": dL("email") = "": dL("segmento") = "": dL("qualificacao") = ""
+    Confere "C30 lote: DV do CNPJ errado e erro", (InStr(modLote.CriticaCampos(dL), "verificador") > 0), True
+    dL("cnpj") = "11222333000181": dL("aderencia") = "1,5": dL("uf") = "XX"
+    Confere "C31 lote: nota fracionaria e erro", (InStr(modLote.CriticaCampos(dL), "inteira") > 0), True
+    Confere "C31 lote: UF fora da lista e erro", (InStr(modLote.CriticaCampos(dL), "UF fora") > 0), True
+    dL("aderencia") = "2": dL("uf") = "PR"
+    Confere "lote: linha certa passa", modLote.CriticaCampos(dL), ""
+
+    ' ---- DEV-15: conflito por campo compara pelo tipo
+    Confere "MesmoValor nulo e vazio", modRegras.MesmoValor(Null, ""), True
+    Confere "MesmoValor numero", modRegras.MesmoValor(CCur(10), CLng(10)), True
+    Confere "MesmoValor texto diferente", modRegras.MesmoValor("A", "a"), False
+    Confere "MesmoValor data", modRegras.MesmoValor(DateSerial(2026, 1, 2), DateSerial(2026, 1, 2)), True
+
     ' ---- DEV-13: estado da gravacao e mensagem fiel
     modDB.NovaGravacao
     Confere "gravacao comeca nao enviada", modDB.EstadoGravacao(), "nao_enviada"

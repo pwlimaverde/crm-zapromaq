@@ -182,8 +182,8 @@ Regras que o conector confere e recusa com mensagem:
   código. O conector recusa sem `promover_pre_cliente=true`; pergunte ao usuário antes.
 - **Alterar:** `atualizar_contato` com a `versao` de `obter_contato` — nome, cargo,
   telefone, e-mail, `observacoes_acrescentar`.
-- **Trocar de empresa:** `codigo_cliente_destino` (cliente ativo). O código CT não muda
-  e os atendimentos já abertos continuam na empresa original — avise o usuário.
+- **Mudou de empresa:** o contato pertence a UMA empresa e não é transferido (ciclo 009): desative-o
+  (`ativo=false`) e cadastre um novo na empresa nova com `criar_contato`.
 - **Desativar / reativar:** `ativo=false` / `ativo=true`. Contato não se exclui.
 
 ## Empresas
@@ -192,6 +192,8 @@ Regras que o conector confere e recusa com mensagem:
   Procure antes com `buscar_clientes`; nome repetido é recusado sem `ignorar_homonimo=true`.
 - **Promover:** `promover_cliente` (pré-cliente → cliente, próximo código). Não se desfaz pelo sistema.
 - **Desativar / reativar / excluir:** `alterar_situacao_cliente` com a `versao` de `obter_cliente`.
+  Reativar a empresa reativa SÓ a empresa (ciclo 009): pergunte quais contatos ainda trabalham lá e
+  reative cada um com `atualizar_contato` (`ativo=true`).
   Desativar leva os contatos junto e deixa os atendimentos abertos no funil (avise quantos).
   Só pré-cliente sem contato nem atendimento pode ser excluído; cliente com código nunca.
 - Código e estágio não se editam à mão: só mudam pela promoção.
