@@ -1,6 +1,6 @@
 # Spec: Regras iguais nos três canais (ciclo 009)
 
-> Situação: aprovada em 20/10/2026 (plano revisado de 19/10/2026, seção 5, Etapa 2)
+> Concluída em 21/10/2026 - feature/regras-entre-canais (plano revisado de 19/10/2026, seção 5, Etapa 2)
 
 ## Objetivo
 
@@ -22,10 +22,10 @@
 
 ## Critérios de aceite
 
-- [ ] Matriz `SISTEMA\DADOS\docs\matriz-campos.json` (versão, campo, tabela, tipo, tamanho, normalização, lista,
+- [x] Matriz `SISTEMA\DADOS\docs\matriz-campos.json` (versão, campo, tabela, tipo, tamanho, normalização, lista,
   obrigatoriedade, editabilidade) e o `verificar.py` confere que ficha (`modSchema`), conector (`TamanhoTexto`,
   defs) e DDL concordam com ela.
-- [ ] Casos compartilhados (front `Confere` + conector `testar-mcp`, cobrança do `verificar.py`):
+- [x] Casos compartilhados (front `Confere` + conector `testar-mcp`, cobrança do `verificar.py`):
   C22 texto comercial em maiúsculas, com acento, espaço duplo colapsado e quebra de linha preservada;
   C23 e-mail minúsculo e um só endereço (o segundo vai para observações);
   C24 URL, caminho e e-mail dentro das observações preservados;
@@ -37,14 +37,14 @@
   C30 lote: CNPJ com DV inválido é ERRO;
   C31 lote/nota fracionária e UF fora da lista são ERRO;
   e, sem número de caso (só o conector tem o fluxo testável sem tela), reativar a empresa não reativa os contatos (DEV-15).
-- [ ] Ficha: `retomar_em` recusado ao salvar fora de Perdido/Descartado (C26); `dt_entrada` nasce com a data do lançamento nos três canais.
-- [ ] Conector: `atualizar_contato` sem `codigo_cliente_destino` (nota de mudança); `alterar_situacao_cliente`
+- [x] Ficha: `retomar_em` recusado ao salvar fora de Perdido/Descartado (C26); `dt_entrada` nasce com a data do lançamento nos três canais.
+- [x] Conector: `atualizar_contato` sem `codigo_cliente_destino` (nota de mudança); `alterar_situacao_cliente`
   reativa só a empresa; transições e avisos iguais ao front; normalização da seção 5.1 em todo texto.
-- [ ] Migração `005-normalizacao-secao-5-1.ps1` (só dados): normaliza os textos existentes pela mesma regra, grava
+- [x] Migração `005-normalizacao-secao-5-1.ps1` (só dados): normaliza os textos existentes pela mesma regra, grava
   cada diferença no log com origem MIGRACAO e a prévia no relatório; testada em banco fictício com casos legados.
-- [ ] Ações da ficha com versão lida: desativar/reativar/excluir com ficha antiga (versão mudou) são recusados sem
+- [x] Ações da ficha com versão lida: desativar/reativar/excluir com ficha antiga (versão mudou) são recusados sem
   mudar o registro nem os dependentes.
-- [ ] Conflito na ficha: lista campo, lido, atual e digitado; o usuário escolhe recarregar ou manter a digitação.
+- [x] Conflito na ficha: lista campo, lido, atual e digitado; o usuário escolhe recarregar ou manter a digitação.
 
 ## Decisões assumidas
 

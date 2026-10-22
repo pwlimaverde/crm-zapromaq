@@ -151,3 +151,5 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 - Ciclo 008: `modValidacao.Converter` (vazio/válido/inválido) em toda conversão de texto digitado; `MontarDados`
   devolve os campos inválidos e a ficha recusa salvar sem apagar nada. `modDB.EstadoGravacao` +
   `MensagemResultadoGravacao` (confirmada/indeterminada/desfeita/recusada); `ExecutarEm` repete só bloqueio (`EhBloqueio`).
+- Ciclo 009: `modRegras` (transição de etapa, retomada, contato do atendimento, `MesmoValor`); `modValidacao.Normalizar`
+  na seção 5.1; `modCRM.Atualizar` confere vínculo na transação; `modAcoes` com versão lida; `modLote.CriticaCampos`.

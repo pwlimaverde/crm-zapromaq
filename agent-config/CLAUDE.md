@@ -183,7 +183,7 @@ Na máquina de desenvolvimento o VBA é conferido pelo `verificar.py` e pela pr�
 - **Controle de versão otimista** em todo `UPDATE` (`WHERE id=? AND versao=?`; 0 linhas = conflito, nunca sobrescrever). Dado e `log_alteracoes` na mesma transação.
 - Códigos `CT-CCCC-NNNN` / `AT-CCCC-NNNN` são **congelados** na criação: nomeiam ~480 pastas de atendimento em `02 - CLIENTES`. Nunca recalcular nem reformatar.
 - `clientes.id` é a identidade interna; `codigo_cliente` só existe para `Cliente`. `estagio` é derivado (sem código → `Pré-cliente`), nunca digitável. Primeiro atendimento promove o pré-cliente na mesma transação (`MAX+1`).
-- Normalização de texto num ponto só (`modValidacao`): empresa/cidade/UF/máquina/orçamento em MAIÚSCULAS; nomes preservam digitação; e-mail minúsculo; CNPJ e telefone só dígitos (telefone 10–11); memo como digitado; acento preservado. Campo vazio grava `NULL` (índice único de CNPJ aceita vários nulos, não várias strings vazias).
+- Normalização de texto num ponto só por canal (`modValidacao.Normalizar` / `Regras.ps1 ConvertTo-Normalizado`, seção 5.1 do plano de 19/10/2026, ciclo 009): todo texto comercial em MAIÚSCULAS (nomes também), memo com quebras de linha preservadas, URL/caminho/e-mail dentro do texto como digitados; e-mail minúsculo e um por campo (os demais vão para observações); CNPJ e telefone só dígitos (telefone 10–11); lista = valor exato; acento preservado. Matriz em `SISTEMA\DADOS\docs\matriz-campos.json`. Campo vazio grava `NULL` (índice único de CNPJ aceita vários nulos, não várias strings vazias).
 - Os campos `ctx_*` só são escritos pela IA (MCP), nunca pelo formulário — é o que evita conflito entre as duas escritas.
 - `Microsoft.Jet.OLEDB.4.0` é proibido (gera JET4 com extensão `.accdb`).
 
