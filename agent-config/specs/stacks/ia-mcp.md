@@ -107,3 +107,6 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
   a transação inteira só em bloqueio (`Test-ErroTransitorio`), antes do commit; falha no commit vira "resultado indeterminado".
 - Ciclo 009 (1.7.0): `ConvertTo-Normalizado` da seção 5.1 (atenção: função que devolve lista precisa de `@()` no chamador);
   `Get-TransicaoEtapa`, `Test-RetomadaPermitida`, `Test-ContatoDoAtendimento`; `atualizar_contato` sem transferência.
+- Ciclo 010 (1.8.0): esquema 1.2 (`EsquemasSuportados = @('1.2')`); `ctx_versao` exigida em `atualizar_contexto_*`
+  (conflito devolve o contexto atual); `codigo_atendimento_anterior` sem ciclo; `id_operacao` nas criações (tabela
+  `operacoes`, 60 dias); log com `estacao`, `usuario_tecnico`, `versao_cliente` e `autor_declarado`.

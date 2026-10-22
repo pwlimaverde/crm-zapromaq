@@ -103,7 +103,7 @@ Acento é preservado.
 
 ## 8. Esquema 1.1 (migração 003)
 
-O front espera exatamente `1.1`; o conector aceita `1.0` e `1.1` (`EsquemasSuportados` em
+(Histórico: no esquema 1.1 o front esperava exatamente `1.1`; hoje ver a seção 9.) O conector aceitava `1.0` e `1.1` (`EsquemasSuportados` em
 `IA\mcp\lib\Banco.ps1`). Num banco 1.0 as ferramentas de visitas, planejamentos e municípios não
 têm as tabelas; `exportar_roteiro` recusa com a mensagem do esquema.
 
@@ -144,3 +144,18 @@ têm as tabelas; `exportar_roteiro` recusa com a mensagem do esquema.
 Toda gravação dessas tabelas entra em `log_alteracoes` na mesma transação (tabelas `visitas`,
 `planejamentos`, `listas`): é o que faz as outras estações atualizarem as telas abertas e a aba
 Planejamentos (feed, até 25 s).
+
+## 9. Esquema 1.2 (migração 004, ciclo 010)
+
+O front espera exatamente `1.2` (`modConfig.VERSAO_ESQUEMA`); o conector aceita só `1.2` (`EsquemasSuportados`).
+A 004 faz um **inventário antes da estrutura** (controle repetido; atendimento anterior inexistente, de outra
+empresa, apontando para si ou em ciclo): com qualquer achado ela para com a lista e nada é alterado.
+
+| Estrutura | Regra |
+|---|---|
+| `contatos.controle`, `oportunidades.controle` | Índice único (`ix_cto_controle`, `ix_opo_controle`); a alocação `MAX+1` repete quando colide. |
+| `id_atendimento_anterior` | Existe, é da mesma empresa, não aponta para si e **não forma ciclo** (front `Confere`, conector). Sem FK física (decisão 010-2). |
+| `clientes.ctx_versao`, `oportunidades.ctx_versao` | Versão do contexto, independente da `versao` comercial: gravar `ctx_*` exige a `ctx_versao` lida (`WHERE id=? AND ctx_versao=?`); zero linhas = conflito, devolve o contexto atual. |
+| `clientes.ctx_familia` | `TEXT(255)`; nenhum campo trunca em silêncio. |
+| `log_alteracoes.estacao`, `usuario_tecnico`, `versao_cliente`, `autor_declarado` | Preenchidos em toda linha nova (front e conector); `autor_declarado` é quem a IA diz ter pedido; `usuario` continua como antes. |
+| `operacoes` (`id_operacao` único, tabela, id, código, versão, hash do conteúdo, instante, origem, estação) | Criação com o mesmo identificador e o mesmo conteúdo devolve o registro já criado sem gravar nem gerar log; mesmo identificador com outro conteúdo é recusado. Registrada na transação do dado; o conector apaga as de mais de 60 dias ao gravar. |
