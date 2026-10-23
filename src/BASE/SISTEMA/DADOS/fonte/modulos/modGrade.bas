@@ -223,6 +223,9 @@ Private Sub Montar(ByVal ws As Worksheet, Optional ByVal silencioso As Boolean =
     Next i
 
     Set rng = ws.Range(ws.Cells(LIN_CAB, COL_INI), ws.Cells(LIN_CAB + nl, COL_INI + nt - 1))
+    ' DEV-24 (ciclo 013): colunas de texto em formato Texto ANTES de preencher - "=1+1",
+    ' "+5541" ou "@X" do cadastro ficam literais, nunca formula; moeda, data e numero seguem numericos
+    FormatoTexto ws, cols, nc, nl
     rng.Value2 = arr
 
     ' xlSrcRange = 1, xlYes = 1
@@ -266,6 +269,23 @@ trata:
     If silencioso Then Err.Raise vbObjectError + 612, "modGrade.Montar", "Erro ao montar a grade: " & sErro
     MsgBox "Nao foi possivel montar a grade." & vbCrLf & vbCrLf & sErro, _
            vbExclamation, "CRM Zapromaq"
+End Sub
+
+'----------------------------------------------------------
+' Formato Texto nas colunas que nao sao moeda (C), data (D) nem
+' numero (N), e nas ocultas _b (busca) e _a (situacao do cadastro).
+'----------------------------------------------------------
+Private Sub FormatoTexto(ByVal ws As Worksheet, ByVal cols As Variant, ByVal nc As Long, ByVal nl As Long)
+    Dim j As Long, tipo As String
+    If nl = 0 Then Exit Sub
+    For j = 1 To nc
+        tipo = modSchema.Parte(CStr(cols(LBound(cols) + j - 1)), 3)
+        If tipo <> "C" And tipo <> "D" And tipo <> "N" Then
+            ws.Range(ws.Cells(LIN_CAB + 1, COL_INI + j - 1), ws.Cells(LIN_CAB + nl, COL_INI + j - 1)).NumberFormat = "@"
+        End If
+    Next j
+    ws.Range(ws.Cells(LIN_CAB + 1, COL_INI + nc), ws.Cells(LIN_CAB + nl, COL_INI + nc)).NumberFormat = "@"
+    ws.Range(ws.Cells(LIN_CAB + 1, COL_INI + nc + 2), ws.Cells(LIN_CAB + nl, COL_INI + nc + 2)).NumberFormat = "@"
 End Sub
 
 '----------------------------------------------------------

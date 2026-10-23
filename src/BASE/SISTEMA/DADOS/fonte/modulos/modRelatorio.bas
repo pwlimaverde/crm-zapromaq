@@ -144,6 +144,12 @@ Public Function CampoCsv(ByVal v As Variant) As String
         Case Else
             s = Replace(Replace(CStr(v), vbCrLf, " "), vbLf, " ")
             s = Replace(s, vbCr, " ")
+            ' DEV-24 (ciclo 013): estes CSVs sao para abrir na planilha - texto que comeca com
+            ' = + - @ ou tabulacao viraria formula no Excel. O apostrofo deixa literal; o dado
+            ' gravado nao muda e a exportacao fiel para integracao e a do conector (exportar_base).
+            If Len(s) > 0 Then
+                If InStr("=+-@" & vbTab, Left$(s, 1)) > 0 Then s = "'" & s
+            End If
             If InStr(s, SEP) > 0 Or InStr(s, """") > 0 Then s = """" & Replace(s, """", """""") & """"
     End Select
     CampoCsv = s
