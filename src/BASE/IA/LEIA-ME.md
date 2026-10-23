@@ -1,3 +1,19 @@
+## Conector 1.9.0 — agenda, paginação e extratos (ciclo 012)
+
+**Nota de mudança (DEV-21, DEV-22, DEV-23) - QUEBRA DE CONTRATO avisada:**
+- `exportar_base`: **sai o parâmetro `destino`** (informado, é recusado). O extrato vai sempre para uma
+  subpasta nova de `SISTEMA\DADOS\execucao\extratos` e a resposta traz `pasta`/`pasta_relativa`. Novos:
+  `finalidade` e `autor` (opcionais); manifesto com solicitante, estação, finalidade, instante, corte e SHA-256;
+  `consistencia = nao_comprovada` (com `aviso` se houve gravação durante a leitura).
+- Situação **"Retomar hoje" deixa de existir**: a agenda do aberto é só a `dt_prox_acao`; Perdido/Descartado cuja
+  `retomar_em` chegou passa a **"Retomada a avaliar"** (enum de `buscar_atendimentos.situacao` atualizado).
+- `atendimentos_por_proxima_acao` (aditivo): `retomadas_a_avaliar` + `quantidade_retomadas` (primeira página),
+  `consistencia = dinamica`, `cursor`/`proximo_cursor` (paginação por chave, recusa filtro diferente e base trocada)
+  e `limitacao`. `a_partir_de`/`proximo` continuam (com aviso).
+- `exportar_roteiro`: grava numa subpasta da raiz de extratos com manifesto (não mais em Documentos); aceita `autor`.
+- Ferramenta nova **`descartar_extratos`** (42 ferramentas): `simular` (padrão true) e `autor`; apaga só subpastas
+  vencidas (antes do mês anterior) com manifesto válido e fora de processamento; registra em `descartes.log`.
+
 ## Conector 1.8.0 — esquema 1.2 (ciclo 010)
 
 **Nota de mudança (DEV-16, DEV-17, DEV-06B, DEV-13) - exige o banco no esquema 1.2 (montagem 1.6 em diante).**
@@ -218,7 +234,7 @@ IA\
     lib\Protocolo.ps1     núcleo do protocolo MCP (dual-era), usado pelos dois servidores
     lib\Banco.ps1         conexão curta, parâmetros tipados, transação, log
     lib\Regras.ps1        normalização e campos calculados — espelho do front
-    lib\Ferramentas.ps1   catálogo fechado de operações (41 ferramentas)
+    lib\Ferramentas.ps1   catálogo fechado de operações (42 ferramentas)
   mcp-dev\
     servidor-dev.ps1      MCP de desenvolvimento: fontes do front, prévia, montagem
     lib\Catalogo.ps1       catálogo fechado (15 ferramentas)
@@ -260,7 +276,7 @@ Windows PowerShell 5.1 que já vem no Windows. Exige **Office 64 bits** (ou o
    (`TESTAR-MCP.bat -SoProtocolo` testa só o protocolo, sem banco.)
 4. `IA\INSTALAR-MCP.bat` — registra o servidor. Feche o Claude Desktop por completo
    (inclusive o ícone perto do relógio) e abra de novo.
-5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 41 ferramentas.
+5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 42 ferramentas.
 6. Instale a skill (conforme a documentação do Claude, em `doc_dev`):
    - ligue **Code execution and file creation** em **Settings › Capabilities**
      (skills dependem disso; em plano Team/Enterprise, o administrador liga em

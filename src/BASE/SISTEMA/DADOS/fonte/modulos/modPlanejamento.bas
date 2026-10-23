@@ -510,10 +510,72 @@ Public Function ExportarRoteiro(ByVal idPlanejamento As Long, ByVal pasta As Str
     stream.SaveToFile arq, 2
     stream.Close
     caminho = arq
+    ' DEV-23: manifesto ao lado do CSV (o descarte do conector so apaga pasta com manifesto valido)
+    Dim nVis As Long
+    If Not IsEmpty(vis) Then nVis = UBound(vis, 1)
+    GravarManifestoRoteiro pasta, CStr(pl(1, 1)), Mid$(arq, InStrRev(arq, "\") + 1), nVis
     ExportarRoteiro = ""
     Exit Function
 FalhaGravar:
     ExportarRoteiro = "Nao foi possivel gravar o roteiro (" & arq & "): " & Err.Description
+End Function
+
+'----------------------------------------------------------
+' DEV-23 (ciclo 012, secao 5.3): extratos e roteiros ficam na raiz
+' de extratos, ao lado do banco (<BASE>\SISTEMA\DADOS\execucao\extratos),
+' uma subpasta por extrato - nunca em Documentos (sincronizado).
+'----------------------------------------------------------
+Public Function PastaRaizExtratos() As String
+    Dim c As String, k As Long
+    c = modConfig.CaminhoBanco()
+    k = InStrRev(c, "\")
+    If k = 0 Then Exit Function
+    PastaRaizExtratos = Left$(c, k) & "SISTEMA\DADOS\execucao\extratos"
+End Function
+
+' Subpasta nova (ainda nao criada) para o roteiro: AAAAMMDD-HHMMSS-<6 hex>-roteiro-<id>.
+Public Function NovaPastaRoteiro(ByVal idPlanejamento As Long) As String
+    Dim raiz As String
+    raiz = PastaRaizExtratos()
+    If raiz = "" Then Exit Function
+    Randomize
+    NovaPastaRoteiro = raiz & "\" & Format$(Now, "yyyymmdd-hhnnss") & "-" & _
+                       LCase$(Right$("000000" & Hex$(CLng(Rnd * 16777215)), 6)) & "-roteiro-" & idPlanejamento
+End Function
+
+' Manifesto JSON (UTF-8) no formato do conector: tipo, instante, solicitante, estacao e finalidade.
+' O hash do arquivo nao e calculado aqui (o VBA nao tem SHA-256 nativo): o manifesto diz isso.
+Private Sub GravarManifestoRoteiro(ByVal pasta As String, ByVal codigo As String, ByVal arquivo As String, ByVal visitas As Long)
+    Dim j As String, stream As Object
+    On Error Resume Next
+    j = "{" & vbCrLf & _
+        "  ""tipo"": ""extrato-crm""," & vbCrLf & _
+        "  ""versao_manifesto"": 1," & vbCrLf & _
+        "  ""conteudo"": ""roteiro""," & vbCrLf & _
+        "  ""origem"": ""FRONT""," & vbCrLf & _
+        "  ""criado_em"": """ & Format$(Now, "yyyy-mm-dd") & "T" & Format$(Now, "hh:nn:ss") & """," & vbCrLf & _
+        "  ""solicitante"": """ & Json(modConfig.UsuarioAtual()) & """," & vbCrLf & _
+        "  ""estacao"": """ & Json(Environ$("COMPUTERNAME")) & """," & vbCrLf & _
+        "  ""usuario_tecnico"": """ & Json(Environ$("USERNAME")) & """," & vbCrLf & _
+        "  ""versao_cliente"": ""FRONT " & Json(modConfig.VERSAO_FRONT) & """," & vbCrLf & _
+        "  ""finalidade"": ""roteiro de visitas""," & vbCrLf & _
+        "  ""planejamento"": """ & Json(codigo) & """," & vbCrLf & _
+        "  ""arquivos"": { ""roteiro"": { ""arquivo"": """ & Json(arquivo) & """, ""visitas"": " & visitas & ", ""sha256"": null } }," & vbCrLf & _
+        "  ""hash"": ""nao calculado pelo front""," & vbCrLf & _
+        "  ""retencao"": ""mes corrente e anterior (secao 5.3)""," & vbCrLf & _
+        "  ""em_processamento"": false" & vbCrLf & "}"
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.WriteText j
+    stream.SaveToFile pasta & "\crm-extrato.json", 2
+    stream.Close
+End Sub
+
+' Texto dentro de uma cadeia JSON: barra invertida e aspas escapadas.
+Private Function Json(ByVal s As String) As String
+    Json = Replace(Replace(s, "\", "\\"), """", "\""")
 End Function
 
 ' Aspas dobradas dentro de um campo entre aspas do CSV (mesmo formato do conector).

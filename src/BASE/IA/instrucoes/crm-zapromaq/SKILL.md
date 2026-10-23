@@ -51,8 +51,10 @@ backup leva segundos; a manutenção, o tempo da atualização). Não repita soz
 | Atendimentos candidatos a visita perto de uma cidade | `listar_candidatos` |
 | Código IBGE de uma cidade | `buscar_municipios`, `resolver_cidade` |
 
-A **situação** (Ação atrasada, Retomar hoje, Ação nesta semana, Em dia, Sem próxima
-ação, Encerrado) é calculada com a mesma regra da planilha.
+A **situação** (Ação atrasada, Ação nesta semana, Em dia, Sem próxima ação, Encerrado,
+Retomada a avaliar) é calculada com a mesma regra da planilha. A agenda do atendimento
+**aberto** é só a `dt_prox_acao`; **Retomada a avaliar** é o Perdido/Descartado cuja
+`retomar_em` chegou (não reabre: interesse novo é atendimento novo).
 
 ## Relatório semanal — `atendimentos_por_interacao`
 
@@ -101,7 +103,8 @@ ela é executada, então período passado não tem dado. Para o que já acontece
 | `responsavel` | Opcional: filtra um responsável. Sem registro, volta `aviso` para conferir a grafia em `listar_opcoes`. |
 | `incluir_vencidas` | Padrão `true`: inclui os abertos com `dt_prox_acao` anterior a hoje, com `vencida: true`. |
 | `completo` | `true` devolve todos os campos, inclusive os técnicos. Padrão `false`. |
-| `a_partir_de` | Paginação: índice do primeiro registro. Padrão `0`. |
+| `cursor` | Paginação: o `proximo_cursor` da chamada anterior, com os mesmos filtros. |
+| `a_partir_de` | Paginação antiga por deslocamento (ainda aceita); prefira `cursor`. |
 
 Regras do período, conferidas antes de consultar o banco:
 
@@ -114,8 +117,9 @@ Exemplos: `{}` (resto da semana) · `{"semana": 41, "ano": 2026}` ·
 `{"data_inicio": "2026-10-01", "data_fim": "2026-10-31", "responsavel": "Paulo"}`.
 
 Saída: JSON compacto, sem campos vazios — `periodo` (com `hoje`), `quantidade`
-(total real, vencidas incluídas), `devolvidos`, `resumo` e `equipe` (só com
-`a_partir_de` = 0) e `atendimentos`, ordenados por vencidas primeiro, depois responsável,
+(total real, vencidas incluídas), `devolvidos`, `consistencia` (`dinamica`), `resumo`,
+`equipe` e `retomadas_a_avaliar` (Perdido/Descartado com `retomar_em` até o fim do
+período, cada um uma vez; só na primeira página) e `atendimentos`, ordenados por vencidas primeiro, depois responsável,
 `dt_prox_acao`, prioridade (Alta, Média, Baixa, vazio) e empresa. Campos: os de
 `atendimentos_por_interacao` mais `quadro`, `categoria`, `codigo_contato` e
 `vencida`. Atendimento sem contato vinculado também aparece.
@@ -128,29 +132,38 @@ cobre sempre todos os registros e vem só na primeira página; as seguintes traz
 só a lista.
 
 **Paginação:** o limite desta ferramenta é 35.000 caracteres por página (uns 40
-atendimentos). Se passar, vem `truncado: true` e `proximo`.
-Repita a mesma chamada com `a_partir_de = proximo` até não vir mais `proximo`; a
-soma de `devolvidos` fecha com `quantidade`. Não refaça por responsável — um
+atendimentos). Se passar, vem `truncado: true` e `proximo_cursor`.
+Repita a mesma chamada com `cursor = proximo_cursor` até não vir mais `proximo_cursor`.
+A leitura é **dinâmica** (`limitacao` explica): inclusão e exclusão entre páginas não
+deslocam os demais, mas um atendimento alterado no meio pode mudar de lugar. Cursor
+de outra consulta (filtros diferentes) ou de antes de uma troca do banco é recusado:
+recomece sem cursor. Não refaça por responsável — um
 mês de um único responsável já passa do limite.
 
 ## Extrato para análise — `exportar_base`
 
 Use quando a pergunta exige a base inteira (contar, somar, cruzar, filtrar por
 data): as consultas devolvem no máximo 200 registros e não agregam. A ferramenta
-grava `crm-<tabela>.csv` e `crm-extrato.json` numa pasta e devolve **só o
-envelope** (data do extrato, linhas e colunas por tabela). O dado não vem para a
+grava `crm-<tabela>.csv` e o manifesto `crm-extrato.json` numa **subpasta nova** de
+`SISTEMA\DADOS\execucao\extratos` e devolve o caminho e **só o envelope** (linhas,
+colunas e SHA-256 por tabela). O dado não vem para a
 conversa: quem lê e calcula é o script. Não altera o banco.
 
 | Parâmetro | Uso |
 |---|---|
-| `destino` | Obrigatório. Pasta relativa a `1 - COMERCIAL ZAPROMAQ`, sem letra de unidade; precisa existir. `01 - CRM\01 - CONTROLE` é recusado. |
+| `finalidade` | Opcional: para que o extrato será usado (vai para o manifesto). |
+| `autor` | Quem pediu (solicitante no manifesto). |
 | `tabelas` | Opcional: `clientes`, `contatos`, `oportunidades`, `log_alteracoes`, `listas`, `metas`, `planejamentos`, `visitas`, `municipios`. Padrão: as três primeiras. |
 
 Formato: UTF-8, separador vírgula, todo campo entre aspas (texto com quebra
 de linha fica dentro das aspas) — o formato que os scripts do padrão leem, datas `AAAA-MM-DD` ou `AAAA-MM-DDTHH:MM:SS`,
 valor com ponto decimal. `crm-oportunidades.csv` traz `codigo_cliente`,
 `empresa`, `codigo_contato` e os calculados `situacao`, `quadro`, `dias_parado`
-e `ciclo`, na data do extrato. Cada chamada regrava os arquivos.
+e `ciclo`, na data do extrato. Cada chamada cria uma subpasta nova. O manifesto declara
+`consistencia: nao_comprovada` (cada tabela é lida numa consulta; se houve gravação no meio,
+vem `aviso`). `destino` saiu (1.9.0): informado, é recusado. Retenção: mês corrente e
+anterior — `descartar_extratos` (primeiro com `simular`, o padrão) apaga só as subpastas
+vencidas com manifesto válido.
 
 ## Alterar — sempre nesta ordem
 
@@ -234,8 +247,8 @@ A AGENDAR e com data como AGENDADA).
 4. `gerar_visitas` com os códigos escolhidos: primeiro com `simular` (padrão `true`), mostre o
    resultado ao usuário e só então repita com `simular=false`. Se um atendimento for recusado,
    nada é gravado. Até 100 por chamada.
-5. `exportar_roteiro`: grava o CSV em `Documentos\CRM Zapromaq\Roteiros` (linha BASE e uma por
-   visita pendente) e devolve só o caminho e o total. A ordem do roteiro não volta ao sistema.
+5. `exportar_roteiro`: grava o CSV numa subpasta nova de `SISTEMA\DADOS\execucao\extratos`, com
+   manifesto (linha BASE e uma por visita pendente) e devolve só o caminho e o total. A ordem do roteiro não volta ao sistema.
 6. `lancar_datas` e `lancar_resultados` em lote (até 100, cada item com `id` e `versao` lidas;
    `simular` padrão `true`, tudo ou nada).
 7. `alterar_situacao_planejamento`: encerrar com visitas pendentes é recusado, salvo

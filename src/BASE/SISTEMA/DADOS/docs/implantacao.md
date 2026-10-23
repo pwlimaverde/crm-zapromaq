@@ -124,7 +124,8 @@ teste na rede**.
   - preferir corrigir para frente (hotfix 1.7): a migração só acrescenta e o front 1.5 recusa gravar no 1.1;
   - volta total só se ninguém gravou ainda: todos fecham; copiar da pasta `antes-da-publicacao` o banco
     e o `.xlsm`, e restaurar o `VERSAO-FRONT.txt` do backup do passo 3. Em cada estação que já tinha a
-    1.6, apagar `Documentos\CRM Zapromaq\CRM_Zapromaq.xlsm`: o `INICIAR-CRM` reinstala quando não há cópia local;
+    1.6, apagar `%LOCALAPPDATA%\CRM Zapromaq\CRM_Zapromaq.xlsm` (até a 1.6: `Documentos\CRM Zapromaq`): o
+    `INICIAR-CRM` reinstala quando não há cópia local;
   - se já houve gravação no 1.1, não voltar o banco; corrigir para frente.
 
 ## Depois

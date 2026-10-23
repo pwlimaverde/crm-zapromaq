@@ -25,7 +25,9 @@ Add-Type -AssemblyName System.Data
 # 1.7.0 (ciclo 009): seção 5.1/5.2 nos três canais; atualizar_contato sem codigo_cliente_destino; reativar só a empresa.
 # 1.8.0 (ciclo 010): esquema 1.2; ctx_versao exigida no contexto; codigo_atendimento_anterior no atualizar_atendimento
 # (sem ciclo); id_operacao nas criações; log com estação, usuário técnico, versão e autor declarado.
-$script:VersaoServidor = '1.8.0'
+# 1.9.0 (ciclo 012): situação "Retomada a avaliar"; retomadas_a_avaliar e cursor no planejamento; exportar_base
+# sem destino (raiz execucao\extratos, manifesto); descartar_extratos; roteiro na raiz de extratos.
+$script:VersaoServidor = '1.9.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.

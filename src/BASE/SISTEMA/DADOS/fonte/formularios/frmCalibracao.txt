@@ -42,7 +42,7 @@ End Sub
 
 Private Function Amostra() As Variant
     Dim d(1 To 10, 1 To 3) As String, i As Long, s As Variant
-    s = Array("Em dia", "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada", "Retomar hoje", _
+    s = Array("Em dia", "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada", "Retomada a avaliar", _
               "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o nesta semana", _
               "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o", "Encerrado")
     For i = 1 To 10

@@ -42,7 +42,7 @@ $script:FerramentasEsperadas = @(
     'atendimentos_por_interacao', 'atendimentos_por_proxima_acao', 'atualizar_atendimento', 'atualizar_cadastro_cliente',
     'atualizar_contato', 'atualizar_contexto_atendimento', 'atualizar_contexto_cliente', 'atualizar_planejamento',
     'atualizar_visita', 'buscar_atendimentos', 'buscar_clientes', 'buscar_contatos', 'buscar_municipios',
-    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'exportar_base',
+    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'descartar_extratos', 'exportar_base',
     'exportar_roteiro', 'gerar_visitas', 'gerenciar_lista', 'gravar_meta', 'lancar_datas', 'lancar_resultados',
     'listar_candidatos', 'listar_metas', 'listar_opcoes', 'listar_planejamentos', 'listar_visitas', 'obter_atendimento',
     'obter_cliente', 'obter_contato', 'obter_planejamento', 'promover_cliente', 'resolver_cidade', 'ultimas_alteracoes')
@@ -462,13 +462,108 @@ try {
     foreach ($i in $planT11) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT11))
 }
+Write-Host '--- DEV-21: agenda do aberto pela próxima ação; encerrado com retomada vira "Retomada a avaliar"'
+$hojeT = (Get-Date).Date
+Conferir 'DEV-21 aberto com retomada vencida segue a próxima ação' ((Get-Situacao $true 'Negociação' $hojeT.AddDays(30) $hojeT.AddDays(-1)) -eq 'Em dia')
+Conferir 'DEV-21 encerrado com retomada que chegou' ((Get-Situacao $true 'Perdido' $null $hojeT) -eq 'Retomada a avaliar')
+Conferir 'DEV-21 encerrado com retomada futura continua Encerrado' ((Get-Situacao $true 'Perdido' $null $hojeT.AddDays(5)) -eq 'Encerrado')
+$fila21 = Linhas-Visita "SELECT TOP 2 id, codigo, etapa, responsavel, dt_prox_acao, retomar_em FROM oportunidades WHERE etapa IN (SELECT valor FROM listas WHERE tipo='Etapa' AND encerra=False) ORDER BY id"
+$maxLog21 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+try {
+    Executa-Visita 'UPDATE oportunidades SET etapa=?, responsavel=?, dt_prox_acao=NULL, retomar_em=? WHERE id=?' @((P 'texto' 'Perdido'), (P 'texto' 'TESTE RETOMADA 012'), (P 'data' $hojeT.AddDays(-3)), (P 'inteiro' ([int]$fila21[0].id)))
+    Executa-Visita 'UPDATE oportunidades SET responsavel=?, dt_prox_acao=?, retomar_em=? WHERE id=?' @((P 'texto' 'TESTE RETOMADA 012'), (P 'data' $hojeT.AddDays(2)), (P 'data' $hojeT.AddDays(-1)), (P 'inteiro' ([int]$fila21[1].id)))
+    $pl21 = (Invoke-AtendimentosPorProximaAcao ([pscustomobject]@{ responsavel = 'TESTE RETOMADA 012'; data_inicio = $hojeT.ToString('yyyy-MM-dd'); data_fim = $hojeT.AddDays(6).ToString('yyyy-MM-dd') })).__conteudo.text | ConvertFrom-Json
+    $ret21 = @($pl21.retomadas_a_avaliar | ForEach-Object { [string]$_.codigo })
+    $ate21 = @($pl21.atendimentos | ForEach-Object { [string]$_.codigo })
+    Conferir 'DEV-21 encerrado com retomada aparece uma vez em retomadas_a_avaliar' ($ret21.Count -eq 1 -and $ret21[0] -eq [string]$fila21[0].codigo) ($pl21 | ConvertTo-Json -Compress -Depth 6)
+    Conferir 'DEV-21 aberto aparece pela próxima ação e o encerrado não está na agenda' (($ate21 -contains [string]$fila21[1].codigo) -and -not ($ate21 -contains [string]$fila21[0].codigo)) ($ate21 -join ',')
+    Conferir 'DEV-21 data futura nunca aparece como vencida' (@($pl21.atendimentos | Where-Object { $_.vencida -and [datetime]$_.dt_prox_acao -ge $hojeT }).Count -eq 0)
+    $sit21 = @($pl21.retomadas_a_avaliar)[0].situacao
+    Conferir 'DEV-21 a situação da retomada é "Retomada a avaliar"' ($sit21 -eq 'Retomada a avaliar') ([string]$sit21)
+} finally {
+    foreach ($o in $fila21) {
+        Executa-Visita 'UPDATE oportunidades SET etapa=?, responsavel=?, dt_prox_acao=?, retomar_em=? WHERE id=?' @((P 'texto' $o.etapa), (P 'texto' $o.responsavel), (P 'data' (ConvertTo-DataOuNulo $o.dt_prox_acao)), (P 'data' (ConvertTo-DataOuNulo $o.retomar_em)), (P 'inteiro' ([int]$o.id)))
+    }
+    Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog21))
+}
+
+Write-Host '--- DEV-22: paginação do planejamento por cursor (inserção e exclusão entre páginas, filtro e geração)'
+$limiteOriginal = $script:LimiteCaracteresPlanejamento
+$arg22 = [ordered]@{ data_inicio = $hojeT.ToString('yyyy-MM-dd'); data_fim = $hojeT.AddDays(30).ToString('yyyy-MM-dd') }
+function Arg22($extra) { $h = [ordered]@{}; foreach ($k in $arg22.Keys) { $h[$k] = $arg22[$k] }; foreach ($k in $extra.Keys) { $h[$k] = $extra[$k] }; return [pscustomobject]$h }
+$todo22 = (Invoke-AtendimentosPorProximaAcao ([pscustomobject]$arg22)).__conteudo.text | ConvertFrom-Json
+$cods22 = @($todo22.atendimentos | ForEach-Object { [string]$_.codigo })
+Conferir 'DEV-22 resposta declara a leitura dinâmica' ($todo22.consistencia -eq 'dinamica') ([string]$todo22.consistencia)
+$script:LimiteCaracteresPlanejamento = 2500
+$sai22 = $null
+try {
+    $p1 = (Invoke-AtendimentosPorProximaAcao ([pscustomobject]$arg22)).__conteudo.text | ConvertFrom-Json
+    $vistos22 = New-Object System.Collections.ArrayList
+    foreach ($x in @($p1.atendimentos)) { [void]$vistos22.Add([string]$x.codigo) }
+    Conferir 'DEV-22 a primeira página é parcial e traz proximo_cursor' ($p1.truncado -and $p1.proximo_cursor -and $vistos22.Count -lt $cods22.Count) ('pagina=' + $vistos22.Count + ' de ' + $cods22.Count)
+    # exclusão entre páginas: um item já visto sai do conjunto (vira Perdido); com deslocamento, a página seguinte pularia um
+    $sai22 = Linhas-Visita 'SELECT id, etapa, motivo_desfecho, dt_desfecho FROM oportunidades WHERE codigo=?' @((P 'texto' $vistos22[0]))
+    Executa-Visita "UPDATE oportunidades SET etapa='Perdido' WHERE id=?" @((P 'inteiro' ([int]$sai22[0].id)))
+    $cur = [string]$p1.proximo_cursor; $voltas = 0
+    while ($cur -and $voltas -lt 50) {
+        $pn = (Invoke-AtendimentosPorProximaAcao (Arg22 @{ cursor = $cur })).__conteudo.text | ConvertFrom-Json
+        foreach ($x in @($pn.atendimentos)) { [void]$vistos22.Add([string]$x.codigo) }
+        $cur = [string]$pn.proximo_cursor; $voltas++
+    }
+    $dup22 = @($vistos22 | Group-Object | Where-Object { $_.Count -gt 1 })
+    $falta22 = @($cods22 | Where-Object { $vistos22 -notcontains $_ })
+    Conferir 'DEV-22 exclusão entre páginas não duplica nem omite' ($dup22.Count -eq 0 -and $falta22.Count -eq 0 -and $vistos22.Count -eq $cods22.Count) ('duplicados=' + ($dup22.Name -join ',') + ' faltam=' + ($falta22 -join ','))
+    $msg22 = Mensagem { Invoke-AtendimentosPorProximaAcao (Arg22 @{ cursor = [string]$p1.proximo_cursor; responsavel = 'Vendedor A' }) }
+    Conferir 'DEV-22 cursor com filtro diferente é recusado' ($msg22 -match 'outra consulta') $msg22
+    $g22 = [string](Invoke-Valor "SELECT valor FROM config WHERE chave='geracao_base'" @())
+    Executa-Visita "UPDATE config SET valor='TESTE012GERACAO' WHERE chave='geracao_base'"
+    try { $msg22 = Mensagem { Invoke-AtendimentosPorProximaAcao (Arg22 @{ cursor = [string]$p1.proximo_cursor }) } }
+    finally { Executa-Visita "UPDATE config SET valor=? WHERE chave='geracao_base'" @((P 'texto' $g22)) }
+    Conferir 'DEV-22 cursor de outra geração da base é recusado' ($msg22 -match 'trocada') $msg22
+    Conferir 'DEV-22 cursor ilegível é recusado' ((Mensagem { Invoke-AtendimentosPorProximaAcao (Arg22 @{ cursor = 'xx' }) }) -match 'cursor')
+} finally {
+    $script:LimiteCaracteresPlanejamento = $limiteOriginal
+    if ($sai22) { Executa-Visita 'UPDATE oportunidades SET etapa=? WHERE id=?' @((P 'texto' ([string]$sai22[0].etapa)), (P 'inteiro' ([int]$sai22[0].id))) }
+}
+
+Write-Host '--- DEV-22/23: extrato na raiz fixa, manifesto com hashes e consistência; descarte só do vencido com manifesto'
+$raiz23 = Get-RaizExtratos
+$antes23 = @(if (Test-Path -LiteralPath $raiz23) { Get-ChildItem -LiteralPath $raiz23 -Directory | ForEach-Object { $_.FullName } })
+$criadas23 = New-Object System.Collections.ArrayList
+try {
+    Conferir 'DEV-23 destino informado é recusado (saiu do contrato)' ((Mensagem { Invoke-ExportarBase ([pscustomobject]@{ destino = 'QUALQUER' }) }) -match 'destino')
+    $e23 = Invoke-ExportarBase ([pscustomobject]@{ tabelas = @('clientes', 'listas'); finalidade = 'teste de contrato'; autor = 'teste' })
+    [void]$criadas23.Add([string]$e23.pasta)
+    Conferir 'DEV-23 extrato gravado numa subpasta da raiz execucao\extratos' ((Split-Path -Parent ([string]$e23.pasta)) -eq $raiz23 -and (Test-Path -LiteralPath (Join-Path $e23.pasta 'crm-clientes.csv'))) ([string]$e23.pasta)
+    $m23 = Get-Content -LiteralPath (Join-Path $e23.pasta 'crm-extrato.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    Conferir 'DEV-23 manifesto com solicitante, estação, finalidade, instante e corte' ($m23.tipo -eq 'extrato-crm' -and $m23.solicitante -eq 'teste' -and $m23.estacao -eq [Environment]::MachineName -and $m23.finalidade -eq 'teste de contrato' -and $m23.criado_em -and $null -ne $m23.corte.max_log_antes -and $m23.em_processamento -eq $false) ($m23 | ConvertTo-Json -Compress -Depth 5)
+    $hashOk = ((Get-FileHash -LiteralPath (Join-Path $e23.pasta 'crm-clientes.csv') -Algorithm SHA256).Hash.ToLowerInvariant() -eq [string]$m23.tabelas.clientes.sha256)
+    Conferir 'DEV-23 hash do arquivo confere com o manifesto' $hashOk
+    Conferir 'DEV-22 extrato declara consistência não comprovada' ($m23.consistencia -eq 'nao_comprovada' -and $e23.consistencia -eq 'nao_comprovada') ([string]$m23.consistencia)
+    # descarte: uma pasta vencida com manifesto, uma vencida SEM manifesto, uma em processamento e o extrato novo
+    $velha = Join-Path $raiz23 '20200101-000000-aaaa'; New-Item -ItemType Directory -Path $velha -Force | Out-Null; [void]$criadas23.Add($velha)
+    $mv = [ordered]@{ tipo = 'extrato-crm'; versao_manifesto = 1; criado_em = '2020-01-01T00:00:00'; em_processamento = $false }
+    [System.IO.File]::WriteAllText((Join-Path $velha 'crm-extrato.json'), (ConvertTo-Json $mv), (New-Object System.Text.UTF8Encoding($false)))
+    $semMan = Join-Path $raiz23 '20200101-000000-bbbb'; New-Item -ItemType Directory -Path $semMan -Force | Out-Null; [void]$criadas23.Add($semMan)
+    $proc23 = Join-Path $raiz23 '20200101-000000-cccc'; New-Item -ItemType Directory -Path $proc23 -Force | Out-Null; [void]$criadas23.Add($proc23)
+    $mv.em_processamento = $true
+    [System.IO.File]::WriteAllText((Join-Path $proc23 'crm-extrato.json'), (ConvertTo-Json $mv), (New-Object System.Text.UTF8Encoding($false)))
+    $s23 = Invoke-DescartarExtratos ([pscustomobject]@{ autor = 'teste' })
+    Conferir 'DEV-23 descarte simula por padrão e não apaga' ($s23.simulado -eq $true -and (Test-Path -LiteralPath $velha) -and @($s23.descartar | Where-Object { $_ -like '*aaaa' }).Count -eq 1) ($s23 | ConvertTo-Json -Compress -Depth 4)
+    $d23 = Invoke-DescartarExtratos ([pscustomobject]@{ simular = $false; autor = 'teste' })
+    Conferir 'DEV-23 descarte apaga só o vencido com manifesto válido' (-not (Test-Path -LiteralPath $velha) -and (Test-Path -LiteralPath $semMan) -and (Test-Path -LiteralPath $proc23) -and (Test-Path -LiteralPath $e23.pasta)) ($d23 | ConvertTo-Json -Compress -Depth 4)
+    Conferir 'DEV-23 descarte registrado em descartes.log' ((Get-Content -LiteralPath (Join-Path $raiz23 'descartes.log') -Raw) -match '20200101-000000-aaaa')
+} finally {
+    foreach ($c in $criadas23) { if (Test-Path -LiteralPath $c) { Remove-Item -LiteralPath $c -Recurse -Force } }
+    $log23 = Join-Path $raiz23 'descartes.log'
+    if ($antes23.Count -eq 0 -and (Test-Path -LiteralPath $log23)) { Remove-Item -LiteralPath $log23 -Force }
+}
 Write-Host '--- exportação do roteiro (Fase 5): CSV com BOM, ponto e vírgula, BASE primeiro, uma linha por visita pendente'
 $cidT12 = [int](Invoke-Valor "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'" @())
 $maxLogT12 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
 $filaT12 = Linhas-Visita "SELECT codigo FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
 $codT12 = [string]$filaT12[0].codigo
-$pastaT12 = Join-Path $env:TEMP ('crm-roteiro-' + $PID)
-$env:CRM_PASTA_ROTEIROS = $pastaT12
+$pastaT12 = $null
 $planT12 = @(); $visT12 = @()
 try {
     $p12 = Invoke-CriarPlanejamento ([pscustomobject]@{ descricao = 'TESTE ROTEIRO'; cod_municipio = $cidT12; raio_km = 100; data_inicio = '2026-10-20'; data_fim = '2026-10-30' })
@@ -476,7 +571,9 @@ try {
     $v12 = Invoke-CriarVisita ([pscustomobject]@{ codigo = $codT12; tipo = 'Visita'; data_agendada = '2026-10-22'; hora_agendada = '09:30'; id_planejamento = $p12.id })
     $visT12 += $v12.id
     $ex = Invoke-ExportarRoteiro ([pscustomobject]@{ id_planejamento = $p12.id })
+    $pastaT12 = Split-Path -Parent ([string]$ex.caminho)
     Conferir 'exportar_roteiro devolve o caminho e uma visita' ($ex.linhas -eq 1 -and (Test-Path -LiteralPath $ex.caminho)) ($ex | ConvertTo-Json -Compress)
+    Conferir 'DEV-23 roteiro numa subpasta da raiz de extratos, com manifesto' ((Split-Path -Parent $pastaT12) -eq (Get-RaizExtratos) -and (Test-Path -LiteralPath (Join-Path $pastaT12 'crm-extrato.json'))) $pastaT12
     Conferir 'o nome do arquivo segue PL-AAAA-NNN_aaaa-mm-dd_a_aaaa-mm-dd.csv' ((Split-Path -Leaf $ex.caminho) -eq ($p12.codigo + '_2026-10-20_a_2026-10-30.csv')) (Split-Path -Leaf $ex.caminho)
     $bytes = [System.IO.File]::ReadAllBytes($ex.caminho)
     Conferir 'arquivo com BOM UTF-8' ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) ''
@@ -486,8 +583,7 @@ try {
     Conferir 'a visita traz a data em AAAA-MM-DD e a hora' ($linhasT12[2] -match ';"2026-10-22";"09:30";') $linhasT12[2]
     Conferir 'latitude com ponto decimal (sem vírgula)' ($linhasT12[1] -match '-25\.\d+') $linhasT12[1]
 } finally {
-    Remove-Item Env:CRM_PASTA_ROTEIROS -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $pastaT12) { Remove-Item -LiteralPath $pastaT12 -Recurse -Force }
+    if ($pastaT12 -and (Test-Path -LiteralPath $pastaT12)) { Remove-Item -LiteralPath $pastaT12 -Recurse -Force }
     foreach ($i in $visT12) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' $i)) }
     foreach ($i in $planT12) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT12))

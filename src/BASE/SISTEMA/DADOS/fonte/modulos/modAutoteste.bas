@@ -230,7 +230,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "Situacao sem etapa", modCalc.Situacao(True, "", Null, Null), "Sem etapa definida"
     Confere "Situacao atrasada", modCalc.SituacaoDaEtapa(False, Date - 1, Null), _
             "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
-    Confere "Situacao retomar", modCalc.SituacaoDaEtapa(False, Null, Date), "Retomar hoje"
+    ' DEV-21 (ciclo 012): a agenda do aberto e so a proxima acao; encerrado com retomada chegada vai para avaliacao
+    Confere "DEV-21 aberto com retomada vencida segue a proxima acao", modCalc.SituacaoDaEtapa(False, Date + 30, Date - 1), "Em dia"
+    Confere "DEV-21 encerrado com retomada que chegou", modCalc.SituacaoDaEtapa(True, Null, Date), "Retomada a avaliar"
+    Confere "DEV-21 encerrado com retomada futura continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date + 5), "Encerrado"
+    Confere "DEV-23 copia local nunca salva dados", modConfig.SalvarPermitido(), False
     Confere "Situacao sem acao", modCalc.SituacaoDaEtapa(False, Null, Null), _
             "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
     Confere "Situacao em dia", modCalc.SituacaoDaEtapa(False, Date + 30, Null), "Em dia"

@@ -467,11 +467,12 @@ Private Sub cmdLancar_Click()
     RecarregarPagina
 End Sub
 
-' Roteiro CSV na pasta Documentos\CRM Zapromaq\Roteiros (mesmo arquivo do conector).
+' Roteiro CSV numa subpasta nova da raiz de extratos, ao lado do banco, com manifesto
+' (mesmo arquivo do conector; nunca em Documentos - DEV-23).
 Private Sub cmdRoteiro_Click()
-    Dim pasta As String, caminho As String, msg As String, shell As Object
-    Set shell = CreateObject("WScript.Shell")
-    pasta = shell.SpecialFolders("MyDocuments") & "\CRM Zapromaq\Roteiros"
+    Dim pasta As String, caminho As String, msg As String
+    pasta = modPlanejamento.NovaPastaRoteiro(mIdPl)
+    If pasta = "" Then MsgBox "Caminho do banco n" & ChrW$(&HE3) & "o configurado.", vbExclamation, "CRM Zapromaq": Exit Sub
     msg = modPlanejamento.ExportarRoteiro(mIdPl, pasta, caminho)
     If msg <> "" Then
         MsgBox msg, vbExclamation, "CRM Zapromaq"

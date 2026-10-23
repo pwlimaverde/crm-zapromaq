@@ -790,9 +790,11 @@ End Function
     # [string]: o Join-Path devolve a cadeia embrulhada em PSObject, que o COM entrega ao Excel como
     # IDispatch; o Excel chama de volta este processo para ler o valor e os dois travam (o Run não volta).
     # Nome próprio: $pasta (execucao\teste) ainda recebe o PDF do Painel no fim do teste.
-    $pastaRaizR = [string](Join-Path $env:TEMP ('crm-uso-roteiro-' + $PID))
-    # revisão 003: dois níveis que ainda não existem (como Documentos\CRM Zapromaq\Roteiros numa estação nova)
-    $pastaR = [string](Join-Path $pastaRaizR 'CRM Zapromaq\Roteiros')
+    # DEV-23 (ciclo 012): o roteiro vai para uma subpasta nova da raiz de extratos, ao lado do banco (nunca Documentos)
+    $pastaR = [string]$xl.Run($tq + 'modPlanejamento.NovaPastaRoteiro', $idQ)
+    $pastaRaizR = $pastaR
+    $raizExtR = [string](Join-Path (Split-Path -Parent ([string]$wb.Worksheets.Item('Config').Range('B2').Value2)) 'SISTEMA\DADOS\execucao\extratos')
+    Conferir 'DEV-23 roteiro do front numa subpasta da raiz de extratos' ((Split-Path -Parent $pastaR) -eq $raizExtR -and -not (Test-Path -LiteralPath $pastaR)) ($pastaR + ' x ' + $raizExtR)
     # revisão 003: aspas no nome da empresa têm de sair dobradas (o CSV não pode quebrar)
     $pEmp = [object[]]@( [object[]]@(202, 'TESTE "ASPAS" LTDA'), [object[]]@(3, $cliQ) )
     [void]$xl.Run($tq + 'modDB.Executar', "UPDATE clientes SET empresa=? WHERE id=?", $pEmp)
@@ -820,6 +822,9 @@ End Function
         } catch { $errCsv = $_.Exception.Message } finally { $leitor.Close() }
         $empCsv = ''; if ($campos.Count -eq 3) { $empCsv = [string]$campos[2][3] }
         Conferir 'roteiro do front: aspas dobradas, a linha tem 16 campos e a empresa volta igual' ($errCsv -eq '' -and $campos.Count -eq 3 -and $campos[2].Count -eq 16 -and $empCsv -eq 'TESTE "ASPAS" LTDA') ($errCsv + ' empresa=[' + $empCsv + '] ' + $lq[2])
+        $manR = $null
+        try { $manR = Get-Content -LiteralPath (Join-Path $pastaR 'crm-extrato.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+        Conferir 'DEV-23 roteiro do front com manifesto (tipo, estação, solicitante, finalidade)' ($null -ne $manR -and $manR.tipo -eq 'extrato-crm' -and $manR.estacao -eq $env:COMPUTERNAME -and $manR.solicitante -and $manR.finalidade -and $manR.em_processamento -eq $false) ([string](Get-Content -LiteralPath (Join-Path $pastaR 'crm-extrato.json') -Raw -ErrorAction SilentlyContinue))
     }
     Remove-Item -LiteralPath $pastaRaizR -Recurse -Force -ErrorAction SilentlyContinue
     # revisão 003, C09 (V3): visita de planejamento só aceita data agendada dentro do período
@@ -953,6 +958,16 @@ End Function
     }
     $p.PageSetup.Orientation = 2; $p.PageSetup.Zoom = $false; $p.PageSetup.FitToPagesWide = 1; $p.PageSetup.FitToPagesTall = 1
     $p.ExportAsFixedFormat(0, (Join-Path $pasta 'uso-Painel.pdf'))
+    # DEV-23 (ciclo 012): a cópia local nunca guarda dados - salvar é cancelado (com eventos, como pelo usuário)
+    $antesSalvar = (Get-Item -LiteralPath $copia).LastWriteTimeUtc
+    $xl.EnableEvents = $true
+    try { $wb.Save() } catch { }
+    $xl.EnableEvents = $false
+    Conferir 'DEV-23 salvar a cópia local é cancelado (o arquivo não muda)' ((Get-Item -LiteralPath $copia).LastWriteTimeUtc -eq $antesSalvar) ''
+    # sem banco o front abre vazio: as grades são esvaziadas
+    [void]$xl.Run("'" + $n + "'!modGrade.EsvaziarGrades")
+    $comDados = @(foreach ($aba in 'Clientes', 'Contatos', 'Oportunidades') { $wsV = $wb.Worksheets.Item($aba); if ($wsV.ListObjects.Count -gt 0) { if ($wsV.ListObjects.Item(1).DataBodyRange) { $aba } } })
+    Conferir 'DEV-23 sem banco as grades ficam vazias' ($comDados.Count -eq 0) ($comDados -join ',')
     $wb.Close($false)
 } catch {
     $falhas++

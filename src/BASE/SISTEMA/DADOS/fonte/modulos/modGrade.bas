@@ -683,8 +683,8 @@ Private Sub Condicionais(ByVal ws As Worksheet, ByVal lo As ListObject, _
                modTema.CorSituacao(TXT_SEM_ACAO(), "fundo"), modTema.CorSituacao(TXT_SEM_ACAO(), "texto"), True
     RegraLinha colSit, "=" & refSit & "=""" & TXT_SEMANA() & """", _
                modTema.CorSituacao(TXT_SEMANA(), "fundo"), modTema.CorSituacao(TXT_SEMANA(), "texto"), False
-    RegraLinha colSit, "=" & refSit & "=""Retomar hoje""", _
-               modTema.CorSituacao("Retomar hoje", "fundo"), modTema.CorSituacao("Retomar hoje", "texto"), True
+    RegraLinha colSit, "=" & refSit & "=""Retomada a avaliar""", _
+               modTema.CorSituacao("Retomada a avaliar", "fundo"), modTema.CorSituacao("Retomada a avaliar", "texto"), True
     RegraLinha colSit, "=" & refSit & "=""" & TXT_ATRASADA() & """", _
                modTema.CorSituacao(TXT_ATRASADA(), "fundo"), modTema.CorSituacao(TXT_ATRASADA(), "texto"), True
 End Sub
@@ -1339,6 +1339,25 @@ falhaEscrita:
     Application.EnableEvents = True
     Err.Raise nErr, "modGrade.AtualizarRegistros", sErr
 End Function
+
+'----------------------------------------------------------
+' Sem banco (DEV-23, secao 5.3): a copia local nao mostra dados
+' de clientes de uma carga anterior - as grades ficam vazias,
+' com o aviso na linha de status, ate o banco responder.
+'----------------------------------------------------------
+Public Sub EsvaziarGrades()
+    Dim ws As Worksheet
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        If TabelaDaAba(ws) <> "" Then
+            Desproteger ws
+            Limpar ws
+            ws.Cells(LIN_STATUS, COL_INI).Value2 = "Sem banco agora: a grade fica vazia. Confira a rede e clique em Atualizar."
+            Proteger ws
+        End If
+    Next ws
+    On Error GoTo 0
+End Sub
 
 '----------------------------------------------------------
 ' FEED (ciclo 011, DEV-20)

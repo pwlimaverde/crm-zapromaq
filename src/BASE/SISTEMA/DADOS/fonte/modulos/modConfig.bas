@@ -166,6 +166,13 @@ Public Sub ConferirVersaoCopia()
 End Sub
 
 ' "1.10" > "1.9": compara maior e menor como numeros, nao como texto
+' DEV-23 (ciclo 012, secao 5.3): a copia local nao guarda dados - eles vivem no banco.
+' O arquivo so e gravado pelo build (eventos desligados); salvar pelo usuario e sempre
+' cancelado (ThisWorkbook.Workbook_BeforeSave).
+Public Function SalvarPermitido() As Boolean
+    SalvarPermitido = False
+End Function
+
 Public Function NumeroVersao(ByVal v As String) As Double
     Dim p As Variant
     p = Split(Trim$(v) & ".0", ".")

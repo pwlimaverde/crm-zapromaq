@@ -110,3 +110,7 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
 - Ciclo 010 (1.8.0): esquema 1.2 (`EsquemasSuportados = @('1.2')`); `ctx_versao` exigida em `atualizar_contexto_*`
   (conflito devolve o contexto atual); `codigo_atendimento_anterior` sem ciclo; `id_operacao` nas criações (tabela
   `operacoes`, 60 dias); log com `estacao`, `usuario_tecnico`, `versao_cliente` e `autor_declarado`.
+- Ciclo 012 (1.9.0): situação "Retomada a avaliar" (Get-Situacao); planejamento com `retomadas_a_avaliar` e paginação
+  por chave (`Get-ChavePlanejamento` ordinal + `cursor` com filtro e geração da base; `Array.Sort(chaves, itens)` pelo
+  PowerShell não reordena os itens - ordenar as chaves e buscar por dicionário); extratos em `execucao\extratos`
+  (`New-PastaExtrato`, manifesto, `descartar_extratos`); `exportar_base` sem `destino`.

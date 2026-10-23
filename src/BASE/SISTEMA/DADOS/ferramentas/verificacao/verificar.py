@@ -258,6 +258,15 @@ def verificar_bat():
             falha('.bat', rel(p) + ': tem caractere fora do ASCII (o cmd.exe usa a página OEM)')
         if b.replace(b'\r\n', b'').count(b'\n'):
             falha('.bat', rel(p) + ': quebra de linha que não é CRLF (o cmd.exe erra rótulos)')
+    # DEV-23 (ciclo 012, seção 5.3): o lançador instala e abre a cópia do CRM em %LOCALAPPDATA%
+    # (pasta local não sincronizada), nunca em Documentos (costuma ir para o OneDrive)
+    ini = os.path.join(BASE, 'INICIAR-CRM.bat')
+    if os.path.exists(ini):
+        t = open(ini, 'rb').read().decode('ascii', 'replace')
+        if 'set "APP=%LOCALAPPDATA%\\CRM Zapromaq"' not in t or 'start "" "%APP%\\%ARQ%"' not in t:
+            falha('.bat', 'INICIAR-CRM.bat: a cópia do CRM tem de ficar e abrir em %LOCALAPPDATA%\\CRM Zapromaq (DEV-23)')
+        if 'start "" "%LOCAL%' in t or '"%TMPARQ%" "%LOCAL%' in t:
+            falha('.bat', 'INICIAR-CRM.bat: instala ou abre a cópia em Documentos (DEV-23)')
 
 
 def verificar_json():

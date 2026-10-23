@@ -11,7 +11,10 @@ rem  ATALHO apontando para ele.
 rem
 rem  Ordem:
 rem    1. acha a pasta da rede
-rem    2. acha a pasta Documentos deste usuario (pelo registro)
+rem    2. acha a pasta Documentos deste usuario (pelo registro): so
+rem       o atalho e o icone ficam la; o .xlsm fica em
+rem       %LOCALAPPDATA%\CRM Zapromaq, pasta local NAO sincronizada
+rem       (Documentos costuma ir para o OneDrive) - DEV-23, secao 5.3
 rem    3. cria o atalho, se ainda nao existe
 rem    4. le a versao publicada em VERSAO-FRONT.txt (1a linha)
 rem       e compara com HKCU\Software\Zapromaq\CRM\VersaoInstaladaCRM
@@ -45,12 +48,16 @@ for /f "tokens=2*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVe
 if not defined DOCS set "DOCS=%USERPROFILE%\Documents"
 set "LOCAL=%DOCS%\CRM Zapromaq"
 if not exist "%LOCAL%" mkdir "%LOCAL%" 2>nul
+rem a copia do CRM (DEV-23): fora de Documentos, numa pasta local nao sincronizada
+set "APP=%LOCALAPPDATA%\CRM Zapromaq"
+if not defined LOCALAPPDATA set "APP=%USERPROFILE%\AppData\Local\CRM Zapromaq"
+if not exist "%APP%" mkdir "%APP%" 2>nul
 
 echo ============================================================
 echo  CRM COMERCIAL ZAPROMAQ
 echo ============================================================
 echo.
-echo  Copia local: %LOCAL%
+echo  Copia local: %APP%
 if defined REDE echo  Rede ......: %REDE%
 
 rem --- 3. atalho -----------------------------------------------
@@ -81,7 +88,7 @@ if not defined VERSAO_REDE (
 )
 
 rem Sem copia local ou sem registro: instala a publicada.
-if not exist "%LOCAL%\%ARQ%" goto :atualizar
+if not exist "%APP%\%ARQ%" goto :atualizar
 if not defined VERSAO_LOCAL goto :atualizar
 
 call :compararstrings "!VERSAO_REDE!" "!VERSAO_LOCAL!"
@@ -106,7 +113,7 @@ echo.
 echo  Instalando a versao !VERSAO_REDE!...
 
 :checatrava
-call :emuso "%LOCAL%\%ARQ%"
+call :emuso "%APP%\%ARQ%"
 if errorlevel 1 (
     echo.
     echo  O CRM esta ABERTO nesta maquina e nao pode ser substituido.
@@ -116,12 +123,15 @@ if errorlevel 1 (
     goto :checatrava
 )
 
-set "TMPARQ=%LOCAL%\~novo_%ARQ%"
+set "TMPARQ=%APP%\~novo_%ARQ%"
 copy /y "%REDE%\%ARQ%" "%TMPARQ%" >nul 2>nul
 if errorlevel 1 goto :falhacopia
 if not exist "%TMPARQ%" goto :falhacopia
-move /y "%TMPARQ%" "%LOCAL%\%ARQ%" >nul 2>nul
+move /y "%TMPARQ%" "%APP%\%ARQ%" >nul 2>nul
 if errorlevel 1 goto :falhacopia
+rem copia antiga conhecida, em Documentos (versoes ate a 1.6): sai, para nao ficar
+rem um arquivo com dados numa pasta sincronizada. So este arquivo, nada mais.
+if exist "%LOCAL%\%ARQ%" del /f /q "%LOCAL%\%ARQ%" >nul 2>nul
 
 reg add "%REGKEY%" /v %REGVAL% /t REG_SZ /d "!VERSAO_REDE!" /f >nul 2>nul
 if errorlevel 1 (
@@ -148,8 +158,8 @@ echo.
 timeout /t 5 >nul
 
 :abrir
-if not exist "%LOCAL%\%ARQ%" goto :naotem
-start "" "%LOCAL%\%ARQ%"
+if not exist "%APP%\%ARQ%" goto :naotem
+start "" "%APP%\%ARQ%"
 popd 2>nul
 exit /b 0
 

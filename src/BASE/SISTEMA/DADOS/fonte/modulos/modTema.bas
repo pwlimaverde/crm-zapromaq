@@ -128,8 +128,8 @@ Public Function CorSituacao(ByVal situacao As String, ByVal parte As String) As 
     Select Case situacao & "|" & LCase$(parte)
         Case "Ação atrasada|texto": CorSituacao = 2829212
         Case "Ação atrasada|fundo": CorSituacao = 14869243
-        Case "Retomar hoje|texto": CorSituacao = 23178
-        Case "Retomar hoje|fundo": CorSituacao = 13167101
+        Case "Retomada a avaliar|texto": CorSituacao = 23178
+        Case "Retomada a avaliar|fundo": CorSituacao = 13167101
         Case "Ação nesta semana|texto": CorSituacao = 1063531
         Case "Ação nesta semana|fundo": CorSituacao = 15529727
         Case "Em dia|texto": CorSituacao = 3828524

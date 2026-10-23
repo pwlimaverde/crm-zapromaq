@@ -629,6 +629,44 @@ $script:CamposPlanejamentoPadrao = @($script:CamposInteracaoPadrao + @('quadro',
 $script:SqlEtapasEncerradas = "SELECT l.valor FROM listas AS l WHERE l.tipo='Etapa' AND l.encerra=True"
 $script:SqlAtendimentoAberto = "(o.etapa IS NULL OR o.etapa NOT IN (" + $script:SqlEtapasEncerradas + "))"
 $script:QuadroFunil = '2. Funil comercial'
+# DEV-21: encerrado com resultado PERDA (Perdido, Descartado) cuja retomar_em chegou: "retomadas a avaliar"
+$script:SqlEtapasPerda = "SELECT l.valor FROM listas AS l WHERE l.tipo='Etapa' AND l.encerra=True AND l.resultado='PERDA'"
+$script:CamposRetomada = @($script:CamposPlanejamentoPadrao + @('retomar_em', 'motivo_desfecho', 'dt_desfecho'))
+$script:LimitacaoPaginacao = ('Leitura dinâmica: cada página lê o banco de novo. A página seguinte continua depois do último item ' +
+    'devolvido, então inclusão e exclusão entre páginas não deslocam os demais; um atendimento alterado entre páginas pode ' +
+    'mudar de posição (aparecer de novo ou não aparecer).')
+
+# DEV-22: chave de ordenação completa - vencidas, responsável, data, prioridade, empresa e o código (único, desempate).
+# Texto sem acento e em maiúsculas, comparado em ordem ordinal: o cursor continua exatamente depois do último item.
+function Get-ChavePlanejamento([bool]$venc, [string]$resp, [datetime]$dt, [int]$pr, [string]$empresa, [string]$codigo) {
+    $partes = @($(if ($venc) { '0' } else { '1' }), (ConvertTo-ChaveLista $resp), $dt.ToString('yyyyMMddHHmmss'), [string]$pr,
+                (ConvertTo-ChaveLista $empresa), $codigo)
+    return ($partes -join [string][char]1)
+}
+
+# Impressão digital dos filtros: o cursor só vale para a mesma consulta.
+function Get-FiltroPlanejamento($per, [string]$resp, [bool]$completo, [bool]$comVencidas) {
+    $texto = ($per.Inicio.ToString('yyyyMMdd') + '|' + $per.Fim.ToString('yyyyMMdd') + '|' + $resp + '|' + $completo + '|' + $comVencidas)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($texto)))) -replace '-', '').Substring(0, 16).ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
+
+function ConvertTo-CursorPlanejamento([string]$chave, [string]$filtro, [string]$geracao) {
+    $j = ConvertTo-Json -InputObject ([ordered]@{ k = $chave; f = $filtro; g = $geracao }) -Compress
+    return [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($j))
+}
+
+function ConvertFrom-CursorPlanejamento([string]$cursor) {
+    $o = $null
+    try { $o = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($cursor)) | ConvertFrom-Json } catch { $o = $null }
+    if ($null -eq $o -or $null -eq $o.k -or $null -eq $o.f) {
+        throw 'cursor ilegível: use o proximo_cursor da chamada anterior, sem alterar. Nada foi consultado.'
+    }
+    return $o
+}
+
+function Get-GeracaoBase { return [string](Invoke-Valor "SELECT valor FROM config WHERE chave='geracao_base'" @()) }
 
 function Get-PeriodoPlanejamento($a) {
     $hoje = (Get-Date).Date
@@ -731,6 +769,18 @@ function Invoke-AtendimentosPorProximaAcao($a) {
     $resp = ([string](Get-Arg $a 'responsavel' '')).Trim()
     $aPartirDe = [int](Get-Arg $a 'a_partir_de' 0)
     if ($aPartirDe -lt 0) { throw 'a_partir_de não pode ser negativo. Nada foi consultado.' }
+    $cursorArg = ([string](Get-Arg $a 'cursor' '')).Trim()
+    if ($cursorArg -ne '' -and $aPartirDe -gt 0) { throw 'Use cursor OU a_partir_de, não os dois. Nada foi consultado.' }
+    $cursor = $null
+    if ($cursorArg -ne '') { $cursor = ConvertFrom-CursorPlanejamento $cursorArg }
+    $filtro = Get-FiltroPlanejamento $per $resp $completo $comVencidas
+    if ($null -ne $cursor -and [string]$cursor.f -ne $filtro) {
+        throw 'O cursor é de outra consulta (período, responsável ou opções diferentes): recomece sem cursor. Nada foi consultado.'
+    }
+    $geracao = Get-GeracaoBase
+    if ($null -ne $cursor -and [string]$cursor.g -ne $geracao) {
+        throw 'A base foi trocada (restaurada ou substituída) entre as páginas: recomece sem cursor. Nada foi consultado.'
+    }
     $hoje = $per.Hoje
 
     # LEFT JOIN: atendimento sem contato ou cliente vinculado também entra
@@ -760,7 +810,28 @@ function Invoke-AtendimentosPorProximaAcao($a) {
     $sql2 += ' GROUP BY o.responsavel'
     $semProxima = Invoke-Consulta $sql2 $p2.ToArray()
 
-    # ordenação: vencidas, responsável, data da próxima ação, prioridade (Alta, Média, Baixa, vazio), empresa
+    # DEV-21: retomadas a avaliar - Perdido/Descartado com retomar_em até o fim do período (as que já chegaram e
+    # ainda não foram avaliadas também), cada um uma vez, sem reabrir o encerrado
+    $p3 = New-Object System.Collections.ArrayList
+    $sql3 = 'SELECT o.*, c.codigo_cliente, c.empresa, c.cidade, c.uf, ct.codigo AS codigo_contato, ct.nome AS contato,' +
+            ' ct.cargo AS contato_cargo, ct.telefone AS contato_telefone, ct.email AS contato_email' +
+            ' FROM (oportunidades o LEFT JOIN clientes c ON o.id_cliente = c.id)' +
+            ' LEFT JOIN contatos ct ON o.id_contato = ct.id' +
+            ' WHERE o.etapa IN (' + $script:SqlEtapasPerda + ') AND o.retomar_em < ?'
+    [void]$p3.Add((P 'data' $per.Fim.AddDays(1)))
+    if ($resp -ne '') { $sql3 += ' AND o.responsavel=?'; [void]$p3.Add((P 'texto' $resp)) }
+    $sql3 += ' ORDER BY o.retomar_em, o.codigo'
+    $retomadas = New-Object System.Collections.ArrayList
+    foreach ($l in (Invoke-Consulta $sql3 $p3.ToArray())) {
+        [void](Add-Calculados $l)
+        $r = [ordered]@{}
+        $campos = if ($completo) { @($l.Keys) } else { $script:CamposRetomada }
+        foreach ($c in $campos) { if ($l.Contains($c) -and -not (Test-ValorVazio $l[$c])) { $r[$c] = $l[$c] } }
+        [void]$retomadas.Add($r)
+    }
+
+    # ordenação: vencidas, responsável, data da próxima ação, prioridade (Alta, Média, Baixa, vazio), empresa e
+    # código - pela chave completa em ordem ordinal (DEV-22: a mesma que o cursor usa)
     $itens = New-Object System.Collections.ArrayList
     foreach ($l in $linhas) {
         [void](Add-Calculados $l)   # situação e quadro: mesma regra do front
@@ -769,10 +840,16 @@ function Invoke-AtendimentosPorProximaAcao($a) {
         if ($venc) { $l['vencida'] = $true }
         $nomeResp = if (Test-ValorVazio $l['responsavel']) { '(sem responsável)' } else { [string]$l['responsavel'] }
         [void]$itens.Add([pscustomobject]@{
-            V = $(if ($venc) { 0 } else { 1 }); R = $nomeResp; D = $dt; Pr = (Get-OrdemPrioridade $l['prioridade'])
-            E = [string]$l['empresa']; C = [string]$l['codigo']; Venc = $venc; L = $l })
+            K = (Get-ChavePlanejamento $venc $nomeResp $dt (Get-OrdemPrioridade $l['prioridade']) ([string]$l['empresa']) ([string]$l['codigo']))
+            R = $nomeResp; D = $dt; Venc = $venc; L = $l })
     }
-    $ordenados = @($itens | Sort-Object V, R, D, Pr, E, C)
+    # Array.Sort(chaves, itens) pelo PowerShell ordena só as chaves (o vetor de itens chega como cópia):
+    # ordena as chaves (únicas: o código desempata) e busca o item de cada uma
+    $porChave = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::Ordinal)
+    foreach ($it in $itens) { $porChave[$it.K] = $it }
+    $chaves = [string[]]@($porChave.Keys)
+    [Array]::Sort($chaves, [StringComparer]::Ordinal)
+    $ordenados = @(foreach ($k in $chaves) { $porChave[$k] })
 
     $grupos = @{}
     $equipe = New-ResumoPlanejamento ''
@@ -801,7 +878,12 @@ function Invoke-AtendimentosPorProximaAcao($a) {
     Complete-ResumoPlanejamento $equipe
 
     $total = $registros.Count
-    $saida = [ordered]@{ periodo = $per.Periodo; quantidade = $total }
+    $saida = [ordered]@{ periodo = $per.Periodo; quantidade = $total; consistencia = 'dinamica' }
+    # início da página: depois da chave do cursor (DEV-22) ou pelo deslocamento antigo (a_partir_de)
+    if ($null -ne $cursor) {
+        $aPartirDe = $total
+        for ($j = 0; $j -lt $total; $j++) { if ([string]::CompareOrdinal($chaves[$j], [string]$cursor.k) -gt 0) { $aPartirDe = $j; break } }
+    }
     $avisos = New-Object System.Collections.ArrayList
     if ($resp -ne '' -and $total -eq 0) {
         if ($equipe['sem_proxima_acao'] -gt 0) {
@@ -810,16 +892,21 @@ function Invoke-AtendimentosPorProximaAcao($a) {
             [void]$avisos.Add("Nenhum atendimento em aberto de '" + $resp + "'. Confira a grafia do responsável em listar_opcoes.")
         }
     }
-    if ($aPartirDe -gt 0 -and $aPartirDe -ge $total) {
+    if ($null -eq $cursor -and $aPartirDe -gt 0 -and $aPartirDe -ge $total) {
         [void]$avisos.Add('a_partir_de (' + $aPartirDe + ') está além do último registro (' + $total + '): nada a devolver.')
+    }
+    if ($null -eq $cursor -and $aPartirDe -gt 0) {
+        [void]$avisos.Add('a_partir_de é deslocamento: se a base mudar entre as páginas, itens podem repetir ou faltar; prefira cursor = proximo_cursor.')
     }
 
     # corte por tamanho: nunca em silêncio e sem perder registro - pagina
     $molde = [ordered]@{}; foreach ($k in $saida.Keys) { $molde[$k] = $saida[$k] }
     $molde['a_partir_de'] = $aPartirDe; $molde['devolvidos'] = $total; $molde['truncado'] = $true; $molde['proximo'] = $total
-    $molde['aviso'] = (($avisos + @('Resultado maior que o limite da ferramenta: devolvidos 0000 de 0000 a partir de 0000. Repita com a_partir_de=0000 até não vir mais proximo; o resumo de todos vem na primeira página.')) -join ' ')
-    $comResumo = ($aPartirDe -eq 0)
-    if ($comResumo) { $molde['resumo'] = $resumo; $molde['equipe'] = $equipe }
+    $molde['proximo_cursor'] = $(if ($total -gt 0) { ConvertTo-CursorPlanejamento $chaves[$total - 1] $filtro $geracao } else { '' })
+    $molde['limitacao'] = $script:LimitacaoPaginacao
+    $molde['aviso'] = (($avisos + @('Resultado maior que o limite da ferramenta: devolvidos 0000 de 0000 a partir de 0000. Repita com cursor=proximo_cursor até não vir mais proximo_cursor; o resumo de todos vem na primeira página.')) -join ' ')
+    $comResumo = ($aPartirDe -eq 0 -and $null -eq $cursor)
+    if ($comResumo) { $molde['resumo'] = $resumo; $molde['equipe'] = $equipe; $molde['retomadas_a_avaliar'] = $retomadas; $molde['quantidade_retomadas'] = $retomadas.Count }
     $molde['atendimentos'] = @()
     $disponivel = $script:LimiteCaracteresPlanejamento - (ConvertTo-Json -InputObject $molde -Depth 10 -Compress).Length
     $lista = New-Object System.Collections.ArrayList
@@ -836,13 +923,17 @@ function Invoke-AtendimentosPorProximaAcao($a) {
     if ($i -lt $total) {
         $saida['truncado'] = $true
         $saida['proximo'] = $i
+        $saida['proximo_cursor'] = ConvertTo-CursorPlanejamento $chaves[$i - 1] $filtro $geracao
         [void]$avisos.Add('Resultado maior que o limite da ferramenta: devolvidos ' + $lista.Count + ' de ' + $total +
-                          ' a partir de ' + $aPartirDe + '. Repita com a_partir_de=' + $i + ' até não vir mais proximo; o resumo de todos vem na primeira página.')
+                          ' a partir de ' + $aPartirDe + '. Repita com cursor=proximo_cursor até não vir mais proximo_cursor; o resumo de todos vem na primeira página.')
     }
+    if ($i -lt $total -or $null -ne $cursor -or $aPartirDe -gt 0) { $saida['limitacao'] = $script:LimitacaoPaginacao }
     if ($avisos.Count -gt 0) { $saida['aviso'] = ($avisos -join ' ') }
     if ($comResumo) {
         $saida['resumo'] = $resumo
         $saida['equipe'] = $equipe
+        $saida['quantidade_retomadas'] = $retomadas.Count
+        $saida['retomadas_a_avaliar'] = $retomadas
     }
     $saida['atendimentos'] = $lista
 
@@ -851,15 +942,14 @@ function Invoke-AtendimentosPorProximaAcao($a) {
 }
 
 # ================================================================= EXTRATO
-# exportar_base: grava a foto das tabelas em CSV numa pasta de trabalho dentro
-# da pasta do setor e devolve só o envelope (arquivos, linhas, colunas). É a
-# entrada dos scripts de análise: o dado não passa pela conversa. Não grava no
-# banco. CSV em UTF-8 sem BOM, separador ',', todo campo entre aspas, CRLF - o
-# formato que os scripts do padrão (00 - SCRIPTS\_comum.py) leem sem conversão.
+# exportar_base: grava a foto das tabelas em CSV e devolve só o envelope (arquivos, linhas, colunas, hashes).
+# É a entrada dos scripts de análise: o dado não passa pela conversa. Não grava no banco. CSV em UTF-8 sem
+# BOM, separador ',', todo campo entre aspas, CRLF - o formato que os scripts do padrão leem sem conversão.
+# DEV-23 (ciclo 012, seção 5.3): destino fixo SISTEMA\DADOS\execucao\extratos, uma subpasta por extrato, com
+# manifesto (solicitante, estação, finalidade, instante, corte e SHA-256); descarte por descartar_extratos.
+# DEV-22: cada tabela é lida numa consulta separada - o manifesto declara consistencia = nao_comprovada.
 $script:TabelasExtrato = @('clientes', 'contatos', 'oportunidades', 'log_alteracoes', 'listas', 'metas', 'planejamentos', 'visitas', 'municipios')
 $script:TabelasExtratoPadrao = @('clientes', 'contatos', 'oportunidades')
-$script:NomeRaizSetor = '1 - COMERCIAL ZAPROMAQ'
-$script:PastaLibFerramentas = $PSScriptRoot
 $script:SqlExtrato = @{
     clientes       = 'SELECT * FROM clientes ORDER BY id'
     contatos       = ('SELECT ct.*, c.codigo_cliente, c.empresa FROM contatos ct LEFT JOIN clientes c ON ct.id_cliente = c.id' +
@@ -875,35 +965,53 @@ $script:SqlExtrato = @{
     municipios     = 'SELECT * FROM municipios ORDER BY cod_ibge'
 }
 $script:CalculadosExtrato = @('situacao', 'quadro', 'dias_parado', 'ciclo')
+$script:NomeManifestoExtrato = 'crm-extrato.json'
+$script:ReleiturasExtrato = 2
 
-# Raiz do setor pelo NOME da pasta, subindo a partir do conector: nunca letra de unidade.
-function Get-RaizSetor {
-    $d = Get-Item -LiteralPath $script:PastaLibFerramentas
-    while ($null -ne $d) {
-        if ($d.Name -eq $script:NomeRaizSetor) { return $d.FullName }
-        $d = $d.Parent
-    }
-    throw ('Pasta "' + $script:NomeRaizSetor + '" não encontrada acima do conector. Nada foi exportado.')
+# Raiz dos extratos: ao lado do banco, em SISTEMA\DADOS\execucao\extratos (nunca letra de unidade nem Documentos).
+function Get-RaizExtratos {
+    return (Join-Path (Split-Path -Parent $script:CaminhoBanco) 'SISTEMA\DADOS\execucao\extratos')
 }
 
-function Resolve-DestinoExtrato([string]$destino) {
-    $bruto = $destino.Trim()
-    if ($bruto -match '^[A-Za-z]:' -or $bruto.StartsWith('\\') -or $bruto.StartsWith('//')) {
-        throw 'destino é relativo à pasta 1 - COMERCIAL ZAPROMAQ: sem letra de unidade e sem \\servidor. Nada foi exportado.'
+# Subpasta nova e única por extrato: AAAAMMDD-HHMMSS-<6 hex>[-sufixo].
+function New-PastaExtrato([string]$sufixo) {
+    $raiz = Get-RaizExtratos
+    if (-not (Test-Path -LiteralPath $raiz)) { New-Item -ItemType Directory -Path $raiz -Force | Out-Null }
+    for ($t = 0; $t -lt 5; $t++) {
+        $nome = (Get-Date).ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 6)
+        if ($sufixo) { $nome += '-' + ($sufixo -replace '[^A-Za-z0-9-]', '') }
+        $pasta = Join-Path $raiz $nome
+        if (-not (Test-Path -LiteralPath $pasta)) { New-Item -ItemType Directory -Path $pasta | Out-Null; return $pasta }
     }
-    $d = $bruto.Replace('/', '\').Trim('\')
-    if ($d -eq '') { throw 'destino vazio. Nada foi exportado.' }
-    foreach ($parte in ($d -split '\\')) {
-        if ($parte -eq '..' -or $parte -eq '.') { throw 'destino não aceita "." nem "..". Nada foi exportado.' }
+    throw 'Não consegui criar a pasta do extrato. Nada foi exportado.'
+}
+
+function New-ManifestoExtrato([string]$conteudo, $a, [string]$finalidadePadrao) {
+    $autor = ([string](Get-Arg $a 'autor' '')).Trim()
+    $fin = ([string](Get-Arg $a 'finalidade' '')).Trim()
+    return [ordered]@{
+        tipo = 'extrato-crm'; versao_manifesto = 1; conteudo = $conteudo
+        criado_em = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'); fuso = (Get-Date).ToString('zzz')
+        solicitante = $(if ($autor) { $autor } else { 'não informado' })
+        estacao = [Environment]::MachineName; usuario_tecnico = [Environment]::UserName
+        finalidade = $(if ($fin) { $fin } else { $finalidadePadrao })
+        versao_servidor = $script:VersaoServidor; versao_esquema = [string](Get-VersaoEsquema)
+        retencao = 'mês corrente e anterior (seção 5.3); descarte por descartar_extratos'
+        em_processamento = $true
     }
-    if ($d -like '01 - CRM\01 - CONTROLE*') {
-        throw 'destino dentro de 01 - CRM\01 - CONTROLE (pasta do sistema) é recusado. Nada foi exportado.'
-    }
-    $alvo = Join-Path (Get-RaizSetor) $d
-    if (-not (Test-Path -LiteralPath $alvo -PathType Container)) {
-        throw ('A pasta de destino não existe: ' + $d + '. Crie a pasta antes. Nada foi exportado.')
-    }
-    return @{ Relativo = $d; Absoluto = $alvo }
+}
+
+# Grava o manifesto por arquivo temporário: quem lê nunca pega o JSON pela metade.
+function Write-ManifestoExtrato([string]$pasta, $manifesto) {
+    $arq = Join-Path $pasta $script:NomeManifestoExtrato
+    $tmp = $arq + '.tmp'
+    [System.IO.File]::WriteAllText($tmp, (ConvertTo-Json -InputObject $manifesto -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
+    if (Test-Path -LiteralPath $arq) { Remove-Item -LiteralPath $arq -Force }
+    Move-Item -LiteralPath $tmp -Destination $arq
+}
+
+function Get-HashArquivo([string]$arquivo) {
+    return (Get-FileHash -LiteralPath $arquivo -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
 function Get-ColunasConsulta([string]$sql) {
@@ -951,9 +1059,14 @@ function Write-ExtratoCsv([string]$arquivo, $linhas, [string[]]$colunas) {
     Move-Item -LiteralPath $tmp -Destination $arquivo
 }
 
+function Get-MaiorIdLog { $v = Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @(); if ($null -eq $v) { return 0 }; return [int]$v }
+
 function Invoke-ExportarBase($a) {
-    # validação completa antes de qualquer acesso ao banco
-    $dest = Resolve-DestinoExtrato ([string]$a.destino)
+    # validação completa antes de qualquer acesso ao banco ou ao disco
+    if (Test-TemArg $a 'destino') {
+        throw ('destino saiu do contrato (conector 1.9.0): o extrato vai sempre para SISTEMA\DADOS\execucao\extratos, ' +
+               'uma subpasta por extrato, e a resposta traz o caminho. Nada foi exportado.')
+    }
     $tabelas = @($script:TabelasExtratoPadrao)
     if (Test-TemArg $a 'tabelas') {
         $tabelas = @()
@@ -965,33 +1078,104 @@ function Invoke-ExportarBase($a) {
             if ($tabelas -notcontains $t) { $tabelas += $t }
         }
     }
+    if (([string](Get-Arg $a 'finalidade' '')).Length -gt 200) { throw 'finalidade passa de 200 caracteres. Nada foi exportado.' }
 
-    $gerado = Get-Date
+    $pasta = New-PastaExtrato ''
+    $man = New-ManifestoExtrato 'base' $a 'análise'
+    $man['tabelas'] = [ordered]@{}
+    Write-ManifestoExtrato $pasta $man
+    try {
+        # Sem corte comprovado: refaz a leitura (até 2 vezes) se o log mudou durante ela. Mesmo log igual antes e
+        # depois não prova foto num instante (commit fora de ordem), por isso a consistência fica nao_comprovada.
+        $releituras = 0
+        while ($true) {
+            $antes = Get-MaiorIdLog
+            $info = [ordered]@{}
+            foreach ($t in $tabelas) {
+                $linhas = Invoke-Consulta $script:SqlExtrato[$t] @()
+                if ($t -eq 'oportunidades') { foreach ($l in $linhas) { [void](Add-Calculados $l) } }
+                if ($linhas.Count -gt 0) { $colunas = @($linhas[0].Keys) }
+                else {
+                    $colunas = @(); foreach ($c in (Get-ColunasConsulta $script:SqlExtrato[$t])) { $colunas += [string]$c }
+                    if ($t -eq 'oportunidades') { $colunas += $script:CalculadosExtrato }
+                }
+                $nome = 'crm-' + $t + '.csv'
+                $arq = Join-Path $pasta $nome
+                Write-ExtratoCsv $arq $linhas ([string[]]$colunas)
+                $info[$t] = [ordered]@{ arquivo = $nome; linhas = $linhas.Count; colunas = $colunas.Count; sha256 = (Get-HashArquivo $arq) }
+            }
+            $depois = Get-MaiorIdLog
+            if ($depois -eq $antes -or $releituras -ge $script:ReleiturasExtrato) { break }
+            $releituras++
+        }
+        $man['tabelas'] = $info
+        $man['consistencia'] = 'nao_comprovada'
+        $man['corte'] = [ordered]@{
+            geracao_base = (Get-GeracaoBase); max_log_antes = $antes; max_log_depois = $depois; releituras = $releituras
+            log_mudou_durante_a_leitura = ($antes -ne $depois)
+            nota = 'Cada tabela é lida numa consulta separada: o extrato não é uma foto de um único instante. Log igual antes e depois só reduz a chance de mistura, não prova o corte.'
+        }
+        $man['em_processamento'] = $false
+        Write-ManifestoExtrato $pasta $man
+    } catch {
+        $man['em_processamento'] = $false; $man['falhou'] = [string]$_.Exception.Message
+        try { Write-ManifestoExtrato $pasta $man } catch { }
+        throw
+    }
     $saida = [ordered]@{
-        gerado_em = $gerado.ToString('yyyy-MM-ddTHH:mm:ss')
-        versao_esquema = [string](Get-VersaoEsquema)
+        gerado_em = $man.criado_em
+        pasta = $pasta
+        pasta_relativa = ('SISTEMA\DADOS\execucao\extratos\' + (Split-Path -Leaf $pasta))
+        manifesto = $script:NomeManifestoExtrato
+        consistencia = 'nao_comprovada'
+        corte = $man.corte
+        versao_esquema = $man.versao_esquema
         versao_servidor = $script:VersaoServidor
-        destino = $dest.Relativo
         separador = ','
         codificacao = 'UTF-8'
-        tabelas = [ordered]@{}
+        tabelas = $man.tabelas
     }
-    foreach ($t in $tabelas) {
-        $linhas = Invoke-Consulta $script:SqlExtrato[$t] @()
-        if ($t -eq 'oportunidades') { foreach ($l in $linhas) { [void](Add-Calculados $l) } }
-        if ($linhas.Count -gt 0) { $colunas = @($linhas[0].Keys) }
-        else {
-            $colunas = @(); foreach ($c in (Get-ColunasConsulta $script:SqlExtrato[$t])) { $colunas += [string]$c }
-            if ($t -eq 'oportunidades') { $colunas += $script:CalculadosExtrato }
-        }
-        $nome = 'crm-' + $t + '.csv'
-        Write-ExtratoCsv (Join-Path $dest.Absoluto $nome) $linhas ([string[]]$colunas)
-        $saida.tabelas[$t] = [ordered]@{ arquivo = $nome; linhas = $linhas.Count; colunas = $colunas.Count }
+    if ($man.corte.log_mudou_durante_a_leitura) {
+        $saida['aviso'] = 'Houve gravação durante a leitura mesmo depois de ' + $releituras + ' releitura(s): as tabelas podem não combinar entre si. Repita mais tarde se precisar de um extrato coerente.'
     }
-    $manifesto = Join-Path $dest.Absoluto 'crm-extrato.json'
-    [System.IO.File]::WriteAllText($manifesto, (ConvertTo-Json -InputObject $saida -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
-    $saida['manifesto'] = 'crm-extrato.json'
     return $saida
+}
+
+# descartar_extratos (DEV-23): só subpastas diretas da raiz de extratos, com manifesto válido, fora de
+# processamento e criadas antes do mês anterior. Link (ponto de reanálise) nunca é seguido.
+function Invoke-DescartarExtratos($a) {
+    $simular = [bool](Get-Arg $a 'simular' $true)
+    $autor = ([string](Get-Arg $a 'autor' '')).Trim()
+    $raiz = Get-RaizExtratos
+    $limite = (Get-Date -Day 1).Date.AddMonths(-1)
+    $res = [ordered]@{ simulado = $simular; raiz = $raiz; criadas_antes_de = $limite.ToString('yyyy-MM-dd')
+                       descartar = @(); descartadas = @(); mantidas = 0; ignoradas = @() }
+    if (-not (Test-Path -LiteralPath $raiz -PathType Container)) { return $res }
+    $raizCanon = [System.IO.Path]::GetFullPath($raiz).TrimEnd('\')
+    foreach ($d in @(Get-ChildItem -LiteralPath $raiz -Directory -Force)) {
+        if ($d.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { $res.ignoradas += ($d.Name + ': link, nunca seguido'); continue }
+        if ([System.IO.Path]::GetFullPath($d.FullName).TrimEnd('\') -ne ($raizCanon + '\' + $d.Name)) { $res.ignoradas += ($d.Name + ': fora da raiz'); continue }
+        $m = $null
+        try { $m = Get-Content -LiteralPath (Join-Path $d.FullName $script:NomeManifestoExtrato) -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json } catch { $m = $null }
+        if ($null -eq $m -or [string]$m.tipo -ne 'extrato-crm') { $res.ignoradas += ($d.Name + ': sem manifesto válido'); continue }
+        $quando = [datetime]::MinValue
+        if (-not [datetime]::TryParseExact([string]$m.criado_em, 'yyyy-MM-ddTHH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::None, [ref]$quando)) {
+            $res.ignoradas += ($d.Name + ': manifesto sem data'); continue
+        }
+        if ($m.em_processamento -eq $true) { $res.ignoradas += ($d.Name + ': em processamento'); continue }
+        if ($quando -ge $limite) { $res.mantidas++; continue }
+        $res.descartar += $d.Name
+        if (-not $simular) {
+            Remove-Item -LiteralPath $d.FullName -Recurse -Force
+            $res.descartadas += $d.Name
+        }
+    }
+    if (-not $simular -and $res.descartadas.Count -gt 0) {
+        $linha = (Get-Date).ToString('yyyy-MM-ddTHH:mm:sszzz') + ' | ' + [Environment]::MachineName + ' | ' + [Environment]::UserName + ' | ' +
+                 $(if ($autor) { $autor } else { 'não informado' }) + ' | ' + ($res.descartadas -join ', ')
+        Add-Content -LiteralPath (Join-Path $raiz 'descartes.log') -Value $linha -Encoding UTF8
+    }
+    return $res
 }
 
 # ================================================================= GRAVAÇÃO
@@ -2202,12 +2386,6 @@ function Invoke-ResolverCidade($a) {
 
 $script:ColunasRoteiro = @('tipo', 'visita', 'atendimento', 'empresa', 'contato', 'telefone', 'cidade', 'uf', 'latitude', 'longitude', 'km_base', 'data_agendada', 'hora_agendada', 'tipo_visita', 'responsavel', 'situacao')
 
-# Pasta do roteiro: Documentos\CRM Zapromaq\Roteiros (CRM_PASTA_ROTEIROS só para teste).
-function Get-PastaRoteiros {
-    if ($env:CRM_PASTA_ROTEIROS) { return $env:CRM_PASTA_ROTEIROS }
-    return (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CRM Zapromaq\Roteiros')
-}
-
 # CSV do roteiro: UTF-8 com BOM, ';', texto entre aspas, número com ponto decimal, data AAAA-MM-DD.
 function Write-RoteiroCsv([string]$arquivo, $linhas) {
     $tmp = $arquivo + '.tmp'
@@ -2273,11 +2451,18 @@ function Invoke-ExportarRoteiro($a) {
         }
         $inicio = ([datetime]$pl.data_inicio).ToString('yyyy-MM-dd')
         $fim = ([datetime]$pl.data_fim).ToString('yyyy-MM-dd')
-        $pasta = Get-PastaRoteiros
-        if (-not (Test-Path -LiteralPath $pasta)) { New-Item -ItemType Directory -Path $pasta -Force | Out-Null }
-        $arquivo = Join-Path $pasta ($pl.codigo + '_' + $inicio + '_a_' + $fim + '.csv')
+        # DEV-23: na raiz de extratos (execucao\extratos), uma subpasta com manifesto - nunca em Documentos
+        $pasta = New-PastaExtrato ('roteiro-' + $pl.codigo)
+        $man = New-ManifestoExtrato 'roteiro' $a 'roteiro de visitas'
+        $man['planejamento'] = [string]$pl.codigo
+        Write-ManifestoExtrato $pasta $man
+        $nomeArq = ($pl.codigo + '_' + $inicio + '_a_' + $fim + '.csv')
+        $arquivo = Join-Path $pasta $nomeArq
         Write-RoteiroCsv $arquivo @($linhas)
-        return [ordered]@{ caminho = $arquivo; planejamento = [string]$pl.codigo; linhas = $visitas.Count }
+        $man['arquivos'] = [ordered]@{ roteiro = [ordered]@{ arquivo = $nomeArq; linhas = $visitas.Count; sha256 = (Get-HashArquivo $arquivo) } }
+        $man['em_processamento'] = $false
+        Write-ManifestoExtrato $pasta $man
+        return [ordered]@{ caminho = $arquivo; pasta = $pasta; planejamento = [string]$pl.codigo; linhas = $visitas.Count }
     }
 }
 
@@ -2628,10 +2813,11 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'exportar_roteiro'; title = 'Exportar roteiro do planejamento'; handler = 'Invoke-ExportarRoteiro'; annotations = $script:Gravacao
-        description = 'Grava o CSV do roteiro do planejamento em Documentos\CRM Zapromaq\Roteiros (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o esquema que o conector suporta (crm_status).'
+        description = 'Grava o CSV do roteiro do planejamento numa subpasta nova de SISTEMA\DADOS\execucao\extratos, com manifesto (UTF-8 com BOM, ponto e vírgula): a linha BASE e uma linha por visita pendente. Devolve só o caminho e o número de visitas. Exige o esquema que o conector suporta (crm_status).'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             id_planejamento = [ordered]@{ type = 'integer' }
-            codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' } } }
+            codigo = [ordered]@{ type = 'string'; pattern = '^PL-\d{4}-\d{3}$' }
+            autor = $script:PropAutor } }
     },
     [ordered]@{
         name = 'listar_opcoes'; title = 'Opções das listas suspensas'; handler = 'Invoke-ListarOpcoes'; annotations = $script:SoLeitura
@@ -2666,7 +2852,7 @@ $script:Ferramentas = @(
             etapa = [ordered]@{ type = 'string' }
             responsavel = [ordered]@{ type = 'string' }
             codigo_cliente = [ordered]@{ type = 'integer' }
-            situacao = [ordered]@{ type = 'string'; enum = @(('A' + [char]0x00E7 + [char]0x00E3 + 'o atrasada'), 'Retomar hoje',
+            situacao = [ordered]@{ type = 'string'; enum = @(('A' + [char]0x00E7 + [char]0x00E3 + 'o atrasada'), 'Retomada a avaliar',
                                    ('A' + [char]0x00E7 + [char]0x00E3 + 'o nesta semana'), 'Em dia',
                                    ('Sem pr' + [char]0x00F3 + 'xima a' + [char]0x00E7 + [char]0x00E3 + 'o'), 'Encerrado', 'Sem etapa definida') }
             somente_abertos = [ordered]@{ type = 'boolean'; default = $true }
@@ -2708,7 +2894,8 @@ $script:Ferramentas = @(
                        'Período encerrado é recusado; período iniciado antes de hoje começa hoje (ajustado). ' +
                        'incluir_vencidas traz as ações anteriores a hoje marcadas como vencida. ' +
                        'Resumo por responsável e da equipe (só na primeira página), com contagem por dia, vencidas, valor no funil e atendimentos sem próxima ação. ' +
-                       'Se passar do limite de tamanho, devolve truncado=true e proximo: repita com a_partir_de=proximo.')
+                       'Também traz retomadas_a_avaliar (Perdido/Descartado com retomar_em até o fim do período; só na primeira página). ' +
+                       'Se passar do limite de tamanho, devolve truncado=true e proximo_cursor: repita com cursor=proximo_cursor (leitura dinâmica, ver limitacao). a_partir_de continua aceito.')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
             data_inicio = [ordered]@{ type = 'string'; pattern = '^\d{4}-\d{2}-\d{2}$'; description = 'AAAA-MM-DD, inclusive. Exige data_fim. Anterior a hoje vira hoje (ajustado).' }
             data_fim = [ordered]@{ type = 'string'; pattern = '^\d{4}-\d{2}-\d{2}$'; description = 'AAAA-MM-DD, inclusive. Exige data_inicio. Anterior a hoje é recusada. Período de até 92 dias.' }
@@ -2717,18 +2904,30 @@ $script:Ferramentas = @(
             responsavel = [ordered]@{ type = 'string'; maxLength = 60; description = 'Filtra um responsável (ex.: "Paulo").' }
             incluir_vencidas = [ordered]@{ type = 'boolean'; default = $true; description = 'Inclui os abertos com próxima ação anterior a hoje, com vencida=true.' }
             completo = [ordered]@{ type = 'boolean'; default = $false; description = 'true devolve todos os campos do atendimento, inclusive os técnicos.' }
-            a_partir_de = [ordered]@{ type = 'integer'; minimum = 0; default = 0; description = 'Índice do primeiro registro devolvido (paginação): use o proximo da chamada anterior.' } } }
+            a_partir_de = [ordered]@{ type = 'integer'; minimum = 0; default = 0; description = 'Deslocamento (compatibilidade): prefira cursor.' }
+            cursor = [ordered]@{ type = 'string'; maxLength = 2000; description = 'proximo_cursor da chamada anterior, com os mesmos filtros.' } } }
     },
     [ordered]@{
         name = 'exportar_base'; title = 'Extrato da base em CSV'; handler = 'Invoke-ExportarBase'
-        annotations = [ordered]@{ readOnlyHint = $false; destructiveHint = $false; idempotentHint = $true; openWorldHint = $false }
-        description = ('Grava a foto das tabelas do CRM em CSV (crm-<tabela>.csv + crm-extrato.json) numa pasta da pasta do setor, para análise por script. ' +
-                       'Não altera o banco. Devolve só o envelope: data do extrato, arquivos, linhas e colunas por tabela - nunca os dados. ' +
-                       'Atendimentos saem com codigo_cliente, empresa, codigo_contato e os calculados situacao, quadro, dias_parado e ciclo (mesma regra do front, na data do extrato). ' +
-                       'CSV UTF-8, separador vírgula, campos entre aspas; datas AAAA-MM-DD ou AAAA-MM-DDTHH:MM:SS. Regrava os arquivos a cada chamada.')
-        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('destino'); properties = [ordered]@{
-            destino = [ordered]@{ type = 'string'; maxLength = 255; description = 'Pasta relativa a 1 - COMERCIAL ZAPROMAQ, sem letra de unidade (ex.: 00 - GESTÃO COMERCIAL\01 - PADROES\00 - IA\PROJETOS\PRJ-COM-006-analise-de-dados-crm\20-dados). Precisa existir; 01 - CRM\01 - CONTROLE é recusado.' }
-            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 9; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas, planejamentos, visitas, municipios. Padrão: clientes, contatos, oportunidades.' } } }
+        annotations = [ordered]@{ readOnlyHint = $false; destructiveHint = $false; idempotentHint = $false; openWorldHint = $false }
+        description = ('Grava a foto das tabelas do CRM em CSV (crm-<tabela>.csv + manifesto crm-extrato.json) numa subpasta nova de SISTEMA\DADOS\execucao\extratos, para análise por script. ' +
+                       'Não altera o banco. Devolve o caminho da pasta e o envelope (arquivos, linhas, colunas, SHA-256) - nunca os dados. ' +
+                       'Manifesto com solicitante (autor), estação, finalidade, instante e corte; consistencia = nao_comprovada (cada tabela é lida numa consulta). ' +
+                       'Atendimentos saem com codigo_cliente, empresa, codigo_contato e os calculados situacao, quadro, dias_parado e ciclo. ' +
+                       'CSV UTF-8, separador vírgula, campos entre aspas. Retenção: mês corrente e anterior (descartar_extratos).')
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            tabelas = [ordered]@{ type = 'array'; items = [ordered]@{ type = 'string' }; maxItems = 9; description = 'clientes, contatos, oportunidades, log_alteracoes, listas, metas, planejamentos, visitas, municipios. Padrão: clientes, contatos, oportunidades.' }
+            finalidade = [ordered]@{ type = 'string'; maxLength = 200; description = 'Para que o extrato será usado (vai para o manifesto). Padrão: análise.' }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'descartar_extratos'; title = 'Descartar extratos vencidos'; handler = 'Invoke-DescartarExtratos'
+        annotations = [ordered]@{ readOnlyHint = $false; destructiveHint = $true; idempotentHint = $true; openWorldHint = $false }
+        description = ('Apaga as subpastas de SISTEMA\DADOS\execucao\extratos criadas antes do mês anterior (seção 5.3), só as que têm manifesto válido e não estão em processamento. ' +
+                       'simular = true (padrão) só lista o que seria apagado. Nada fora da raiz de extratos é tocado; o descarte fica registrado em descartes.log.')
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; properties = [ordered]@{
+            simular = [ordered]@{ type = 'boolean'; default = $true; description = 'true: só lista. false: apaga.' }
+            autor = $script:PropAutor } }
     },
     [ordered]@{
         name = 'atualizar_atendimento'; title = 'Atualizar atendimento'; handler = 'Invoke-AtualizarAtendimento'; annotations = $script:Gravacao
