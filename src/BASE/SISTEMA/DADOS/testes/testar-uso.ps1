@@ -343,6 +343,236 @@ End Function
     # volta: apaga o valor e o log criados pelo teste
     [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM listas WHERE valor='TESTE FEED'")
     [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM log_alteracoes WHERE id > " + $maxLogF)
+
+    # ciclo 011 (DEV-18/19/20): feed confiável, dependências, virada do dia e filtro/ordem preservados.
+    # Tudo como "outra estação": dado alterado por SQL e a linha de log gravada à parte (origem IA).
+    # A rodada do feed pode remontar a aba (apaga e recria a tabela): referência COM a uma ListObject
+    # guardada no PowerShell e solta depois disso derruba o Excel (combase.dll). Por isso a grade é lida
+    # por funções do módulo de teste, dentro do Excel, e as referências antigas são soltas antes.
+    $lo = $null; $fc = $null; [GC]::Collect(); [GC]::WaitForPendingFinalizers(); [GC]::Collect()
+    $mf2 = $wb.VBProject.VBComponents.Add(1); $mf2.Name = 'modTesteFeed2'
+    $mf2.CodeModule.AddFromString(@'
+Option Explicit
+' linha de log de outra estacao; idLog > 0 grava com esse id (commit que chega atrasado)
+Public Function LogDe(ByVal tabela As String, ByVal idReg As Long, Optional ByVal idLog As Long = 0) As Long
+    Dim campos As String, marcas As String, ps As Variant
+    campos = "tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem"
+    marcas = "?,?,?,?,?,?,?,?,?"
+    If idLog > 0 Then
+        ps = Array(modDB.P(modDB.adInteger, idLog), modDB.P(modDB.adVarWChar, tabela), modDB.P(modDB.adInteger, idReg), _
+                   modDB.P(modDB.adVarWChar, "teste"), modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "feed 011"), _
+                   modDB.P(modDB.adVarWChar, "ALTERAR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), modDB.P(modDB.adDate, Now), _
+                   modDB.P(modDB.adVarWChar, "IA"))
+        modDB.Executar "INSERT INTO log_alteracoes (id, " & campos & ") VALUES (?," & marcas & ")", ps
+        LogDe = idLog
+        ' id explicito MENOR que o maximo faz o ACE recomecar a numeracao dali: o proximo INSERT
+        ' repetiria um id e derrubava o Excel. Uma linha com id acima do maximo, apagada em
+        ' seguida, devolve a numeracao para o fim.
+        Dim acima As Long
+        acima = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM log_alteracoes", 0)) + 1
+        ps(0) = modDB.P(modDB.adInteger, acima)
+        modDB.Executar "INSERT INTO log_alteracoes (id, " & campos & ") VALUES (?," & marcas & ")", ps
+        modDB.Executar "DELETE FROM log_alteracoes WHERE id=?", Array(modDB.P(modDB.adInteger, acima))
+    Else
+        ps = Array(modDB.P(modDB.adVarWChar, tabela), modDB.P(modDB.adInteger, idReg), _
+                   modDB.P(modDB.adVarWChar, "teste"), modDB.P(modDB.adLongVarWChar, ""), modDB.P(modDB.adLongVarWChar, "feed 011"), _
+                   modDB.P(modDB.adVarWChar, "ALTERAR"), modDB.P(modDB.adVarWChar, "OUTRA ESTACAO"), modDB.P(modDB.adDate, Now), _
+                   modDB.P(modDB.adVarWChar, "IA"))
+        modDB.Executar "INSERT INTO log_alteracoes (" & campos & ") VALUES (" & marcas & ")", ps
+        LogDe = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM log_alteracoes", 0))
+    End If
+End Function
+' grava um campo como outra estacao (texto, moeda ou nulo)
+Public Sub Definir(ByVal tabela As String, ByVal campo As String, ByVal id As Long, ByVal valor As Variant)
+    If IsNull(valor) Or IsEmpty(valor) Then
+        modDB.Executar "UPDATE " & tabela & " SET " & campo & "=NULL WHERE id=?", Array(modDB.P(modDB.adInteger, id))
+    ElseIf VarType(valor) = vbString Then
+        modDB.Executar "UPDATE " & tabela & " SET " & campo & "=? WHERE id=?", Array(modDB.P(modDB.adVarWChar, valor), modDB.P(modDB.adInteger, id))
+    Else
+        modDB.Executar "UPDATE " & tabela & " SET " & campo & "=? WHERE id=?", Array(modDB.P(modDB.adCurrency, CCur(valor)), modDB.P(modDB.adInteger, id))
+    End If
+End Sub
+Public Function NovoContato(ByVal idCliente As Long) As Long
+    Dim ctl As Long
+    ctl = CLng(modDB.ConsultarValor("SELECT MAX(controle) FROM contatos", 0)) + 1
+    modDB.Executar "INSERT INTO contatos (codigo, controle, id_cliente, nome, ativo, versao, criado_em) VALUES (?,?,?,?,True,1,?)", _
+        Array(modDB.P(modDB.adVarWChar, "CT-9999-" & Format$(ctl Mod 10000, "0000")), modDB.P(modDB.adInteger, ctl), _
+              modDB.P(modDB.adInteger, idCliente), modDB.P(modDB.adVarWChar, "TESTE FEED NOVO"), modDB.P(modDB.adDate, Now))
+    NovoContato = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM contatos", 0))
+End Function
+Public Function Processar() As String
+    On Error GoTo f
+    modFeed.ProcessarAgora
+    Exit Function
+f:
+    Processar = "erro " & Err.Description
+End Function
+Public Function CargaTexto() As String
+    CargaTexto = Format$(modFeed.UltimaCarga(), "yyyy-mm-dd hh:nn:ss") & "|" & Format$(modFeed.DiaDoCalculo(), "yyyy-mm-dd")
+End Function
+' ---- leitura da grade dentro do Excel (nenhuma ListObject sai para o PowerShell)
+Private Function Tabela(ByVal aba As String) As ListObject
+    Set Tabela = ThisWorkbook.Worksheets(aba).ListObjects(1)
+End Function
+' posicao do id no corpo da tabela (0 = nao esta na grade)
+Public Function Linha(ByVal aba As String, ByVal id As Long) As Long
+    Dim lo As ListObject, v As Variant
+    Set lo = Tabela(aba)
+    v = Application.Match(id, lo.ListColumns("_id").DataBodyRange, 0)
+    If Not IsError(v) Then Linha = CLng(v)
+End Function
+Public Function Celula(ByVal aba As String, ByVal id As Long, ByVal cab As String) As String
+    Dim k As Long
+    k = Linha(aba, id)
+    If k = 0 Then Celula = "#AUSENTE" Else Celula = CStr(Tabela(aba).ListColumns(cab).DataBodyRange.Cells(k, 1).Value2)
+End Function
+Public Function Oculta(ByVal aba As String, ByVal id As Long) As Boolean
+    Dim k As Long
+    k = Linha(aba, id)
+    If k > 0 Then Oculta = Tabela(aba).DataBodyRange.Rows(k).Hidden
+End Function
+Public Function PrimeiroVisivel(ByVal aba As String) As Long
+    Dim lo As ListObject, k As Long
+    Set lo = Tabela(aba)
+    For k = 1 To lo.DataBodyRange.Rows.Count
+        If Not lo.DataBodyRange.Rows(k).Hidden Then PrimeiroVisivel = CLng(lo.ListColumns("_id").DataBodyRange.Cells(k, 1).Value2): Exit Function
+    Next k
+End Function
+Public Function FiltroLigado(ByVal aba As String, ByVal cab As String) As Boolean
+    Dim lo As ListObject
+    Set lo = Tabela(aba)
+    If lo.AutoFilter Is Nothing Then Exit Function
+    FiltroLigado = lo.AutoFilter.Filters(lo.ListColumns(cab).Index).On
+End Function
+' filtro por valor numa coluna e ordem decrescente noutra (estado da ordem em C1, como o clique no cabecalho)
+Public Function FiltrarEOrdenar(ByVal aba As String, ByVal cabFiltro As String, ByVal valor As String, ByVal cabOrdem As String) As String
+    Dim ws As Worksheet, lo As ListObject
+    Set ws = ThisWorkbook.Worksheets(aba): Set lo = Tabela(aba)
+    FiltrarEOrdenar = CStr(ws.Cells(1, 3).Value2)
+    ws.Unprotect "zpm"
+    lo.Range.AutoFilter Field:=lo.ListColumns(cabFiltro).Index, Criteria1:=valor
+    ws.Cells(1, 3).Value2 = lo.ListColumns(cabOrdem).Index & "|2"
+    ws.Protect "zpm"
+End Function
+Public Sub DesfazerFiltro(ByVal aba As String, ByVal estadoOrdem As String)
+    Dim ws As Worksheet, lo As ListObject
+    Set ws = ThisWorkbook.Worksheets(aba): Set lo = Tabela(aba)
+    ws.Unprotect "zpm"
+    If Not lo.AutoFilter Is Nothing Then If lo.AutoFilter.FilterMode Then lo.AutoFilter.ShowAllData
+    ws.Cells(1, 3).Value2 = estadoOrdem
+    ws.Protect "zpm"
+End Sub
+'@)
+    $t2 = $tf + 'modTesteFeed2.'
+    function ProcessarFeed { return [string]$xl.Run($t2 + 'Processar') }
+    function Valor([string]$sql, $padrao = '') { return $xl.Run($tf + 'modDB.ConsultarValor', $sql, $padrao) }
+    function Celula([string]$aba, [int]$id, [string]$cab) { return [string]$xl.Run($t2 + 'Celula', $aba, $id, $cab) }
+    $maxLog011 = [int](Valor 'SELECT MAX(id) FROM log_alteracoes' 0)
+    $wsCli = $wb.Worksheets.Item('Clientes'); $wsCto = $wb.Worksheets.Item('Contatos'); $wsOpo = $wb.Worksheets.Item('Oportunidades')
+    $idO = [int](Valor 'SELECT MIN(id) FROM oportunidades WHERE responsavel IS NOT NULL' 0)
+    $idK = [int](Valor ('SELECT id_contato FROM oportunidades WHERE id=' + $idO) 0)
+    $idC = [int](Valor ('SELECT id_cliente FROM oportunidades WHERE id=' + $idO) 0)
+    $idC2 = [int](Valor ('SELECT MAX(id) FROM clientes WHERE id <> ' + $idC) 0)
+    [void](ProcessarFeed)   # referência: o que já está na tela
+
+    # DEV-18: erro na primeira aba não perde o evento e não marca a tela como atualizada
+    $cid0 = Valor ('SELECT cidade FROM clientes WHERE id=' + $idC) $null
+    [void]$xl.Run($t2 + 'Definir', 'clientes', 'cidade', $idC, 'TESTE FEED FALHA')
+    [void]$xl.Run($t2 + 'LogDe', 'clientes', $idC)
+    $c0 = [string]$xl.Run($t2 + 'CargaTexto')
+    Start-Sleep -Seconds 1
+    [void]$xl.Run($tf + 'modFeed.SimularFalhaNaProximaAplicacao')
+    $rf1 = ProcessarFeed
+    $c1 = [string]$xl.Run($t2 + 'CargaTexto')
+    Conferir 'DEV-18 falha na aplicação volta erro e não marca a tela como atualizada' ($rf1 -match 'simulada' -and $c1 -eq $c0) ($rf1 + ' | ' + $c0 + ' -> ' + $c1)
+    $rf2 = ProcessarFeed
+    $celF = Celula 'Clientes' $idC 'Cidade'
+    $c2 = [string]$xl.Run($t2 + 'CargaTexto')
+    Conferir 'DEV-18 a rodada seguinte aplica o evento que falhou' ($rf2 -eq '' -and $celF -eq 'TESTE FEED FALHA' -and $c2 -ne $c0) ($rf2 + ' cidade=[' + $celF + ']')
+
+    # DEV-18: commit fora de ordem - o log de id menor chega depois que o cursor já passou dele
+    [void]$xl.Run($t2 + 'Definir', 'clientes', 'cidade', $idC, 'TESTE FORA DE ORDEM')
+    $idA = [int]$xl.Run($t2 + 'LogDe', 'clientes', $idC)
+    [void]$xl.Run($t2 + 'LogDe', 'clientes', $idC2)
+    [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id=' + $idA)
+    [void](ProcessarFeed)
+    $celA = Celula 'Clientes' $idC 'Cidade'
+    [void]$xl.Run($t2 + 'LogDe', 'clientes', $idC, $idA)
+    $ro = ProcessarFeed
+    $celB = Celula 'Clientes' $idC 'Cidade'
+    Conferir 'DEV-18 log que chega atrasado (id menor que o cursor) é aplicado' ($celA -eq 'TESTE FEED FALHA' -and $ro -eq '' -and $celB -eq 'TESTE FORA DE ORDEM') ('antes=[' + $celA + '] depois=[' + $celB + '] ' + $ro)
+
+    # DEV-18: geração da base trocada (banco restaurado) - remonta e continua acompanhando
+    $g0 = [string](Valor "SELECT valor FROM config WHERE chave='geracao_base'" '')
+    [void]$xl.Run($tf + 'modDB.Executar', "UPDATE config SET valor='TESTE011GERACAO' WHERE chave='geracao_base'")
+    $cg0 = [string]$xl.Run($t2 + 'CargaTexto')
+    Start-Sleep -Seconds 1
+    $rg = ProcessarFeed
+    $cg1 = [string]$xl.Run($t2 + 'CargaTexto')
+    [void]$xl.Run($t2 + 'Definir', 'clientes', 'cidade', $idC, 'TESTE GERACAO')
+    [void]$xl.Run($t2 + 'LogDe', 'clientes', $idC)
+    $rg2 = ProcessarFeed
+    $celG = Celula 'Clientes' $idC 'Cidade'
+    Conferir 'DEV-18 geração trocada recarrega a tela e o feed continua' ($rg -eq '' -and $cg1 -ne $cg0 -and $rg2 -eq '' -and $celG -eq 'TESTE GERACAO') ($rg + $rg2 + ' carga ' + $cg0 + ' -> ' + $cg1 + ' cidade=[' + $celG + ']')
+    [void]$xl.Run($tf + 'modDB.Executar', "UPDATE config SET valor='" + $g0 + "' WHERE chave='geracao_base'")
+    [void]$xl.Run($t2 + 'Definir', 'clientes', 'cidade', $idC, $cid0)
+    [void]$xl.Run($t2 + 'LogDe', 'clientes', $idC)
+    [void](ProcessarFeed)
+
+    # DEV-19: telefone do contato alterado em outra estação aparece na linha do atendimento
+    $tel0 = Valor ('SELECT telefone FROM contatos WHERE id=' + $idK) $null
+    [void]$xl.Run($t2 + 'Definir', 'contatos', 'telefone', $idK, '4130000011')
+    [void]$xl.Run($t2 + 'LogDe', 'contatos', $idK)
+    $rt = ProcessarFeed
+    $celT = Celula 'Oportunidades' $idO 'Telefone'
+    Conferir 'DEV-19 telefone do contato alterado aparece no atendimento' ($rt -eq '' -and ($celT -replace '\D', '') -eq '4130000011') ($rt + ' telefone=[' + $celT + ']')
+    [void]$xl.Run($t2 + 'Definir', 'contatos', 'telefone', $idK, $tel0)
+    [void]$xl.Run($t2 + 'LogDe', 'contatos', $idK)
+    [void](ProcessarFeed)
+
+    # DEV-19: virada do dia sem gravação recalcula a tela (situação e dias parado)
+    [void]$xl.Run($tf + 'modFeed.SimularDiaAnterior')
+    $rd = ProcessarFeed
+    $cd = [string]$xl.Run($t2 + 'CargaTexto')
+    Conferir 'DEV-19 virada do dia recalcula sem gravação' ($rd -eq '' -and $cd.EndsWith('|' + (Get-Date).ToString('yyyy-MM-dd'))) ($rd + ' ' + $cd)
+
+    # DEV-20: filtro por responsável e ordenação por valor sobrevivem à alteração externa
+    $resp = [string](Valor ('SELECT responsavel FROM oportunidades WHERE id=' + $idO) '')
+    $resp2 = [string](Valor ("SELECT TOP 1 responsavel FROM oportunidades WHERE responsavel IS NOT NULL AND responsavel <> '" + $resp.Replace("'", "''") + "'") 'TESTE OUTRO RESP')
+    $val0 = Valor ('SELECT valor FROM oportunidades WHERE id=' + $idO) $null
+    $ord0 = [string]$xl.Run($t2 + 'FiltrarEOrdenar', 'Oportunidades', 'Resp.', $resp, 'Valor (R$)')
+    $ordF = [string]$wsOpo.Cells.Item(1, 3).Value2
+    [void]$xl.Run($t2 + 'Definir', 'oportunidades', 'valor', $idO, [decimal]999999999)
+    [void]$xl.Run($t2 + 'LogDe', 'oportunidades', $idO)
+    $rv = ProcessarFeed
+    $prim = [int]$xl.Run($t2 + 'PrimeiroVisivel', 'Oportunidades')
+    $filtroOn = [bool]$xl.Run($t2 + 'FiltroLigado', 'Oportunidades', 'Resp.')
+    Conferir 'DEV-20 valor alterado reposiciona a linha (ordem por valor mantida)' ($rv -eq '' -and $prim -eq $idO -and $filtroOn) ($rv + ' primeira=' + $prim + ' esperado=' + $idO + ' filtro=' + $filtroOn)
+    [void]$xl.Run($t2 + 'Definir', 'oportunidades', 'responsavel', $idO, $resp2)
+    [void]$xl.Run($t2 + 'LogDe', 'oportunidades', $idO)
+    $rr = ProcessarFeed
+    $oculta = [bool]$xl.Run($t2 + 'Oculta', 'Oportunidades', $idO)
+    $filtroOn = [bool]$xl.Run($t2 + 'FiltroLigado', 'Oportunidades', 'Resp.')
+    Conferir 'DEV-20 responsável alterado tira a linha do filtro (filtro mantido)' ($rr -eq '' -and $oculta -and $filtroOn -and [string]$wsOpo.Cells.Item(1, 3).Value2 -eq $ordF) ($rr + ' oculta=' + $oculta + ' filtro=' + $filtroOn + ' ordem=' + [string]$wsOpo.Cells.Item(1, 3).Value2)
+    [void]$xl.Run($t2 + 'Definir', 'oportunidades', 'responsavel', $idO, $resp)
+    [void]$xl.Run($t2 + 'Definir', 'oportunidades', 'valor', $idO, $val0)
+    [void]$xl.Run($t2 + 'LogDe', 'oportunidades', $idO)
+    [void](ProcessarFeed)
+    [void]$xl.Run($t2 + 'DesfazerFiltro', 'Oportunidades', $ord0)
+
+    # DEV-20: registro novo de outra estação entra na grade (situação Ativos mantida); excluído sai
+    $idN = [int]$xl.Run($t2 + 'NovoContato', $idC)
+    [void]$xl.Run($t2 + 'LogDe', 'contatos', $idN)
+    $rn = ProcessarFeed
+    $kN = [int]$xl.Run($t2 + 'Linha', 'Contatos', $idN)
+    $visN = ($kN -gt 0) -and -not [bool]$xl.Run($t2 + 'Oculta', 'Contatos', $idN)
+    Conferir 'DEV-20 registro novo de outra estação entra na grade com a situação mantida' ($rn -eq '' -and $visN -and [string]$wsCto.Range('F4').Value2 -eq 'Ativos') ($rn + ' linha=' + $kN + ' situação=' + [string]$wsCto.Range('F4').Value2)
+    [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM contatos WHERE id=' + $idN)
+    [void]$xl.Run($t2 + 'LogDe', 'contatos', $idN)
+    $rx = ProcessarFeed
+    Conferir 'DEV-20 registro excluído em outra estação sai da grade' ($rx -eq '' -and [int]$xl.Run($t2 + 'Linha', 'Contatos', $idN) -eq 0) $rx
+    Conferir 'DEV-20 abas continuam protegidas depois do feed' ([bool]$wsCli.ProtectContents -and [bool]$wsCto.ProtectContents -and [bool]$wsOpo.ProtectContents)
+    [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id > ' + $maxLog011)
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
 
     # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original

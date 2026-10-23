@@ -158,6 +158,28 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C33 anterior que fecha ciclo e recusado", modRegras.FormaCiclo(10, 20, Array(10, 20), Array(0, 10)), True
     Confere "C33 corrente sem ciclo passa", modRegras.FormaCiclo(10, 20, Array(20, 30), Array(30, 0)), False
 
+    ' ---- DEV-18/19: feed confiavel (ciclo 011) - lacunas de commit fora de ordem, geracao e dependencias
+    Dim vistosF As Object, lacF As Object
+    Set vistosF = CreateObject("Scripting.Dictionary"): vistosF.Add 11&, 0: vistosF.Add 13&, 0
+    Set lacF = modFeed.NovasLacunas(10, 13, vistosF, Nothing, Now)
+    Confere "DEV-18 id que faltou na faixa vira lacuna", lacF.Count, 1
+    Confere "DEV-18 a lacuna e o id 12", lacF.Exists(12&), True
+    Set vistosF = CreateObject("Scripting.Dictionary"): vistosF.Add 12&, 0
+    Confere "DEV-18 lacuna achada sai", modFeed.NovasLacunas(13, 13, vistosF, lacF, Now).Count, 0
+    Set vistosF = CreateObject("Scripting.Dictionary")
+    Confere "DEV-18 lacuna no prazo continua", modFeed.NovasLacunas(13, 13, vistosF, lacF, Now + TimeSerial(0, 4, 0)).Count, 1
+    Confere "DEV-18 lacuna vencida (5 min) sai", modFeed.NovasLacunas(13, 13, vistosF, lacF, Now + TimeSerial(0, 6, 0)).Count, 0
+    Confere "DEV-18 geracao trocada invalida o cursor", modFeed.ReferenciaInvalida("A", "B", 10, 20), True
+    Confere "DEV-18 mesma geracao e log a frente: cursor valido", modFeed.ReferenciaInvalida("A", "A", 10, 20), False
+    Confere "DEV-18 cursor a frente do banco (restaurado)", modFeed.ReferenciaInvalida("A", "A", 30, 20), True
+    Confere "DEV-18 geracao ainda nao lida nao invalida", modFeed.ReferenciaInvalida("", "B", 10, 20), False
+    Confere "DEV-19 cliente invalida contatos, atendimentos e Painel", modFeed.Dependentes("clientes"), "contatos,oportunidades,painel"
+    Confere "DEV-19 contato invalida atendimentos e Painel", modFeed.Dependentes("contatos"), "oportunidades,painel"
+    Confere "DEV-19 atendimento invalida o Painel", modFeed.Dependentes("oportunidades"), "painel"
+    Confere "DEV-19 lista invalida o cache das combos", modFeed.Dependentes("listas"), "cache"
+    Confere "DEV-19 visita sem dependente", modFeed.Dependentes("visitas"), ""
+
+
     ' ---- DEV-13: identificador de operacao (impressao estavel do conteudo)
     Dim dH As Object
     Set dH = CreateObject("Scripting.Dictionary")

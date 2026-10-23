@@ -156,7 +156,7 @@ End Function
 ' Refaz a aba inteira: cabecalho da marca, consulta, tabela
 ' do Excel, colunas ocultas de controle, formatos, protecao.
 '----------------------------------------------------------
-Private Sub Montar(ByVal ws As Worksheet)
+Private Sub Montar(ByVal ws As Worksheet, Optional ByVal silencioso As Boolean = False)
     Dim tabela As String, sql As String, params As Variant
     Dim cols As Variant, arr As Variant, p As Variant
     Dim i As Long, j As Long, nc As Long, nl As Long, nt As Long
@@ -262,6 +262,8 @@ trata:
     Proteger ws
     Application.ScreenUpdating = True
     Application.EnableEvents = True
+    ' pelo feed (OnTime) nunca ha caixa: o erro volta para quem chamou
+    If silencioso Then Err.Raise vbObjectError + 612, "modGrade.Montar", "Erro ao montar a grade: " & sErro
     MsgBox "Nao foi possivel montar a grade." & vbCrLf & vbCrLf & sErro, _
            vbExclamation, "CRM Zapromaq"
 End Sub
@@ -1339,22 +1341,107 @@ falhaEscrita:
 End Function
 
 '----------------------------------------------------------
-' Aviso do feed (modFeed): registro novo ou excluido por outra
-' estacao ou pela IA. Nao remonta a aba sozinho - remontar
-' apaga filtro e ordenacao no meio do trabalho do usuario.
+' FEED (ciclo 011, DEV-20)
+'
+' Alteracao de outra estacao ou da IA: reescreve so as linhas
+' dos ids e reaplica, UMA vez por lote, ordenacao, AutoFiltro,
+' pesquisa e situacao - a linha alterada entra, sai ou muda de
+' lugar sem o usuario perder os criterios. Registro novo ou
+' excluido (a reescrita de celula nao inclui nem tira linha)
+' remonta a aba, que tambem preserva os criterios. A selecao
+' volta para o mesmo registro (pelo id). Erro volta ao feed,
+' que deixa o lote pendente para a proxima rodada.
 '----------------------------------------------------------
-Public Sub AvisarPendentes(ByVal ws As Worksheet, ByVal quantos As Long)
-    Dim c As Range
-    Set c = ws.Cells(LIN_STATUS, COL_INI)
-    Desproteger ws
+Public Sub AtualizarLinhasDoFeed(ByVal ws As Worksheet, ByVal ids As Object)
+    Dim faltaram As Long, idSel As Long
+    If ids Is Nothing Then Exit Sub
+    If ids.Count = 0 Then Exit Sub
+    idSel = IdSelecionado(ws)
+    If ids.Count > 200 Then
+        faltaram = ids.Count
+    Else
+        faltaram = AtualizarRegistros(ws, ids, False)
+    End If
+    If faltaram > 0 Then
+        Montar ws, True
+    Else
+        ReaplicarCriterios ws
+        Status ws
+    End If
+    If idSel > 0 Then SelecionarId ws, idSel
+End Sub
+
+' Remonta a aba sem caixa de mensagem (feed: base restaurada, virada do dia).
+Public Sub Remontar(ByVal ws As Worksheet)
+    Dim idSel As Long
+    idSel = IdSelecionado(ws)
+    Montar ws, True
+    If idSel > 0 Then SelecionarId ws, idSel
+End Sub
+
+' Mesma ordem do Montar: guardar os filtros, mostrar tudo, ordenar e
+' so entao filtrar de novo (ordenar com filtro ligado so move as
+' linhas visiveis).
+Private Sub ReaplicarCriterios(ByVal ws As Worksheet)
+    Dim lo As ListObject, criterios As Variant, busca As String, ordem As String
+    If ws.ListObjects.Count = 0 Then Exit Sub
+    Set lo = ws.ListObjects(1)
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    criterios = GuardarFiltros(ws)
+    busca = CStr(modDB.Nz(ws.Cells(LIN_BUSCA, COL_INI + 1).Value2))
+    ordem = CStr(modDB.Nz(ws.Cells(LIN_MODO, COL_INI + 1).Value2))
     Application.EnableEvents = False
-    c.Value2 = ChrW$(&H25B2) & " " & quantos & " registro(s) novo(s) ou exclu" & ChrW$(&HED) & "do(s) " & _
-               "em outra esta" & ChrW$(&HE7) & ChrW$(&HE3) & "o ou pela IA " & ChrW$(&HB7) & _
-               " clique em Atualizar (" & Format$(Now, "hh:nn") & ")   " & ChrW$(&HB7) & "   " & _
-               CStr(modDB.Nz(c.Value2))
-    c.Font.Color = modTema.COR_ALERTA
-    Application.EnableEvents = True
+    Application.ScreenUpdating = False
+    Desproteger ws
+    On Error GoTo falha
+    If Not lo.AutoFilter Is Nothing Then
+        If lo.AutoFilter.FilterMode Then lo.AutoFilter.ShowAllData
+    End If
+    ReaplicarOrdem ws, lo, ordem
+    ReaplicarFiltros ws, lo, criterios
+    ReaplicarPesquisa ws, lo, busca
+    If TemSituacao(TabelaDaAba(ws)) Then AplicarSituacao ws, lo
     Proteger ws
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Exit Sub
+falha:
+    Dim nErr As Long, sErr As String
+    nErr = Err.Number: sErr = Err.Description
+    Proteger ws
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Err.Raise nErr, "modGrade.ReaplicarCriterios", sErr
+End Sub
+
+' Id da linha selecionada, so na aba que esta na frente.
+Private Function IdSelecionado(ByVal ws As Worksheet) As Long
+    On Error Resume Next
+    If Not ActiveSheet Is ws Then Exit Function
+    IdSelecionado = IDdaLinha(ws, ActiveCell)
+    On Error GoTo 0
+End Function
+
+' Volta a selecao para o registro, se ele continua visivel.
+Private Sub SelecionarId(ByVal ws As Worksheet, ByVal id As Long)
+    Dim lo As ListObject, idx As Long, pos As Variant, linha As Long, col As Long
+    On Error GoTo fim
+    If Not ActiveSheet Is ws Then Exit Sub
+    If ws.ListObjects.Count = 0 Then Exit Sub
+    Set lo = ws.ListObjects(1)
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    idx = IndiceColuna(lo, CAB_ID)
+    If idx = 0 Then Exit Sub
+    pos = Application.Match(id, lo.ListColumns(idx).DataBodyRange, 0)
+    If IsError(pos) Then Exit Sub
+    linha = lo.DataBodyRange.Row + CLng(pos) - 1
+    If ws.Rows(linha).Hidden Then Exit Sub
+    col = ActiveCell.Column
+    If Intersect(ws.Columns(col), lo.DataBodyRange) Is Nothing Then col = COL_INI
+    Application.EnableEvents = False
+    ws.Cells(linha, col).Select
+fim:
+    Application.EnableEvents = True
 End Sub
 
 '----------------------------------------------------------

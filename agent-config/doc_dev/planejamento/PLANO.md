@@ -61,6 +61,7 @@ Modernizar o CRM Comercial Zapromaq **mantendo o modelo de execução atual** (p
 | D27 | 20/10 | Ciclo 008: conversão sem perda (vírgula decimal, ponto só milhar, 2 casas, inteiro sem fração, data explícita) nos três canais; estados da gravação na ficha; repetição automática só de bloqueio e só antes do commit | `specs/funcionalidades/008-tipos-e-resultado-da-gravacao` |
 | D28 | 21/10 | Ciclo 009: normalização da seção 5.1 (tudo em maiúsculas, inclusive nomes; e-mail um por campo) substitui "nomes preservam digitação"; transições de etapa e retomada da seção 5.2; contato fixo por empresa (sem transferência); lote com as regras da ficha; reativar só a empresa; matriz de campos versionada; migração 005 de normalização | `specs/funcionalidades/009-regras-entre-canais` |
 | D29 | 21/10 | Ciclo 010: esquema 1.2 (migração 004 com inventário que para diante de achado): controle único, anterior sem ciclo, `ctx_versao` exigida na gravação de contexto, log com estação/usuário técnico/versão/autor declarado, identificador de operação nas criações (ficha, lote e conector 1.8.0) | `specs/funcionalidades/010-esquema-1-2` |
+| D30 | 22/10 | Ciclo 011: feed confiável (cursor só depois de aplicar, lacunas de commit fora de ordem por 5 min, geração da base), dependências entre abas, virada do dia e filtro/ordem/seleção mantidos; linha nova ou excluída remonta a aba preservando os critérios | `specs/funcionalidades/011-feed-e-tela` |
 
 ## 4. Correções trazidas pela revisão com a documentação (19/09)
 
