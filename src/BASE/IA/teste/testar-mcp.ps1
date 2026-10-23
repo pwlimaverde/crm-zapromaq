@@ -467,7 +467,7 @@ $hojeT = (Get-Date).Date
 Conferir 'DEV-21 aberto com retomada vencida segue a próxima ação' ((Get-Situacao $true 'Negociação' $hojeT.AddDays(30) $hojeT.AddDays(-1)) -eq 'Em dia')
 Conferir 'DEV-21 encerrado com retomada que chegou' ((Get-Situacao $true 'Perdido' $null $hojeT) -eq 'Retomada a avaliar')
 Conferir 'DEV-21 encerrado com retomada futura continua Encerrado' ((Get-Situacao $true 'Perdido' $null $hojeT.AddDays(5)) -eq 'Encerrado')
-$fila21 = Linhas-Visita "SELECT TOP 2 id, codigo, etapa, responsavel, dt_prox_acao, retomar_em FROM oportunidades WHERE etapa='Negociação' ORDER BY id"
+$fila21 = Linhas-Visita "SELECT TOP 2 id, codigo, etapa, responsavel, dt_prox_acao, retomar_em FROM oportunidades WHERE etapa IN (SELECT valor FROM listas WHERE tipo='Etapa' AND encerra=False) ORDER BY id"
 $maxLog21 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
 try {
     Executa-Visita 'UPDATE oportunidades SET etapa=?, responsavel=?, dt_prox_acao=NULL, retomar_em=? WHERE id=?' @((P 'texto' 'Perdido'), (P 'texto' 'TESTE RETOMADA 012'), (P 'data' $hojeT.AddDays(-3)), (P 'inteiro' ([int]$fila21[0].id)))
