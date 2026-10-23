@@ -269,8 +269,8 @@ Private Function TextoLeiaMe(ByVal nAt As Long, ByVal nCl As Long) As String
         "  painel.pdf             o Painel como estava na tela" & vbCrLf & vbCrLf & _
         "DEFINICOES" & vbCrLf & _
         "  Em aberto = etapa que nao encerra o atendimento (aba Listas, Encerra = Nao)." & vbCrLf & _
-        "  Situacao: Acao atrasada (proxima acao vencida), Retomar hoje, Acao nesta semana, Em dia," & vbCrLf & _
-        "  Sem proxima acao, Encerrado. Valores em reais (R$)." & vbCrLf & vbCrLf
+        "  Situacao: Acao atrasada (proxima acao vencida), Acao nesta semana, Em dia, Sem proxima acao," & vbCrLf & _
+        "  Encerrado, Retomada a avaliar (Perdido/Descartado com retomada que chegou). Valores em reais (R$)." & vbCrLf & vbCrLf
     t = t & "PEDIDO SUGERIDO PARA O CLAUDE (anexe os CSVs e, se quiser, o painel.pdf)" & vbCrLf & _
         "  Monte um relatorio executivo de 1 a 2 paginas para a direcao da Zapromaq com base nos" & vbCrLf & _
         "  arquivos anexos do CRM (retrato de " & Format$(Now, "dd/mm/yyyy") & "). Inclua: resumo do funil em aberto" & vbCrLf & _

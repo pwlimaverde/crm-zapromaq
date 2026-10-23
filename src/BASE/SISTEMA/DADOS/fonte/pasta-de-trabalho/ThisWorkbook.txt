@@ -15,26 +15,26 @@ Attribute VB_Name = "ThisWorkbook"
 '==========================================================
 Option Explicit
 
-' A copia local vive em Documentos do usuario, nao na raiz do C:.
-' Estacao com politica restritiva recusa escrita em C:\, e a pasta
-' de Documentos e a que o usuario acha sozinho.
-'
-' O caminho vem do REGISTRO, nao de USERPROFILE\Documents: com o
-' OneDrive ligado, Documentos e redirecionado para dentro da pasta
-' do OneDrive e o caminho montado a mao aponta para o lugar errado.
+' A copia local vive em %LOCALAPPDATA%\CRM Zapromaq (DEV-23, secao 5.3):
+' pasta local NAO sincronizada. Documentos costuma ser redirecionado para
+' o OneDrive, que levaria a copia para fora da maquina. Nao e a raiz do
+' C: (estacao com politica restritiva recusa escrita la). O atalho e o
+' icone continuam em Documentos\CRM Zapromaq (INICIAR-CRM.bat).
 Private Function PastaLocal() As String
-    Dim sh As Object, d As String
-    On Error Resume Next
-    Set sh = CreateObject("WScript.Shell")
-    d = sh.SpecialFolders("MyDocuments")
-    On Error GoTo 0
-    If d = "" Then d = Environ$("USERPROFILE") & "\Documents"
+    Dim d As String
+    d = Environ$("LOCALAPPDATA")
+    If d = "" Then d = Environ$("USERPROFILE") & "\AppData\Local"
     PastaLocal = d & "\CRM Zapromaq\"
 End Function
 
 Private Sub Workbook_Open()
+    Dim salvo As Boolean
     On Error Resume Next
     Application.StatusBar = False
+    ' DEV-23: a recuperacao automatica guardaria uma copia com dados - desligada so neste arquivo
+    salvo = ThisWorkbook.Saved
+    ThisWorkbook.EnableAutoRecover = False
+    ThisWorkbook.Saved = salvo
     On Error GoTo 0
 
     modConfig.gModoModelo = EstaNaRede(ThisWorkbook.Path)
@@ -49,10 +49,12 @@ Private Sub Workbook_Open()
     On Error GoTo 0
 
     If Not modDB.BancoOK(True) Then
+        ' DEV-23: sem banco, a copia nao mostra dados de uma carga anterior
+        modGrade.EsvaziarGrades
         MsgBox "O banco não respondeu agora." & vbCrLf & vbCrLf & _
                "Caminho: " & modConfig.CaminhoBanco() & vbCrLf & _
                "Última consulta bem-sucedida: " & modConfig.UltimaConsulta() & vbCrLf & vbCrLf & _
-               "Confira a rede. Os números na tela são os da última atualização.", _
+               "Confira a rede. As grades ficam vazias até o banco responder (depois, clique em Atualizar).", _
                vbExclamation, "CRM Zapromaq"
         Exit Sub
     End If
@@ -79,8 +81,16 @@ End Sub
 ' Em modo modelo, salvar gravaria no arquivo que todos copiam.
 '----------------------------------------------------------
 Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
-    If Not modConfig.gModoModelo Then Exit Sub
+    If modConfig.SalvarPermitido() Then Exit Sub
     Cancel = True
+    If Not modConfig.gModoModelo Then
+        ' DEV-23 (secao 5.3): a copia local nao guarda dados de clientes - eles vivem no banco.
+        ' Sem caixa: salvar e fechar nao travam, e nada se perde (nao ha o que salvar).
+        On Error Resume Next
+        Application.StatusBar = "CRM Zapromaq: nada a salvar - os dados ficam no banco e esta c" & ChrW$(&HF3) & "pia n" & ChrW$(&HE3) & "o guarda dados."
+        On Error GoTo 0
+        Exit Sub
+    End If
     MsgBox "Salvamento cancelado." & vbCrLf & vbCrLf & _
            "Este é o arquivo MODELO, na pasta da rede. Qualquer alteração salva aqui " & _
            "vai junto para todas as estações na próxima cópia." & vbCrLf & vbCrLf & _
@@ -160,7 +170,8 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ' rotina agendada
     modFeed.Parar
     Application.StatusBar = False
-    If modConfig.gModoModelo Then ThisWorkbook.Saved = True
+    ' nunca pergunta se salva: o modelo nao se altera e a copia local nao guarda dados (DEV-23)
+    ThisWorkbook.Saved = True
     On Error GoTo 0
 End Sub
 

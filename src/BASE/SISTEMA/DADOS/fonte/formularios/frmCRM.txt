@@ -523,7 +523,7 @@ Private Sub SituacaoDoAtendimento()
     cboSituacao.Clear
     cboSituacao.AddItem "(todas)"
     cboSituacao.AddItem "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
-    cboSituacao.AddItem "Retomar hoje"
+    cboSituacao.AddItem "Retomada a avaliar"
     cboSituacao.AddItem "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o nesta semana"
     cboSituacao.AddItem "Em dia"
     cboSituacao.AddItem "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o"

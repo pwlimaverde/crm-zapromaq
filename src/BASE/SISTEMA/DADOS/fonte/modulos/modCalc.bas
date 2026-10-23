@@ -27,12 +27,16 @@ Public Function SituacaoDaEtapa(ByVal encerrada As Boolean, ByVal dtProxAcao As 
                                ByVal retomarEm As Variant) As String
     Dim fimSemana As Date
 
-    If encerrada Then SituacaoDaEtapa = "Encerrado": Exit Function
-
-    If Not IsNull(retomarEm) Then
-        If IsDate(retomarEm) Then
-            If CDate(retomarEm) <= Date Then SituacaoDaEtapa = "Retomar hoje": Exit Function
+    ' DEV-21 (ciclo 012): a agenda do aberto e so a proxima acao (retomar_em nao conta). Perdido ou
+    ' Descartado cuja retomada chegou vai para avaliacao, sem reabrir o atendimento.
+    If encerrada Then
+        SituacaoDaEtapa = "Encerrado"
+        If Not IsNull(retomarEm) Then
+            If IsDate(retomarEm) Then
+                If CDate(retomarEm) <= Date Then SituacaoDaEtapa = "Retomada a avaliar"
+            End If
         End If
+        Exit Function
     End If
 
     If IsNull(dtProxAcao) Then SituacaoDaEtapa = "Sem próxima ação": Exit Function
