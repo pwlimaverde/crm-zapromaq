@@ -156,3 +156,8 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 - Ciclo 010: `VERSAO_ESQUEMA = "1.2"`; anterior sem ciclo na conferência da ficha; `modDB.LogEm` grava estação, usuário
   técnico e versão do cliente; identificador de operação na criação (`modDB.OperacaoAnteriorEm`/`RegistrarOperacaoEm`
   na mesma transação; ficha: GUID mantido enquanto a digitação não muda; lote: um por linha).
+- Ciclo 011: `modFeed` confirma cursor e lacunas só depois de aplicar (`NovasLacunas`, `ReferenciaInvalida`,
+  `Dependentes` testados no autoteste); geração da base trocada ou virada do dia remontam as abas;
+  `modGrade.AtualizarLinhasDoFeed` reaplica ordem/filtro/pesquisa/situação e devolve a seleção pelo id; `Remontar` e
+  `Montar ws, True` sem caixa de mensagem. Teste de uso: nunca guardar `ListObject` no PowerShell através de uma
+  remontagem, e id explícito no AutoNumber do ACE exige devolver a numeração para o fim.
