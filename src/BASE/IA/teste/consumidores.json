@@ -1,0 +1,89 @@
+{
+  "_sobre": "Matriz consumidor x ferramenta do conector de dados (DEV-07, seção 6 do plano de 19/10/2026). Cada skill do comercial (fora de BASE) e as ferramentas e parâmetros de que depende. O testar-mcp confere que toda ferramenta e todo parâmetro citados existem no catálogo: mudou o contrato, esta matriz diz quem precisa ser avisado (nota de mudança no IA\\LEIA-ME.md).",
+  "versao_conector": "1.9.0",
+  "consumidores": [
+    {
+      "skill": "zapromaq-contexto-cliente",
+      "ferramentas": {
+        "atualizar_atendimento": ["codigo", "versao", "autor"],
+        "atualizar_cadastro_cliente": ["codigo_cliente", "versao", "autor"],
+        "atualizar_contexto_atendimento": ["codigo", "ctx_versao", "ctx_resumo"],
+        "atualizar_contexto_cliente": ["codigo_cliente", "ctx_versao", "ctx_resumo", "ctx_familia"],
+        "buscar_clientes": ["texto"],
+        "crm_status": [],
+        "listar_opcoes": ["tipo"],
+        "obter_atendimento": ["codigo"],
+        "obter_cliente": ["codigo_cliente"]
+      },
+      "muda_com": ["DEV-06", "DEV-10", "DEV-17"],
+      "atencao": "1.8.0: ctx_versao obrigatória em atualizar_contexto_* (lida em obter_*)."
+    },
+    {
+      "skill": "zapromaq-inicializar-atendimento",
+      "ferramentas": {
+        "atualizar_contexto_atendimento": ["codigo", "ctx_versao", "ctx_resumo"],
+        "atualizar_contexto_cliente": ["codigo_cliente", "ctx_versao", "ctx_resumo"],
+        "crm_status": [],
+        "obter_atendimento": ["codigo"],
+        "obter_cliente": ["codigo_cliente"]
+      },
+      "muda_com": ["DEV-10", "DEV-17"],
+      "atencao": "1.8.0: ctx_versao obrigatória em atualizar_contexto_*."
+    },
+    {
+      "skill": "zapromaq-semanal-planejamento-atendimentos",
+      "ferramentas": {
+        "atendimentos_por_proxima_acao": ["semana", "ano", "data_inicio", "data_fim", "responsavel", "a_partir_de", "cursor"]
+      },
+      "muda_com": ["DEV-21", "DEV-22"],
+      "atencao": "1.9.0: paginar por cursor = proximo_cursor (a_partir_de continua, com aviso); seção nova retomadas_a_avaliar; situação \"Retomar hoje\" virou \"Retomada a avaliar\" (só encerrados)."
+    },
+    {
+      "skill": "zapromaq-semanal-registro-atendimentos",
+      "ferramentas": {
+        "atendimentos_por_interacao": ["semana", "ano", "data_inicio", "data_fim", "responsavel"]
+      },
+      "muda_com": [],
+      "atencao": "1.9.0: a situação \"Retomar hoje\" não existe mais (resumo por situação)."
+    },
+    {
+      "skill": "crm-zapromaq-atendimentos-do-dia",
+      "ferramentas": {
+        "buscar_atendimentos": ["responsavel", "situacao"],
+        "crm_status": [],
+        "exportar_base": ["tabelas", "finalidade", "autor"],
+        "listar_opcoes": ["tipo"],
+        "obter_atendimento": ["codigo"],
+        "obter_cliente": ["codigo_cliente"]
+      },
+      "muda_com": ["DEV-21", "DEV-23"],
+      "atencao": "1.9.0: exportar_base sem destino (recusado) - o extrato vai para execucao\\extratos e a resposta traz a pasta; situação \"Retomada a avaliar\"."
+    },
+    {
+      "skill": "zapromaq-projetos-ia",
+      "ferramentas": {
+        "crm_status": [],
+        "exportar_base": ["tabelas", "finalidade", "autor"],
+        "listar_opcoes": ["tipo"],
+        "obter_cliente": ["codigo_cliente"],
+        "ultimas_alteracoes": ["limite"]
+      },
+      "muda_com": ["DEV-23"],
+      "atencao": "1.9.0: exportar_base sem destino - os scripts leem a pasta devolvida (pasta_relativa) em vez de uma pasta fixa do projeto."
+    },
+    {
+      "skill": "zapromaq-normalizar-qualificar-lista",
+      "ferramentas": {
+        "listar_opcoes": ["tipo"]
+      },
+      "muda_com": ["DEV-10"],
+      "atencao": ""
+    },
+    {
+      "skill": "crm-zapromaq",
+      "ferramentas": { "*": [] },
+      "muda_com": ["todos"],
+      "atencao": "Skill de dados deste repositório (IA\\instrucoes\\crm-zapromaq\\SKILL.md): catálogo inteiro; atualizada a cada nota de mudança."
+    }
+  ]
+}

@@ -1,3 +1,9 @@
+## Consumidores do conector (matriz)
+
+`IA	este\consumidores.json` lista cada skill do comercial (fora de BASE) com as ferramentas e os parâmetros de que
+depende e o aviso da versão atual. O `testar-mcp` falha se uma ferramenta ou parâmetro citado sumir do catálogo: toda
+nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills afetadas antes da publicação.
+
 ## Conector 1.9.0 — agenda, paginação e extratos (ciclo 012)
 
 **Nota de mudança (DEV-21, DEV-22, DEV-23) - QUEBRA DE CONTRATO avisada:**
