@@ -221,10 +221,14 @@ function Test-AnteriorFormaCiclo([int]$idAtual, [int]$idAnterior, $anteriores) {
 function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm) {
     if (-not $temContato) { return '' }
     if ([string]::IsNullOrEmpty($etapa)) { return 'Sem etapa definida' }
-    if ((Get-PapelEtapa $etapa).encerra) { return 'Encerrado' }
     $hoje = (Get-Date).Date
-    $ret = ConvertTo-DataOuNulo $retomarEm
-    if ($ret -and $ret -le $hoje) { return 'Retomar hoje' }
+    # DEV-21 (ciclo 012): a agenda do aberto é só a próxima ação; Perdido/Descartado com retomar_em que chegou
+    # vai para "Retomada a avaliar" (o encerrado não é reaberto). Espelho de modCalc.SituacaoDaEtapa.
+    if ((Get-PapelEtapa $etapa).encerra) {
+        $ret = ConvertTo-DataOuNulo $retomarEm
+        if ($ret -and $ret -le $hoje) { return 'Retomada a avaliar' }
+        return 'Encerrado'
+    }
     $prox = ConvertTo-DataOuNulo $dtProxAcao
     if (-not $prox) { return ('Sem pr' + [char]0x00F3 + 'xima a' + [char]0x00E7 + [char]0x00E3 + 'o') }
     if ($prox -lt $hoje) { return ('A' + [char]0x00E7 + [char]0x00E3 + 'o atrasada') }
