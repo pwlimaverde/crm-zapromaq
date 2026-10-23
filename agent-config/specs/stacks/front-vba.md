@@ -165,3 +165,5 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   chegada = "Retomada a avaliar"); cópia local em `%LOCALAPPDATA%\CRM Zapromaq` (INICIAR-CRM e modelo), salvar sempre
   cancelado (`modConfig.SalvarPermitido`), fechamento sem pergunta, `EnableAutoRecover = False` só neste arquivo,
   sem banco `modGrade.EsvaziarGrades`; roteiro do front em `execucao\extratos` com manifesto (`modPlanejamento`).
+- Ciclo 013: `modGrade.FormatoTexto` antes do `rng.Value2 = arr` (Value2 em bloco cria fórmula de "=1+1" sem formato
+  Texto - conferido); `modRelatorio.CampoCsv` neutraliza `= + - @` e tabulação com apóstrofo (CSV para planilha).
