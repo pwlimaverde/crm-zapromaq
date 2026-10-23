@@ -161,3 +161,7 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   `modGrade.AtualizarLinhasDoFeed` reaplica ordem/filtro/pesquisa/situação e devolve a seleção pelo id; `Remontar` e
   `Montar ws, True` sem caixa de mensagem. Teste de uso: nunca guardar `ListObject` no PowerShell através de uma
   remontagem, e id explícito no AutoNumber do ACE exige devolver a numeração para o fim.
+- Ciclo 012: `modCalc.SituacaoDaEtapa` sem "Retomar hoje" (aberto segue a próxima ação; encerrado com retomada
+  chegada = "Retomada a avaliar"); cópia local em `%LOCALAPPDATA%\CRM Zapromaq` (INICIAR-CRM e modelo), salvar sempre
+  cancelado (`modConfig.SalvarPermitido`), fechamento sem pergunta, `EnableAutoRecover = False` só neste arquivo,
+  sem banco `modGrade.EsvaziarGrades`; roteiro do front em `execucao\extratos` com manifesto (`modPlanejamento`).
