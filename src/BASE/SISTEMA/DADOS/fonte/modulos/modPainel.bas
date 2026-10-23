@@ -183,6 +183,16 @@ Public Sub AtualizarSeVelho()
 End Sub
 
 '----------------------------------------------------------
+' Feed (ciclo 011, DEV-19): cadastro ou atendimento mudou em
+' outra estacao. O Painel nao e redesenhado aqui (custa
+' segundos): fica velho e se atualiza na proxima vez que a aba
+' for aberta.
+'----------------------------------------------------------
+Public Sub MarcarVelho()
+    mAtualizadoEm = 0
+End Sub
+
+'----------------------------------------------------------
 Private Function EscreverTotais(ByVal ws As Worksheet, ByVal linha As Long, _
                                 ByVal d As Object) As Long
     Dim chave As Variant

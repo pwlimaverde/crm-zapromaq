@@ -164,6 +164,8 @@ Public Sub SobreOSistema()
            "Ambiente...........: " & modConfig.Ambiente() & vbCrLf & _
            "Banco..............: " & modConfig.CaminhoBanco() & vbCrLf & _
            "Última consulta....: " & modConfig.UltimaConsulta() & vbCrLf & _
+           "Tela atualizada....: " & IIf(modFeed.UltimaCarga() = 0, "ainda não", Format$(modFeed.UltimaCarga(), "dd/mm/yyyy hh:nn")) & vbCrLf & _
+           "Cálculo do dia.....: " & IIf(modFeed.DiaDoCalculo() = 0, "ainda não", Format$(modFeed.DiaDoCalculo(), "dd/mm/yyyy")) & vbCrLf & _
            "Usuário............: " & modConfig.UsuarioAtual(), _
            vbInformation, "CRM Zapromaq"
 End Sub
