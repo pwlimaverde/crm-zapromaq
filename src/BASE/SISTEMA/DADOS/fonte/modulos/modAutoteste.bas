@@ -235,6 +235,15 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "DEV-21 encerrado com retomada que chegou", modCalc.SituacaoDaEtapa(True, Null, Date), "Retomada a avaliar"
     Confere "DEV-21 encerrado com retomada futura continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date + 5), "Encerrado"
     Confere "DEV-23 copia local nunca salva dados", modConfig.SalvarPermitido(), False
+    ' ---- DEV-24 (ciclo 013): CSV para planilha neutraliza texto com cara de formula; numero e data nao mudam
+    Confere "DEV-24 CSV =1+1 sai literal", modRelatorio.CampoCsv("=1+1"), "'=1+1"
+    Confere "DEV-24 CSV +5541 sai literal", modRelatorio.CampoCsv("+5541"), "'+5541"
+    Confere "DEV-24 CSV -X sai literal", modRelatorio.CampoCsv("-X"), "'-X"
+    Confere "DEV-24 CSV @X sai literal", modRelatorio.CampoCsv("@X"), "'@X"
+    Confere "DEV-24 CSV tabulacao no inicio sai literal", modRelatorio.CampoCsv(vbTab & "X"), "'" & vbTab & "X"
+    Confere "DEV-24 CSV texto comum nao muda", modRelatorio.CampoCsv("A=B"), "A=B"
+    Confere "DEV-24 CSV numero negativo continua numero", modRelatorio.CampoCsv(-5), "-5"
+    Confere "DEV-24 CSV data continua data", modRelatorio.CampoCsv(DateSerial(2026, 10, 22)), "2026-10-22"
     Confere "Situacao sem acao", modCalc.SituacaoDaEtapa(False, Null, Null), _
             "Sem pr" & ChrW$(&HF3) & "xima a" & ChrW$(&HE7) & ChrW$(&HE3) & "o"
     Confere "Situacao em dia", modCalc.SituacaoDaEtapa(False, Date + 30, Null), "Em dia"
