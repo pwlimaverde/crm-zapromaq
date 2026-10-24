@@ -245,8 +245,10 @@ function Invoke-TransacaoUmaVez([scriptblock]$bloco) {
 function Write-DiagSeHouver([string]$t) { if (Get-Command Write-Diag -ErrorAction SilentlyContinue) { Write-Diag $t } }
 
 # DEV-14: erro transitório = registro/página bloqueada por outra conexão. Só ele se repete.
+# Só os textos do MOTOR (ACE em pt-BR e inglês): uma palavra solta como "bloqueado" também aparece em erro de
+# regra (valor de lista citado na mensagem) e na recusa por esquema ("Gravação bloqueada"), que não se repetem.
 function Test-ErroTransitorio([string]$mensagem) {
-    return ($mensagem -match 'bloquead|locked|could not update|não foi possível atualizar|nao foi possivel atualizar')
+    return ($mensagem -match 'bloqueado no momento|atualmente bloquead|currently locked|could not (update|save|lock)|n[ãa]o foi poss[íi]vel (atualizar|salvar|bloquear)|n[ãa]o p[ôo]de bloquear')
 }
 
 <#

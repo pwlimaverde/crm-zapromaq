@@ -739,6 +739,13 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'motivo puro: sem manutenção e esquema suportado grava' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '') -eq '')
         Conferir 'motivo puro: manutenção recusa e cita o dono' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] 'EST-X|ana|12|2026-10-19 10:00|migração') -match 'manutenção.*EST-X')
         Conferir 'motivo puro: esquema desconhecido recusa' ((Get-MotivoRecusaEscrita '0.9' '') -match 'esquema')
+        # revisão final: só o bloqueio do motor se repete; recusa e erro de regra (mesmo citando "bloqueado") não
+        Conferir 'transitório: bloqueio do ACE (pt-BR e inglês) se repete' ((Test-ErroTransitorio 'Não foi possível atualizar; bloqueado no momento.') -and (Test-ErroTransitorio 'Could not update; currently locked.'))
+        Conferir 'transitório: recusa por esquema não se repete' (-not (Test-ErroTransitorio (Get-MotivoRecusaEscrita '0.9' '')))
+        Conferir 'transitório: erro de regra que cita "Bloqueado" não se repete' (-not (Test-ErroTransitorio "Campo 'etapa': 'Bloqueado' não está na lista Etapa."))
+        $atB = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atB.versao; etapa = 'Etapa Bloqueada' })
+        Conferir 'etapa fora da lista com "Bloqueada" no nome: erro de regra, sem repetir como bloqueio' ($res.isError -and $res.content[0].text -match 'lista' -and $res.content[0].text -notmatch 'continuou bloqueado') $res.content[0].text
         $atM = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
         Executa-Visita "INSERT INTO config (chave, valor) VALUES ('manutencao', ?)" @((P 'texto' 'EST-TESTE|teste|1|2026-10-19 10:00|migração de teste'))
         try {
