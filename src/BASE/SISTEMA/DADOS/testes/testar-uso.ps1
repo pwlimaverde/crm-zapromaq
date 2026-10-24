@@ -838,6 +838,39 @@ End Function
     Conferir 'gerar visitas pelo front grava (vazio = ok)' ($ger -eq '') $ger
     $ger2 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@($idOpQ))
     Conferir 'gerar visitas: segunda pendente é recusada e nada é gravado (C13)' ($ger2 -match 'C13') $ger2
+    # DEV-27 (ciclo 016): a rota lista as empresas ATIVAS do raio sem atendimento em aberto; gerar visitas só com atendimento
+    [void]$xl.Run($tq + 'modDB.Executar', "INSERT INTO clientes (estagio, empresa, cidade, uf, ativo, versao) VALUES ('Pré-cliente', 'TESTE ROTA FRONT PRE', 'CURITIBA', 'PR', True, 1)")
+    [void]$xl.Run($tq + 'modDB.Executar', "INSERT INTO clientes (estagio, empresa, cidade, uf, ativo, versao) VALUES ('Pré-cliente', 'TESTE ROTA FRONT INATIVA', 'CURITIBA', 'PR', False, 1)")
+    $idPre27 = [int]$xl.Run($tq + 'modDB.ConsultarValor', "SELECT id FROM clientes WHERE empresa='TESTE ROTA FRONT PRE'", 0)
+    try {
+        $sem27 = $xl.Run($tq + 'modPlanejamento.EmpresasSemAtendimento', $idQ)
+        $nomes27 = @(); if ($sem27 -is [array]) { for ($i = 1; $i -le $sem27.GetLength(0); $i++) { $nomes27 += [string]$sem27.GetValue($i, 2) } }
+        $kmPre = $null; if ($sem27 -is [array]) { for ($i = 1; $i -le $sem27.GetLength(0); $i++) { if ([int]$sem27.GetValue($i, 1) -eq $idPre27) { $kmPre = [double]$sem27.GetValue($i, 6) } } }
+        Conferir 'DEV-27 a rota do front lista o pré-cliente ativo do raio sem atendimento (km 0)' ($kmPre -eq 0) ($nomes27 -join ', ')
+        Conferir 'DEV-27 a rota do front não lista empresa inativa' ($nomes27 -notcontains 'TESTE ROTA FRONT INATIVA') ''
+        $empCand27 = @(); $cand27 = $xl.Run($tq + 'modPlanejamento.Candidatos', $idQ)
+        if ($cand27 -is [array]) { for ($i = 1; $i -le $cand27.GetLength(0); $i++) { $empCand27 += [string]$cand27.GetValue($i, 3) } }
+        Conferir 'DEV-27 a rota do front não repete empresa que já é candidata' (@($nomes27 | Where-Object { $empCand27 -contains $_ }).Count -eq 0) ''
+        $nVis27 = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM visitas', 0)
+        $g27 = [string]$xl.Run($tq + 'modPlanejamento.GerarVisitas', $idQ, [object[]]@(0))
+        Conferir 'DEV-27 gerar visitas sem atendimento é recusado e nada é gravado' ($g27 -match 'atendimento' -and [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM visitas', 0) -eq $nVis27) $g27
+        Conferir 'DEV-27 sem contato ativo o atalho pede a escolha (0)' ([int]$xl.Run($tq + 'modPlanejamento.ContatoParaAtalho', $idPre27) -eq 0) ''
+        $cli1c = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT TOP 1 id_cliente FROM contatos WHERE ativo=True GROUP BY id_cliente HAVING COUNT(*)=1 ORDER BY id_cliente', 0)
+        $cto1c = [int]$xl.Run($tq + 'modDB.ConsultarValor', ('SELECT id FROM contatos WHERE ativo=True AND id_cliente=' + $cli1c), 0)
+        Conferir 'DEV-27 com um só contato ativo o atalho já o escolhe' ($cli1c -gt 0 -and [int]$xl.Run($tq + 'modPlanejamento.ContatoParaAtalho', $cli1c) -eq $cto1c) ('cliente=' + $cli1c + ' contato=' + $cto1c)
+        Conferir 'DEV-27 sem Perdido/Descartado com retomada o atalho não liga anterior' ([int]$xl.Run($tq + 'modPlanejamento.AnteriorParaRetomada', $idPre27) -eq 0) ''
+        $opR = $xl.Run($tq + 'modDB.Consultar', ('SELECT TOP 1 id, id_cliente, etapa, retomar_em FROM oportunidades WHERE id <> ' + $idOpQ + ' ORDER BY id DESC'))
+        $idOpR = [int]$opR.GetValue(1, 1); $cliR = [int]$opR.GetValue(1, 2); $etaR = [string]$opR.GetValue(1, 3); $retR = $opR.GetValue(1, 4)
+        [void]$xl.Run($tq + 'modDB.Executar', ("UPDATE oportunidades SET etapa='Perdido', retomar_em=Date()+20 WHERE id=" + $idOpR))
+        try {
+            Conferir 'DEV-27 com Perdido e retomada o atalho liga esse atendimento como anterior' ([int]$xl.Run($tq + 'modPlanejamento.AnteriorParaRetomada', $cliR) -eq $idOpR) ''
+        } finally {
+            $pR = [object[]]@( [object[]]@(202, $etaR), [object[]]@(7, $retR), [object[]]@(3, $idOpR) )
+            [void]$xl.Run($tq + 'modDB.Executar', 'UPDATE oportunidades SET etapa=?, retomar_em=? WHERE id=?', $pR)
+        }
+    } finally {
+        [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM clientes WHERE empresa IN ('TESTE ROTA FRONT PRE', 'TESTE ROTA FRONT INATIVA')")
+    }
     # Fase 4.8: aba Planejamentos - seletor em C4, grade só leitura com _id, feed
     $wsPl = $wb.Worksheets.Item('Planejamentos')
     [void]$xl.Run($tq + 'modAbaPlanejamentos.GradePlanejamentos')
