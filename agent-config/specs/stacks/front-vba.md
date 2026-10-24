@@ -167,3 +167,6 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
   sem banco `modGrade.EsvaziarGrades`; roteiro do front em `execucao\extratos` com manifesto (`modPlanejamento`).
 - Ciclo 013: `modGrade.FormatoTexto` antes do `rng.Value2 = arr` (Value2 em bloco cria fórmula de "=1+1" sem formato
   Texto - conferido); `modRelatorio.CampoCsv` neutraliza `= + - @` e tabulação com apóstrofo (CSV para planilha).
+- Ciclo 015: lote atualiza duplicado por CNPJ de empresa ativa (`modLote.MudancasDoLote` pura no autoteste,
+  `AtualizarDuplicado(s)`, `DiferencaDaLinha`); `modCRM.AtualizarCampos` grava só os campos dados, com versão e a ação
+  de log informada ("ALTERAR LOTE"). `Const` de módulo VBA só no cabeçalho (o verificar.py recusa depois de Sub).

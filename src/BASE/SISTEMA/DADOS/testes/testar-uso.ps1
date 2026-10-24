@@ -465,6 +465,12 @@ Public Function TipoValor(ByVal aba As String, ByVal id As Long, ByVal cab As St
     k = Linha(aba, id)
     If k > 0 Then TipoValor = TypeName(Tabela(aba).ListColumns(cab).DataBodyRange.Cells(k, 1).Value2)
 End Function
+' DEV-26: o botao "Atualizar duplicados" (os ByRef ficam aqui dentro: o Run nao os devolve)
+Public Function AtualizarLote() As String
+    Dim a As Long, f As String
+    modLote.AtualizarDuplicados a, f
+    AtualizarLote = a & "|" & f
+End Function
 Public Sub DesfazerFiltro(ByVal aba As String, ByVal estadoOrdem As String)
     Dim ws As Worksheet, lo As ListObject
     Set ws = ThisWorkbook.Worksheets(aba): Set lo = Tabela(aba)
@@ -612,6 +618,46 @@ End Sub
         foreach ($id24 in @($orig24.Keys)) { [void]$xl.Run($t2 + 'Definir', 'clientes', 'empresa', [int]$id24, [string]$orig24[$id24]) }
         [void]$xl.Run($tf + 'modGrade.GradeClientes')
         $xl.EnableEvents = $false
+    }
+
+    # DEV-26 (ciclo 015): o lote atualiza a empresa já cadastrada pelo CNPJ (só ativa, só a primeira linha do lote);
+    # campo vazio não apaga, observação é acrescentada, o nome substitui e o log diz ALTERAR LOTE
+    $cnA = '98765432000198'; $cnI = '12345678000195'
+    $maxLog26 = [int](Valor 'SELECT MAX(id) FROM log_alteracoes' 0)
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM clientes WHERE cnpj IN ('" + $cnA + "','" + $cnI + "')")
+    [void]$xl.Run($tf + 'modDB.Executar', "INSERT INTO clientes (estagio, empresa, cnpj, cidade, uf, observacoes, ativo, versao) VALUES ('Pré-cliente', 'LOTE ATUALIZA VELHA', '" + $cnA + "', 'CURITIBA', 'PR', 'NOTA 015', True, 1)")
+    [void]$xl.Run($tf + 'modDB.Executar', "INSERT INTO clientes (estagio, empresa, cnpj, cidade, uf, ativo, versao) VALUES ('Pré-cliente', 'LOTE INATIVA VELHA', '" + $cnI + "', 'CURITIBA', 'PR', False, 1)")
+    $idA26 = [int](Valor ("SELECT id FROM clientes WHERE cnpj='" + $cnA + "'") 0)
+    try {
+        $tb = "`t"
+        $lote26 = @(('' + $tb + '' + $tb + $tb + 'LOTE ATUALIZA NOVA' + $tb + $tb + 'PR' + $tb + $tb + '4130000022' + $tb + $tb + $cnA + $tb + 'OBS DO LOTE 015'),
+                    ('1' + $tb + '1' + $tb + $tb + 'LOTE INATIVA NOVA' + $tb + $tb + 'PR' + $tb + $tb + $tb + $tb + $cnI + $tb),
+                    ('1' + $tb + '1' + $tb + $tb + 'LOTE REPETIDA' + $tb + $tb + 'PR' + $tb + $tb + $tb + $tb + $cnA + $tb)) -join "`r`n"
+        $ml = $tf + 'modLote.'
+        [void]$xl.Run($ml + 'Analisar', $lote26)
+        $at26 = @(foreach ($k in 1..3) { [bool]$xl.Run($ml + 'Atualizavel', $k) }) -join ','
+        Conferir 'DEV-26 só o CNPJ de empresa ativa, na primeira linha do lote, é atualizável' ($at26 -eq 'True,False,False' -and [string]$xl.Run($ml + 'Valor', 1, 'status') -eq 'DUPLICADO') ($at26 + ' / ' + [string]$xl.Run($ml + 'Valor', 2, 'motivo') + ' / ' + [string]$xl.Run($ml + 'Valor', 3, 'motivo'))
+        $dif26 = [string]$xl.Run($ml + 'DiferencaDaLinha', 1)
+        Conferir 'DEV-26 a diferença antes de atualizar lista empresa, telefone e observações (e não a cidade vazia)' ($dif26 -match 'empresa:' -and $dif26 -match 'telefone:' -and $dif26 -match 'observacoes:' -and $dif26 -notmatch 'cidade:') $dif26
+        $v0 = [int](Valor ('SELECT versao FROM clientes WHERE id=' + $idA26) 0)
+        $r26 = [string]$xl.Run($t2 + 'AtualizarLote')
+        $empA = [string](Valor ('SELECT empresa FROM clientes WHERE id=' + $idA26) '')
+        $cidA = [string](Valor ('SELECT cidade FROM clientes WHERE id=' + $idA26) '')
+        $obsA = [string](Valor ('SELECT observacoes FROM clientes WHERE id=' + $idA26) '')
+        $telA = [string](Valor ('SELECT telefone FROM clientes WHERE id=' + $idA26) '')
+        $v1 = [int](Valor ('SELECT versao FROM clientes WHERE id=' + $idA26) 0)
+        Conferir 'DEV-26 atualizar grava o nome e o telefone, não apaga a cidade e sobe a versão' ($r26.StartsWith('1|') -and $empA -eq 'LOTE ATUALIZA NOVA' -and $cidA -eq 'CURITIBA' -and $telA -eq '4130000022' -and $v1 -eq $v0 + 1) ($r26 + ' empresa=' + $empA + ' cidade=' + $cidA + ' tel=' + $telA + ' versao ' + $v0 + '->' + $v1)
+        Conferir 'DEV-26 a observação do lote é acrescentada numa linha nova' ($obsA -eq ("NOTA 015`r`nOBS DO LOTE 015")) $obsA
+        $nLog26 = [int](Valor ("SELECT COUNT(*) FROM log_alteracoes WHERE tabela='clientes' AND id_registro=" + $idA26 + " AND acao='ALTERAR LOTE' AND id > " + $maxLog26) 0)
+        Conferir 'DEV-26 o log registra ALTERAR LOTE por campo' ($nLog26 -eq 3) ([string]$nLog26)
+        Conferir 'DEV-26 a empresa inativa não foi atualizada' ([string](Valor ("SELECT empresa FROM clientes WHERE cnpj='" + $cnI + "'") '') -eq 'LOTE INATIVA VELHA')
+        Conferir 'DEV-26 a linha mostra ATUALIZADO' ([string]$xl.Run($ml + 'Valor', 1, 'status') -eq 'ATUALIZADO') ([string]$xl.Run($ml + 'Valor', 1, 'motivo'))
+        [void]$xl.Run($ml + 'Analisar', $lote26)
+        $r26b = [string]$xl.Run($t2 + 'AtualizarLote')
+        Conferir 'DEV-26 repetir o mesmo lote não muda nada (SEM MUDANCA, sem log novo)' ($r26b.StartsWith('0|') -and [string]$xl.Run($ml + 'Valor', 1, 'status') -eq 'SEM MUDANCA' -and [int](Valor ("SELECT COUNT(*) FROM log_alteracoes WHERE tabela='clientes' AND id_registro=" + $idA26 + " AND id > " + $maxLog26) 0) -eq 3) ($r26b + ' ' + [string]$xl.Run($ml + 'Valor', 1, 'status'))
+    } finally {
+        [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM clientes WHERE cnpj IN ('" + $cnA + "','" + $cnI + "')")
+        [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id > ' + $maxLog26)
     }
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
 

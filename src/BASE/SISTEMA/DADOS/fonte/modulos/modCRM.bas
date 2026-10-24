@@ -405,6 +405,81 @@ falha:
 End Function
 
 '----------------------------------------------------------
+' DEV-26 (ciclo 015): UPDATE so dos campos dados (lote atualizando
+' uma empresa ja cadastrada), com a versao lida e o log com a acao
+' informada (ex.: "ALTERAR LOTE"). Mesmos retornos de Atualizar:
+'   1 = gravado; 0 = conflito (nao sobrescreve); 2 = nada mudou
+'----------------------------------------------------------
+Public Function AtualizarCampos(ByVal tabela As String, ByVal idRegistro As Long, ByVal versaoLida As Long, _
+                                ByVal mudancas As Object, ByVal acao As String) As Long
+    Dim lista As Variant, i As Long, spec As Variant, tipos As Object, campo As Variant, k As Long
+    Dim cn As Object, atual As Variant, sel As String, sets As String, novo As Variant, n As Long
+    Dim ps As New Collection, mudou As New Collection, m As Variant
+
+    Set tipos = CreateObject("Scripting.Dictionary")
+    lista = CamposGravaveis(tabela)
+    For i = LBound(lista) To UBound(lista)
+        spec = Split(lista(i), "|")
+        tipos(CStr(spec(0))) = CStr(spec(1))
+    Next i
+    For Each campo In mudancas.Keys
+        If Not tipos.Exists(CStr(campo)) Then
+            Err.Raise vbObjectError + 516, "modCRM.AtualizarCampos", "Campo que n" & ChrW$(227) & "o se grava por aqui: " & campo
+        End If
+        sel = sel & IIf(sel = "", "", ", ") & campo
+    Next campo
+    If sel = "" Then AtualizarCampos = 2: Exit Function
+
+    On Error GoTo falha
+    Set cn = modDB.AbrirTransacao()
+    atual = modDB.ConsultarEm(cn, "SELECT " & sel & " FROM " & tabela & " WHERE id=? AND versao=?", _
+                              Array(modDB.P(modDB.adInteger, idRegistro), modDB.P(modDB.adInteger, versaoLida)))
+    If IsEmpty(atual) Then
+        modDB.Desfazer cn
+        AtualizarCampos = 0
+        Exit Function
+    End If
+    k = 0
+    For Each campo In mudancas.Keys
+        k = k + 1
+        novo = mudancas(campo)
+        If Not Iguais(atual(1, k), novo, tipos(CStr(campo))) Then
+            sets = sets & IIf(sets = "", "", ", ") & campo & "=?"
+            ps.Add modDB.P(TipoAdo(tipos(CStr(campo))), novo)
+            mudou.Add Array(CStr(campo), modDB.TextoLog(atual(1, k)), modDB.TextoLog(novo))
+        End If
+    Next campo
+    If mudou.Count = 0 Then
+        modDB.Desfazer cn
+        AtualizarCampos = 2
+        Exit Function
+    End If
+
+    ps.Add modDB.P(modDB.adDate, Now)
+    ps.Add modDB.P(modDB.adVarWChar, modConfig.UsuarioAtual())
+    ps.Add modDB.P(modDB.adInteger, idRegistro)
+    ps.Add modDB.P(modDB.adInteger, versaoLida)
+    n = modDB.ExecutarEm(cn, "UPDATE " & tabela & " SET " & sets & _
+                         ", versao=versao+1, alterado_em=?, alterado_por=? WHERE id=? AND versao=?", ParaMatriz(ps))
+    If n <> 1 Then
+        modDB.Desfazer cn
+        AtualizarCampos = 0
+        Exit Function
+    End If
+    For Each m In mudou
+        modDB.LogEm cn, tabela, idRegistro, CStr(m(0)), CStr(m(1)), CStr(m(2)), acao
+    Next m
+    modDB.Confirmar cn
+    AtualizarCampos = 1
+    Exit Function
+falha:
+    Dim nErr As Long, sErr As String
+    nErr = Err.Number: sErr = Err.Description
+    modDB.Desfazer cn
+    Err.Raise nErr, "modCRM.AtualizarCampos", sErr
+End Function
+
+'----------------------------------------------------------
 ' DEV-11 (C29): contato fixo por empresa e contato do atendimento
 ' conferidos na transação, contra o que está no banco agora.
 '----------------------------------------------------------
