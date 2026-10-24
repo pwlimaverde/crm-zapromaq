@@ -42,7 +42,7 @@ $script:FerramentasEsperadas = @(
     'atendimentos_por_interacao', 'atendimentos_por_proxima_acao', 'atualizar_atendimento', 'atualizar_cadastro_cliente',
     'atualizar_contato', 'atualizar_contexto_atendimento', 'atualizar_contexto_cliente', 'atualizar_planejamento',
     'atualizar_visita', 'buscar_atendimentos', 'buscar_clientes', 'buscar_contatos', 'buscar_municipios',
-    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'descartar_extratos', 'exportar_base',
+    'criar_cliente', 'criar_contato', 'criar_planejamento', 'criar_visita', 'crm_status', 'descartar_extratos', 'duplicar_atendimento', 'exportar_base',
     'exportar_roteiro', 'gerar_visitas', 'gerenciar_lista', 'gravar_meta', 'lancar_datas', 'lancar_resultados',
     'listar_candidatos', 'listar_metas', 'listar_opcoes', 'listar_planejamentos', 'listar_visitas', 'obter_atendimento',
     'obter_cliente', 'obter_contato', 'obter_planejamento', 'promover_cliente', 'resolver_cidade', 'ultimas_alteracoes')
@@ -784,6 +784,31 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $aA = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = $par16[0] }))
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = $par16[0]; versao = [int]$aA.versao; codigo_atendimento_anterior = $null; autor = 'teste' })
         Conferir 'anterior removido com null' (-not $res.isError) $res.content[0].text
+
+        Write-Host '--- DEV-28: duplicar atendimento (simular não grava; gravar copia, zera e liga o anterior)'
+        $maxLog28 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+        $n28 = [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @())
+        $etIni = [string](Invoke-Valor "SELECT TOP 1 valor FROM listas WHERE tipo='Etapa' AND ativo=True AND encerra=False ORDER BY ordem, id" @())
+        $pai28 = (Linhas-Visita 'SELECT * FROM oportunidades WHERE codigo=?' @((P 'texto' 'AT-0001-0001')))[0]
+        $s28 = Invoke-DuplicarAtendimento ([pscustomobject]@{ codigo = 'AT-0001-0001' })
+        Conferir 'DEV-28 duplicar simula por padrão e não grava' ($s28.simulado -eq $true -and [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @()) -eq $n28) ($s28 | ConvertTo-Json -Compress -Depth 4)
+        Conferir 'DEV-28 a cópia traz etapa inicial, o anterior e nada dos campos zerados' ($s28.dados.etapa -eq $etIni -and $s28.dados.codigo_atendimento_anterior -eq 'AT-0001-0001' -and -not $s28.dados.Contains('valor') -and -not $s28.dados.Contains('dt_prox_acao') -and -not $s28.dados.Contains('retomar_em')) ($s28.dados | ConvertTo-Json -Compress)
+        $g28 = Invoke-DuplicarAtendimento ([pscustomobject]@{ codigo = 'AT-0001-0001'; simular = $false; id_operacao = 'TESTE-DUP-0001-ABCDEF'; autor = 'teste' })
+        $novo28 = (Linhas-Visita 'SELECT * FROM oportunidades WHERE codigo=?' @((P 'texto' ([string]$g28.codigo))))[0]
+        $copiaOk = $true; $difs28 = @()
+        foreach ($c in $script:CamposDuplicar.Split(',')) { if ([string]$novo28[$c] -ne [string]$pai28[$c]) { $copiaOk = $false; $difs28 += $c } }
+        Conferir 'DEV-28 gravar copia responsável, origem, prioridade, categoria, tipo de venda, máquina, família e última interação' ($g28.gravado -and $copiaOk) ($difs28 -join ',')
+        Conferir 'DEV-28 gravar zera valor, orçamento, proposta, agenda, desfecho, retomada e tentativas' ($null -eq $novo28.valor -and $null -eq $novo28.orcamento -and $null -eq $novo28.dt_proposta -and $null -eq $novo28.prox_acao -and $null -eq $novo28.dt_prox_acao -and $null -eq $novo28.motivo_desfecho -and $null -eq $novo28.dt_desfecho -and $null -eq $novo28.retomar_em -and $null -eq $novo28.tentativas) ($novo28 | ConvertTo-Json -Compress)
+        Conferir 'DEV-28 dt_entrada hoje, etapa inicial, mesmo contato e anterior = origem' ([string]$novo28.dt_entrada -eq (Get-Date).ToString('yyyy-MM-dd') -and [string]$novo28.etapa -eq $etIni -and [int]$novo28.id_contato -eq [int]$pai28.id_contato -and [int]$novo28.id_atendimento_anterior -eq [int]$pai28.id -and [string]$g28.duplicado_de -eq 'AT-0001-0001') ($novo28 | ConvertTo-Json -Compress)
+        $g28b = Invoke-DuplicarAtendimento ([pscustomobject]@{ codigo = 'AT-0001-0001'; simular = $false; id_operacao = 'TESTE-DUP-0001-ABCDEF'; autor = 'teste' })
+        Conferir 'DEV-28 repetir com o mesmo id_operacao não duplica de novo' ($g28b.repetida -and [string]$g28b.codigo -eq [string]$g28.codigo -and [int](Invoke-Valor 'SELECT COUNT(*) FROM oportunidades' @()) -eq $n28 + 1) ($g28b | ConvertTo-Json -Compress)
+        $enc28 = [string](Invoke-Valor "SELECT TOP 1 o.codigo FROM oportunidades o WHERE o.etapa IN (SELECT valor FROM listas WHERE tipo='Etapa' AND encerra=True) ORDER BY o.id" @())
+        $se28 = $null; if ($enc28) { $se28 = Invoke-DuplicarAtendimento ([pscustomobject]@{ codigo = $enc28 }) }
+        Conferir 'DEV-28 duplicar atendimento encerrado é permitido (etapa inicial)' ($enc28 -and $se28.dados.etapa -eq $etIni) $enc28
+        Conferir 'DEV-28 atendimento inexistente é recusado' ((Mensagem { Invoke-DuplicarAtendimento ([pscustomobject]@{ codigo = 'AT-9999-9999' }) }) -match 'encontrad')
+        Executa-Visita 'DELETE FROM operacoes WHERE id_operacao=?' @((P 'texto' 'TESTE-DUP-0001-ABCDEF'))
+        Executa-Visita 'DELETE FROM oportunidades WHERE codigo=?' @((P 'texto' ([string]$g28.codigo)))
+        Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog28))
 
         Write-Host '--- restauração do banco de teste'
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
