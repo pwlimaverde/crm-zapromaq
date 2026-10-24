@@ -421,10 +421,24 @@ try {
     Conferir 'gerar_visitas: atendimento encerrado é recusado e nada é gravado (C08)' ($encerrado -ne '' -and (Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo, $encerrado); simular = $false }) }) -match 'Nada gravado') ''
     Conferir 'gerar_visitas: a recusa desfez tudo (mesma quantidade de visitas)' ([int](Invoke-Valor 'SELECT COUNT(*) FROM visitas' @()) -eq ($cntAntes + 1)) ''
     Conferir 'gerar_visitas: segunda pendente no mesmo atendimento é recusada (C13)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @($alvo); simular = $false }) }) -match 'Nada gravado') ''
+    # DEV-27 (ciclo 016): a rota lista também as empresas ATIVAS do raio sem atendimento em aberto (pré-clientes inclusive)
+    Executa-Visita "INSERT INTO clientes (estagio, empresa, cidade, uf, ativo, versao) VALUES ('Pré-cliente', 'TESTE ROTA PRE', 'CURITIBA', 'PR', True, 1)"
+    Executa-Visita "INSERT INTO clientes (estagio, empresa, cidade, uf, ativo, versao) VALUES ('Pré-cliente', 'TESTE ROTA INATIVA', 'CURITIBA', 'PR', False, 1)"
+    $lc2 = Invoke-ListarCandidatos ([pscustomobject]@{ id_planejamento = $pc.id })
+    $sem2 = @($lc2.sem_atendimento)
+    $preRota = @($sem2 | Where-Object { $_.empresa -eq 'TESTE ROTA PRE' })
+    Conferir 'DEV-27 sem_atendimento traz o pré-cliente ativo do raio (km 0 em Curitiba)' ($preRota.Count -eq 1 -and [double]$preRota[0].km -eq 0 -and [int]$preRota[0].id_cliente -gt 0) ($sem2 | ConvertTo-Json -Compress -Depth 3)
+    Conferir 'DEV-27 sem_atendimento não traz empresa inativa' (@($sem2 | Where-Object { $_.empresa -eq 'TESTE ROTA INATIVA' }).Count -eq 0)
+    $empCand = @($lc2.candidatos | ForEach-Object { [string]$_.empresa })
+    Conferir 'DEV-27 sem_atendimento não repete empresa que já é candidata (tem atendimento em aberto)' (@($sem2 | Where-Object { $empCand -contains [string]$_.empresa }).Count -eq 0) ''
+    Conferir 'DEV-27 contadores do sem_atendimento coerentes (até 200)' ([int]$lc2.quantidade_sem_atendimento -ge $sem2.Count -and $sem2.Count -le 200 -and [bool]$lc2.sem_atendimento_truncado -eq ([int]$lc2.quantidade_sem_atendimento -gt 200)) ''
+    Conferir 'DEV-27 a lista de candidatos não muda' ([int]$lc2.quantidade -eq [int]$lc.quantidade) ([string]$lc2.quantidade + ' x ' + [string]$lc.quantidade)
+    Conferir 'DEV-27 gerar_visitas só aceita atendimento (código de cliente recusado, nada gravado)' ((Mensagem { Invoke-GerarVisitas ([pscustomobject]@{ id_planejamento = $pc.id; codigos = @('CL-0001'); simular = $false }) }) -match 'Nada gravado') ''
 } finally {
     foreach ($i in $visT10) { Executa-Visita 'DELETE FROM visitas WHERE id=?' @((P 'inteiro' ([int]$i))) }
     foreach ($i in $planT10) { Executa-Visita 'DELETE FROM planejamentos WHERE id=?' @((P 'inteiro' $i)) }
     Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogT10))
+    Executa-Visita "DELETE FROM clientes WHERE empresa IN ('TESTE ROTA PRE', 'TESTE ROTA INATIVA')"
 }
 Write-Host '--- lançamento em lote e leitura de planejamento (Fase 4.5, 4.9a, 4.9b): no banco de demonstração'
 $cidT11 = [int](Invoke-Valor "SELECT MIN(cod_ibge) FROM municipios WHERE nome='CURITIBA' AND uf='PR'" @())
