@@ -213,6 +213,10 @@ Regras que o conector confere e recusa com mensagem:
 
 ## Atendimentos
 
+- **Duplicar:** `duplicar_atendimento` com o `codigo` de origem - primeiro com `simular` (padrão), mostre a
+  cópia ao usuário e só então repita com `simular=false` (e um `id_operacao`). Copia contato, responsável,
+  origem, prioridade, categoria, tipo de venda, máquina, família e última interação; o resto nasce vazio,
+  com etapa inicial, `dt_entrada` hoje e o anterior = origem.
 - **Abrir:** `abrir_atendimento` com o contato (`codigo_contato`), `etapa` e `responsavel`.
   Mesmas críticas de `atualizar_atendimento`; `dt_entrada` vem hoje se omitida. Retomada:
   `codigo_atendimento_anterior` — só atendimento da mesma empresa do contato (outra empresa é

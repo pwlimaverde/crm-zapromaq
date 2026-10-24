@@ -4,6 +4,14 @@
 depende e o aviso da versão atual. O `testar-mcp` falha se uma ferramenta ou parâmetro citado sumir do catálogo: toda
 nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills afetadas antes da publicação.
 
+## Conector 1.11.0 — duplicar atendimento (ciclo 017)
+
+**Nota de mudança (DEV-28) - aditiva:** ferramenta nova **`duplicar_atendimento`** (43 ferramentas): `codigo` de origem,
+`simular` (padrão true: só devolve a cópia), `id_operacao`, `autor`, `promover_pre_cliente`. Copia contato, responsável,
+origem, prioridade, categoria, tipo de venda, máquina, família e última interação; zera valor, orçamento, proposta,
+agenda, desfecho, motivo, retomada e tentativas; `dt_entrada` = hoje; etapa inicial; anterior = origem. Grava pelo
+caminho do `abrir_atendimento`.
+
 ## Conector 1.10.0 — rota com todos do raio (ciclo 016)
 
 **Nota de mudança (DEV-27) - aditiva:** `listar_candidatos` ganha `sem_atendimento` (empresas ativas do raio sem
@@ -246,7 +254,7 @@ IA\
     lib\Protocolo.ps1     núcleo do protocolo MCP (dual-era), usado pelos dois servidores
     lib\Banco.ps1         conexão curta, parâmetros tipados, transação, log
     lib\Regras.ps1        normalização e campos calculados — espelho do front
-    lib\Ferramentas.ps1   catálogo fechado de operações (42 ferramentas)
+    lib\Ferramentas.ps1   catálogo fechado de operações (43 ferramentas)
   mcp-dev\
     servidor-dev.ps1      MCP de desenvolvimento: fontes do front, prévia, montagem
     lib\Catalogo.ps1       catálogo fechado (15 ferramentas)
@@ -288,7 +296,7 @@ Windows PowerShell 5.1 que já vem no Windows. Exige **Office 64 bits** (ou o
    (`TESTAR-MCP.bat -SoProtocolo` testa só o protocolo, sem banco.)
 4. `IA\INSTALAR-MCP.bat` — registra o servidor. Feche o Claude Desktop por completo
    (inclusive o ícone perto do relógio) e abra de novo.
-5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 42 ferramentas.
+5. No campo de mensagem: **+ › Conectores** — `crm-zapromaq` com 43 ferramentas.
 6. Instale a skill (conforme a documentação do Claude, em `doc_dev`):
    - ligue **Code execution and file creation** em **Settings › Capabilities**
      (skills dependem disso; em plano Team/Enterprise, o administrador liga em

@@ -22,7 +22,7 @@ if ($Dev) {
     $nomeServidor = 'crm-zapromaq'
     # DEV-05: o cliente registra o LANÇADOR fixo; ele carrega a versão publicada (IA\conector\ATUAL.txt)
     $servidor = (Resolve-Path (Join-Path $PSScriptRoot 'lancador.ps1')).ProviderPath
-    $qtdFerramentas = 42
+    $qtdFerramentas = 43
 }
 
 # Unidade mapeada (ex.: G:) vira caminho UNC: o Claude Desktop pode subir antes
