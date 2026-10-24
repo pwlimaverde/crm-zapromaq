@@ -1017,9 +1017,14 @@ End Function
 Option Explicit
 Public Function Criar(ByVal empresa As String) As Long
     Dim d As Object, codigo As Long
+    ' erro (ex.: identificador recusado) volta como -1: erro sem tratamento pelo Application.Run derruba o Excel
+    On Error GoTo falhou
     Set d = CreateObject("Scripting.Dictionary")
     d("empresa") = empresa
     Criar = modCRM.CriarCliente(d, False, codigo)
+    Exit Function
+falhou:
+    Criar = -1
 End Function
 '@)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM operacoes WHERE id_operacao='TESTE-FRONT-OP-0001'")
@@ -1032,6 +1037,14 @@ End Function
     [void]$xl.Run($tq + 'modCRM.DefinirOperacao', '', '')
     $nCli2 = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM clientes', 0)
     Conferir 'DEV-13 reenvio da ficha com o mesmo identificador não duplica' ($id1 -gt 0 -and $id2 -eq $id1 -and $nCli2 -eq $nCli + 1) ('id1=' + $id1 + ' id2=' + $id2 + ' antes=' + $nCli + ' depois=' + $nCli2)
+    # revisão final: o registro da operação foi excluído depois (pré-cliente apagado; o lote usa identificador
+    # estável por linha) - a mesma operação cria de novo, em vez de devolver um id que não existe mais
+    [void]$xl.Run($tq + 'modDB.Executar', 'DELETE FROM clientes WHERE id=' + $id1)
+    [void]$xl.Run($tq + 'modCRM.DefinirOperacao', 'TESTE-FRONT-OP-0001', 'H2')
+    $id3 = [int]$xl.Run($tq + 'modTesteOperacao.Criar', 'TESTE OPERACAO REPETIDA')
+    [void]$xl.Run($tq + 'modCRM.DefinirOperacao', '', '')
+    $nCli3 = [int]$xl.Run($tq + 'modDB.ConsultarValor', 'SELECT COUNT(*) FROM clientes', 0)
+    Conferir 'DEV-13 operação cujo registro foi excluído cria de novo (não devolve id inexistente)' ($id3 -gt 0 -and $id3 -ne $id1 -and $nCli3 -eq $nCli + 1) ('id1=' + $id1 + ' id3=' + $id3 + ' antes=' + $nCli + ' depois=' + $nCli3)
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM operacoes WHERE id_operacao='TESTE-FRONT-OP-0001'")
     [void]$xl.Run($tq + 'modDB.Executar', "DELETE FROM clientes WHERE empresa='TESTE OPERACAO REPETIDA'")
     # DEV-06 parte B (ciclo 010): a linha de log do front identifica estação, usuário técnico e versão
@@ -1076,6 +1089,13 @@ End Function
     [void]$xl.Run($rl + 'Analisar', $lote)
     $est = @(foreach ($i in 1..4) { [string]$xl.Run($rl + 'Valor', $i, 'status') }) -join ','
     Conferir ('lote DEV-12: 12 colunas, DV errado, UF XX e nota 1,5 são ERRO (' + $est + ')') ($est -eq 'ERRO,ERRO,ERRO,ERRO') $est
+    # revisão final (seção 5.1): segmento colado em outra caixa entra com o valor EXATO da lista (como no conector)
+    $segL = [string]$xl.Run("'" + $n + "'!modDB.ConsultarValor", "SELECT TOP 1 valor FROM listas WHERE tipo='Segmento' AND ativo=True ORDER BY id", '')
+    $segColado = if ($segL -ceq $segL.ToLowerInvariant()) { $segL.ToUpperInvariant() } else { $segL.ToLowerInvariant() }
+    $lote = ('2' + $t + '2' + $t + $t + 'LOTE CAIXA DA LISTA' + $t + 'CURITIBA' + $t + 'PR' + $t + $segColado + $t + $t + $t + $t)
+    [void]$xl.Run($rl + 'Analisar', $lote)
+    $segV = [string]$xl.Run($rl + 'Valor', 1, 'segmento')
+    Conferir 'lote: segmento em outra caixa entra com o valor exato da lista' ($segL -ne '' -and $segColado -cne $segL -and $segV -ceq $segL -and [string]$xl.Run($rl + 'Valor', 1, 'status') -ne 'ERRO') ('lista=' + $segL + ' colado=' + $segColado + ' ficou=' + $segV)
 
     $ini = Get-Date
     $xl.Run("'" + $n + "'!modPainel.AtualizarBasePainel")
