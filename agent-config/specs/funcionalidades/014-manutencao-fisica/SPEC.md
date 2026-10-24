@@ -13,7 +13,7 @@ Saber quanto do tamanho do banco é espaço não recuperado e se compactar melho
   **atualizar** (consulta do feed: `MAX(id)` + faixa do log) — N repetições, mediana e pior caso —, compacta a cópia
   pelo motor do Office (`DAO.DBEngine.120.CompactDatabase`), mede de novo e grava `medicao.json` + `medicao.txt` com a
   conclusão. As cópias são apagadas no fim (podem conter dado real); fica só o relatório.
-- **Critério de ganho** (decisão 014-1): compactar reduz o tamanho em ≥ 20% **ou** a mediana de algum tempo em ≥ 10%.
+- **Critério de ganho** (decisão 014-1): compactar reduz o tamanho em ≥ 20% **ou** a mediana de algum tempo em ≥ 10% e ≥ 5 ms (abaixo disso é ruído).
   Sem ganho: "não adotar" registrado. Com ganho: "avaliar rotina" - a rotina em janela de manutenção (DEV-08 +
   backup validado + troca controlada) **não** é implantada neste ciclo sem a medição no banco real (🖥 homologação).
 - Procedimento de reparo em caso de corrupção (restaurar a última cópia validada; compactar/reparar só numa cópia) em
@@ -31,7 +31,7 @@ Saber quanto do tamanho do banco é espaço não recuperado e se compactar melho
 
 | # | Decisão | Premissa | O que mudaria |
 |---|---|---|---|
-| 014-1 | Ganho = tamanho −20% ou mediana −10% em algum tempo. | Abaixo disso a rotina (janela exclusiva, troca) custa mais do que rende. | A gestão definir outro limiar. |
+| 014-1 | Ganho = tamanho −20% ou mediana −10% **e** −5 ms em algum tempo; a 1ª rodada de cada arquivo (aquecimento) é descartada. | Abaixo disso a rotina (janela exclusiva, troca) custa mais do que rende. | A gestão definir outro limiar. |
 | 014-2 | Rotina de compactação não implantada sem a medição no banco real. | O banco fictício não representa a fragmentação da produção. | Medição na rede mostrar ganho: ciclo próprio para a rotina. |
 | 014-3 | Medição só em cópia, com o banco de origem lido sem bloqueio; banco com `.laccdb` recusado (a cópia poderia sair inconsistente), salvo `-Mesmo`. | DEV-03: tamanho igual não prova consistência. | — |
 
