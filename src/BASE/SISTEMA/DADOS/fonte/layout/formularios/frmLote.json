@@ -25,12 +25,13 @@
     { "nome": "lblAjuda",     "tipo": "Label",   "pos": [22, 64, 736, 26],   "estilo": "rotulo", "amostra": "Cole aqui o bloco copiado da planilha de qualificação, uma empresa por linha. Ordem das colunas: aderência, porte, qualificação, empresa, cidade, estado, segmento, telefone, e-mail, CNPJ, observações." },
     { "nome": "txtColar",     "tipo": "TextBox", "pos": [22, 94, 736, 92],   "estilo": "campo", "props": { "MultiLine": true, "ScrollBars": 3, "EnterKeyBehavior": true, "Font.Name": "@fixa" } },
     { "nome": "lblResumo",    "tipo": "Label",   "pos": [218, 199, 540, 14], "estilo": "rotulo", "amostra": "12 linha(s)  -  9 OK  -  1 suspeita(s)  -  1 duplicada(s)  -  1 com erro  -  vai cadastrar 10" },
-    { "nome": "lblDica",      "tipo": "Label",   "pos": [12, 467, 520, 14],  "estilo": "rotulo", "texto": "Duplo clique numa linha SUSPEITO alterna entre cadastrar e ignorar." }
+    { "nome": "lblDica",      "tipo": "Label",   "pos": [12, 467, 384, 14],  "estilo": "rotulo", "texto": "Duplo clique: SUSPEITO alterna; ATUALIZA mostra a diferença antes." }
   ],
   "componentes": [
     { "tipo": "botao", "nome": "cmdConferir",  "pos": [22, 194, 96, 24],   "texto": "Conferir",  "icone": "ok",      "variante": "primario" },
     { "tipo": "botao", "nome": "cmdLimpar",    "pos": [124, 194, 84, 24],  "texto": "Limpar",    "icone": "excluir", "variante": "neutro" },
     { "tipo": "grade", "nome": "grdLinhas",    "pos": [22, 226, 736, 214], "amostra": "lote", "linhas": 11 },
+    { "tipo": "botao", "nome": "cmdAtualizar", "pos": [404, 462, 168, 24], "texto": "Atualizar duplicados", "icone": "atualizar", "variante": "neutro" },
     { "tipo": "botao", "nome": "cmdCadastrar", "pos": [578, 462, 104, 24], "texto": "Cadastrar", "icone": "novo",    "variante": "sucesso" },
     { "tipo": "botao", "nome": "cmdFechar",    "pos": [688, 462, 80, 24],  "texto": "Fechar",    "icone": "fechar",  "variante": "neutro" }
   ]

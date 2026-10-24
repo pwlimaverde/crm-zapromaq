@@ -54,6 +54,11 @@ Private Const COLUNAS As Long = 11
 Private mLinhas As Collection
 Private mSegmentos As Object      ' listas Segmento e Qualificacao, lidas UMA vez por conferencia
 Private mLote As String           ' DEV-12: LOTE-AAAAMMDD-HHMMSS-<ESTACAO>, gravado no log de cada linha
+Private mIdPorCnpj As Object      ' DEV-26: CNPJ da base -> id da empresa
+Private mAtivoPorCnpj As Object   ' DEV-26: CNPJ da base -> empresa ativa?
+' DEV-26: campos que o lote atualiza numa empresa ja cadastrada (observacoes a parte: acrescenta)
+Private Const CAMPOS_ATUALIZA As String = "empresa,cidade,uf,segmento,telefone,email,qualificacao,aderencia,porte"
+Public Const ACAO_LOG_LOTE As String = "ALTERAR LOTE"
 
 '==========================================================
 ' LEITURA E CONFERENCIA
@@ -99,14 +104,21 @@ End Function
 Private Sub CarregarBase(ByRef cnpjBase As Object, ByRef nomeBase As Object)
     Dim dados As Variant, i As Long, c As String, n As String
 
-    dados = modDB.Consultar("SELECT empresa, cnpj FROM clientes")
+    Set mIdPorCnpj = CreateObject("Scripting.Dictionary")
+    Set mAtivoPorCnpj = CreateObject("Scripting.Dictionary")
+    dados = modDB.Consultar("SELECT empresa, cnpj, id, ativo FROM clientes")
     If IsEmpty(dados) Then Exit Sub
 
     For i = 1 To UBound(dados, 1)
         c = modValidacao.SoDigitos(modDB.Nz(dados(i, 2)))
         n = NomeNormalizado(modDB.Nz(dados(i, 1)))
         If c <> "" Then
-            If Not cnpjBase.Exists(c) Then cnpjBase.Add c, modDB.Nz(dados(i, 1))
+            If Not cnpjBase.Exists(c) Then
+                cnpjBase.Add c, modDB.Nz(dados(i, 1))
+                mIdPorCnpj(c) = CLng(dados(i, 3))
+                ' ativo nulo (cadastro antigo) conta como ativo
+                If IsNull(dados(i, 4)) Then mAtivoPorCnpj(c) = True Else mAtivoPorCnpj(c) = CBool(dados(i, 4))
+            End If
         End If
         If n <> "" Then
             If Not nomeBase.Exists(n) Then nomeBase.Add n, modDB.Nz(dados(i, 1))
@@ -122,6 +134,8 @@ Private Function Interpretar(ByVal bruta As String, ByVal numero As Long) As Obj
     d("status") = "OK"
     d("motivo") = ""
     d("ignorar") = False
+    d("atualizavel") = False   ' DEV-26: DUPLICADO por CNPJ de empresa ativa da base
+    d("id_base") = 0
 
     p = Split(bruta, vbTab)
 
@@ -178,6 +192,15 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
             Marcar d, "ERRO", "CNPJ com " & Len(c) & " digitos"
         ElseIf cnpjBase.Exists(c) Then
             Marcar d, "DUPLICADO", "CNPJ ja cadastrado: " & cnpjBase(c)
+            ' DEV-26: o mesmo CNPJ ATUALIZA a empresa - se ativa e se for a primeira linha do lote com ele
+            d("id_base") = mIdPorCnpj(c)
+            If cnpjLote.Exists(c) Then
+                Marcar d, "DUPLICADO", MotivoRepetidoNoLote(CStr(cnpjLote(c)("linha")), CStr(cnpjLote(c)("status")))
+            ElseIf Not mAtivoPorCnpj(c) Then
+                Marcar d, "DUPLICADO", "empresa inativa: o lote nao atualiza"
+            Else
+                d("atualizavel") = True
+            End If
         ElseIf cnpjLote.Exists(c) Then
             ' a primeira linha ja foi conferida: o estado dela e o final
             Marcar d, "DUPLICADO", MotivoRepetidoNoLote(CStr(cnpjLote(c)("linha")), CStr(cnpjLote(c)("status")))
@@ -475,18 +498,7 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
     Application.Cursor = 2                        ' xlWait
     For i = 1 To mLinhas.Count
         If Entra(i) Then
-            Set d = CreateObject("Scripting.Dictionary")
-            d("empresa") = Nulo(Valor(i, "empresa"))
-            d("cnpj") = Nulo(Valor(i, "cnpj"))
-            d("cidade") = Nulo(Valor(i, "cidade"))
-            d("uf") = Nulo(Valor(i, "uf"))
-            d("segmento") = Nulo(Valor(i, "segmento"))
-            d("telefone") = Nulo(Valor(i, "telefone"))
-            d("email") = Nulo(Valor(i, "email"))
-            d("qualificacao") = Nulo(Valor(i, "qualificacao"))
-            d("aderencia") = NuloNumero(Valor(i, "aderencia"))
-            d("porte") = NuloNumero(Valor(i, "porte"))
-            d("observacoes") = Nulo(Valor(i, "observacoes"))
+            Set d = DadosDaLinha(i)
 
             ' DEV-12: o MESMO validador da ficha, logo antes do INSERT
             Dim critica As String
@@ -523,6 +535,169 @@ proximaLinha:
     Application.Cursor = -4143                    ' xlDefault
 
     Gravar = (gravados > 0)
+End Function
+
+' Campos da linha prontos para gravar (texto vazio vira nulo).
+Private Function DadosDaLinha(ByVal i As Long) As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d("empresa") = Nulo(Valor(i, "empresa"))
+    d("cnpj") = Nulo(Valor(i, "cnpj"))
+    d("cidade") = Nulo(Valor(i, "cidade"))
+    d("uf") = Nulo(Valor(i, "uf"))
+    d("segmento") = Nulo(Valor(i, "segmento"))
+    d("telefone") = Nulo(Valor(i, "telefone"))
+    d("email") = Nulo(Valor(i, "email"))
+    d("qualificacao") = Nulo(Valor(i, "qualificacao"))
+    d("aderencia") = NuloNumero(Valor(i, "aderencia"))
+    d("porte") = NuloNumero(Valor(i, "porte"))
+    d("observacoes") = Nulo(Valor(i, "observacoes"))
+    Set DadosDaLinha = d
+End Function
+
+'==========================================================
+' DEV-26 (ciclo 015): DUPLICADO por CNPJ da base ATUALIZA a
+' empresa (decisoes 2 a 9 do plano revisado): so por CNPJ, so
+' empresa ativa, so a primeira linha do lote com aquele CNPJ;
+' campo vazio nao apaga; observacao e acrescentada; o nome da
+' empresa do lote substitui; uma transacao por linha, com a
+' versao lida na hora e o log "ALTERAR LOTE".
+'==========================================================
+
+
+Public Function Atualizavel(ByVal i As Long) As Boolean
+    If mLinhas Is Nothing Then Exit Function
+    If i < 1 Or i > mLinhas.Count Then Exit Function
+    If CStr(mLinhas(i)("status")) <> "DUPLICADO" Then Exit Function
+    Atualizavel = CBool(mLinhas(i)("atualizavel"))
+End Function
+
+Public Function AAtualizar() As Long
+    Dim i As Long, n As Long
+    If mLinhas Is Nothing Then Exit Function
+    For i = 1 To mLinhas.Count
+        If Atualizavel(i) Then n = n + 1
+    Next i
+    AAtualizar = n
+End Function
+
+' Regra pura (autoteste): o que a linha do lote muda no cadastro atual.
+' linha e atual: campo -> valor. Devolve campo -> valor novo, so do que muda.
+Public Function MudancasDoLote(ByVal linha As Object, ByVal atual As Object) As Object
+    Dim r As Object, c As Variant, novo As String, velho As String, obs As String
+    Set r = CreateObject("Scripting.Dictionary")
+    For Each c In Split(CAMPOS_ATUALIZA, ",")
+        novo = Trim$(ValorTexto(linha, CStr(c)))
+        If novo <> "" Then
+            velho = Trim$(ValorTexto(atual, CStr(c)))
+            If StrComp(novo, velho, vbBinaryCompare) <> 0 Then
+                If c = "aderencia" Or c = "porte" Then r(CStr(c)) = CLng(novo) Else r(CStr(c)) = novo
+            End If
+        End If
+    Next c
+    obs = Trim$(ValorTexto(linha, "observacoes"))
+    If obs <> "" Then
+        velho = ValorTexto(atual, "observacoes")
+        If InStr(1, velho, obs, vbTextCompare) = 0 Then
+            If Trim$(velho) = "" Then r("observacoes") = obs Else r("observacoes") = velho & vbCrLf & obs
+        End If
+    End If
+    Set MudancasDoLote = r
+End Function
+
+Private Function ValorTexto(ByVal d As Object, ByVal campo As String) As String
+    If d Is Nothing Then Exit Function
+    If Not d.Exists(campo) Then Exit Function
+    If IsNull(d(campo)) Or IsEmpty(d(campo)) Then Exit Function
+    ValorTexto = CStr(d(campo))
+End Function
+
+' Cadastro da empresa lido AGORA (a diferenca e a versao valem para este momento).
+Private Function AtualDaBase(ByVal idCliente As Long, ByRef versao As Long, ByRef ativo As Boolean) As Object
+    Dim r As Variant, d As Object, nomes As Variant, j As Long
+    nomes = Split(CAMPOS_ATUALIZA & ",observacoes", ",")
+    r = modDB.Consultar("SELECT " & Join(nomes, ", ") & ", versao, ativo FROM clientes WHERE id=?", _
+                        Array(modDB.P(modDB.adInteger, idCliente)))
+    If IsEmpty(r) Then Exit Function
+    Set d = CreateObject("Scripting.Dictionary")
+    For j = 0 To UBound(nomes)
+        d(nomes(j)) = r(1, j + 1)
+    Next j
+    versao = CLng(modDB.Nz(r(1, UBound(nomes) + 2), "0"))
+    ativo = True
+    If Not IsNull(r(1, UBound(nomes) + 3)) Then ativo = CBool(r(1, UBound(nomes) + 3))
+    Set AtualDaBase = d
+End Function
+
+' "campo: atual -> novo", uma por linha, para a confirmacao do duplo clique ("" = nada muda).
+Public Function DiferencaDaLinha(ByVal i As Long) As String
+    Dim atual As Object, mud As Object, c As Variant, versao As Long, ativo As Boolean, s As String
+    If Not Atualizavel(i) Then Exit Function
+    Set atual = AtualDaBase(CLng(mLinhas(i)("id_base")), versao, ativo)
+    If atual Is Nothing Then Exit Function
+    Set mud = MudancasDoLote(mLinhas(i), atual)
+    For Each c In mud.Keys
+        s = s & c & ": " & IIf(Trim$(ValorTexto(atual, CStr(c))) = "", "(vazio)", Left$(Replace(ValorTexto(atual, CStr(c)), vbCrLf, " / "), 70)) & _
+            "  ->  " & Left$(Replace(CStr(mud(c)), vbCrLf, " / "), 70) & vbCrLf
+    Next c
+    DiferencaDaLinha = s
+End Function
+
+' Atualiza a empresa da linha i: 1 atualizada, 2 sem mudanca, 0 conflito, -1 recusada (motivo em msg).
+Public Function AtualizarDuplicado(ByVal i As Long, ByRef msg As String) As Long
+    Dim atual As Object, mud As Object, versao As Long, ativo As Boolean, r As Long, critica As String
+    msg = ""
+    If Not Atualizavel(i) Then msg = "a linha nao e um duplicado que o lote atualiza": AtualizarDuplicado = -1: Exit Function
+    Set atual = AtualDaBase(CLng(mLinhas(i)("id_base")), versao, ativo)
+    If atual Is Nothing Then
+        msg = "empresa nao encontrada (excluida depois da conferencia)"
+    ElseIf Not ativo Then
+        msg = "empresa inativa: o lote nao atualiza"
+    Else
+        critica = modValidacao.CriticarCliente(DadosDaLinha(i))
+        If critica <> "" Then msg = critica
+    End If
+    If msg <> "" Then
+        mLinhas(i)("status") = "ERRO": mLinhas(i)("motivo") = msg: mLinhas(i)("atualizavel") = False
+        AtualizarDuplicado = -1
+        Exit Function
+    End If
+    Set mud = MudancasDoLote(mLinhas(i), atual)
+    On Error GoTo falha
+    r = modCRM.AtualizarCampos("clientes", CLng(mLinhas(i)("id_base")), versao, mud, ACAO_LOG_LOTE)
+    On Error GoTo 0
+    mLinhas(i)("atualizavel") = False
+    Select Case r
+        Case 1: mLinhas(i)("status") = "ATUALIZADO": mLinhas(i)("motivo") = "atualizou: " & Join(mud.Keys, ", ")
+        Case 2: mLinhas(i)("status") = "SEM MUDANCA": mLinhas(i)("motivo") = "o cadastro ja tem estes dados"
+        Case Else: mLinhas(i)("status") = "CONFLITO": mLinhas(i)("motivo") = "outra estacao alterou a empresa agora: confira de novo"
+    End Select
+    AtualizarDuplicado = r
+    Exit Function
+falha:
+    msg = Err.Description
+    mLinhas(i)("status") = "ERRO": mLinhas(i)("motivo") = msg: mLinhas(i)("atualizavel") = False
+    AtualizarDuplicado = -1
+End Function
+
+' Botao "Atualizar duplicados": todas as linhas atualizaveis, cada uma na sua transacao.
+Public Function AtualizarDuplicados(ByRef atualizados As Long, ByRef falhas As String) As Boolean
+    Dim i As Long, r As Long, msg As String
+    atualizados = 0
+    falhas = ""
+    If mLinhas Is Nothing Then Exit Function
+    If Not modMenu.Pronto() Then Exit Function
+    Application.Cursor = 2                        ' xlWait
+    For i = 1 To mLinhas.Count
+        If Atualizavel(i) Then
+            r = AtualizarDuplicado(i, msg)
+            If r = 1 Then atualizados = atualizados + 1
+            If r = 0 Then falhas = falhas & "linha " & Valor(i, "linha") & ": outra estacao alterou a empresa agora" & vbCrLf
+            If r = -1 Then falhas = falhas & "linha " & Valor(i, "linha") & ": " & msg & vbCrLf
+        End If
+    Next i
+    Application.Cursor = -4143                    ' xlDefault
+    AtualizarDuplicados = (atualizados > 0)
 End Function
 
 ' Texto vazio vira NULO, nunca cadeia vazia: o indice unico

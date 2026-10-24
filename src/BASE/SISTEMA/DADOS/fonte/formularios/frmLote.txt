@@ -28,6 +28,7 @@ Private Sub UserForm_Initialize()
     lblAjuda.Caption = modLote.TextoAjuda()
     PrepararLista
     cmdCadastrar.Enabled = False
+    cmdAtualizar.Enabled = False
     lblResumo.Caption = ""
     Repintar
     modTela.Encaixar Me
@@ -53,6 +54,7 @@ Public Sub UI_Acao(ByVal nome As String)
         Case "cmdConferir":  cmdConferir_Click
         Case "cmdLimpar":    cmdLimpar_Click
         Case "cmdCadastrar": cmdCadastrar_Click
+        Case "cmdAtualizar": cmdAtualizar_Click
         Case "cmdFechar":    cmdFechar_Click
     End Select
 End Sub
@@ -93,6 +95,8 @@ Private Sub Preencher()
         ReDim tela(1 To n, 1 To 6)
         For i = 1 To n
             rot = modLote.RotuloLinha(modLote.Valor(i, "status"), modLote.Ignorada(i))
+            ' DEV-26: duplicado por CNPJ de empresa ativa - o lote atualiza
+            If modLote.Atualizavel(i) Then rot = "ATUALIZA"
             tela(i, 1) = modLote.Valor(i, "linha")
             tela(i, 2) = rot
             tela(i, 3) = modLote.Valor(i, "empresa")
@@ -110,9 +114,10 @@ Private Sub Preencher()
         modLote.Contagem("SUSPEITO") & " suspeita(s)  -  " & _
         modLote.Contagem("DUPLICADO") & " duplicada(s)  -  " & _
         modLote.Contagem("ERRO") & " com erro  -  " & _
-        "vai cadastrar " & modLote.ACadastrar()
+        "vai cadastrar " & modLote.ACadastrar() & "  -  atualiza " & modLote.AAtualizar()
 
     cmdCadastrar.Enabled = (modLote.ACadastrar() > 0)
+    cmdAtualizar.Enabled = (modLote.AAtualizar() > 0)
     Repintar
 End Sub
 
@@ -126,6 +131,11 @@ Public Sub UI_GradeDuploClique(ByVal nome As String)
     Dim i As Long
     If mGrade.ListIndex < 0 Then Exit Sub
     i = mGrade.ListIndex + 1
+    ' DEV-26: duplicado por CNPJ - mostra a diferenca e pede confirmacao antes de atualizar
+    If modLote.Atualizavel(i) Then
+        AtualizarUma i
+        Exit Sub
+    End If
     If Not modLote.AlternarIgnorar(i) Then
         MsgBox modLote.AvisoNaoAlterna(), vbInformation, "CRM Zapromaq"
         Exit Sub
@@ -165,6 +175,48 @@ Private Sub cmdCadastrar_Click()
 End Sub
 
 '----------------------------------------------------------
+' DEV-26: uma empresa ja cadastrada (mesmo CNPJ), com a diferenca
+' lida do banco agora. Campo vazio no lote nao apaga; observacao
+' e acrescentada.
+'----------------------------------------------------------
+Private Sub AtualizarUma(ByVal i As Long)
+    Dim dif As String, msg As String, r As Long
+    dif = modLote.DiferencaDaLinha(i)
+    If dif = "" Then
+        MsgBox "O cadastro ja tem os dados desta linha: nada a atualizar.", vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    If MsgBox("Atualizar a empresa ja cadastrada (mesmo CNPJ)?" & vbCrLf & vbCrLf & dif & vbCrLf & _
+              "Campo vazio no lote nao apaga o cadastro; observacao e acrescentada.", _
+              vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
+    r = modLote.AtualizarDuplicado(i, msg)
+    Preencher
+    If r = -1 Then MsgBox "Nao atualizou: " & msg, vbExclamation, "CRM Zapromaq"
+    If r = 0 Then MsgBox "Outra estacao alterou a empresa agora. Confira de novo antes de atualizar.", vbExclamation, "CRM Zapromaq"
+End Sub
+
+Private Sub cmdAtualizar_Click()
+    Dim atualizados As Long, falhas As String, quantos As Long
+    If Not mConferido Then
+        MsgBox "Clique em Conferir antes.", vbInformation, "CRM Zapromaq"
+        Exit Sub
+    End If
+    quantos = modLote.AAtualizar()
+    If quantos = 0 Then Exit Sub
+    If MsgBox("Atualizar " & quantos & " empresa(s) ja cadastrada(s) com o mesmo CNPJ?" & vbCrLf & vbCrLf & _
+              "So os campos preenchidos no lote mudam (vazio nao apaga), o nome da empresa e substituido " & _
+              "e as observacoes sao acrescentadas. Empresa inativa nao e atualizada. Para ver a diferenca " & _
+              "de uma linha antes, use o duplo clique.", vbYesNo + vbQuestion, "CRM Zapromaq") <> vbYes Then Exit Sub
+    modLote.AtualizarDuplicados atualizados, falhas
+    Preencher
+    If falhas <> "" Then
+        MsgBox atualizados & " atualizada(s)." & vbCrLf & vbCrLf & "Nao atualizaram:" & vbCrLf & falhas, vbExclamation, "CRM Zapromaq"
+    Else
+        MsgBox atualizados & " empresa(s) atualizada(s).", vbInformation, "CRM Zapromaq"
+    End If
+End Sub
+
+'----------------------------------------------------------
 Private Sub cmdLimpar_Click()
     txtColar.Text = ""
     mConferido = False
@@ -184,6 +236,7 @@ Private Sub txtColar_Change()
     If Not mConferido Then Exit Sub
     mConferido = False
     cmdCadastrar.Enabled = False
+    cmdAtualizar.Enabled = False
     Repintar
     lblResumo.Caption = "Texto alterado - clique em Conferir de novo."
 End Sub
