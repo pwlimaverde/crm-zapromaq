@@ -1803,6 +1803,52 @@ function Invoke-AbrirAtendimento($a) {
     }
 }
 
+# ================================================================= DUPLICAR (DEV-28, ciclo 017)
+# A regra da cópia num lugar só: o que passa do atendimento de origem para o novo. Igual a
+# modCRM.CAMPOS_DUPLICAR no front (o verificar.py confere). O resto nasce vazio (valor, orçamento,
+# proposta, agenda, desfecho, retomada, tentativas); dt_entrada = hoje; etapa = a inicial; o anterior
+# é a origem. Duplicar encerrado é permitido.
+$script:CamposDuplicar = 'responsavel,origem,prioridade,categoria,tipo_venda,maquina,familia,ultima_interacao'
+
+# Etapa inicial: a primeira etapa ativa que não encerra, pela ordem da lista (nenhum nome no código).
+function Get-EtapaInicial {
+    $l = Invoke-Consulta "SELECT valor FROM listas WHERE tipo='Etapa' AND ativo=True AND encerra=False ORDER BY ordem, id" @()
+    if ($l.Count -eq 0) { throw 'Não há etapa ativa que não encerre o atendimento: confira a lista Etapa. Nada foi gravado.' }
+    return [string]$l[0].valor
+}
+
+# Argumentos do abrir_atendimento que duplicam o atendimento de origem (sem gravar nada).
+function Get-DadosParaDuplicar([string]$codigo) {
+    $l = Invoke-Consulta ('SELECT o.*, ct.codigo AS codigo_contato, ct.ativo AS contato_ativo FROM oportunidades o ' +
+                          'LEFT JOIN contatos ct ON o.id_contato = ct.id WHERE o.codigo=?') @((P 'texto' $codigo))
+    if ($l.Count -eq 0) { throw ('Atendimento ' + $codigo + ' não encontrado.') }
+    $o = $l[0]
+    $d = [ordered]@{ codigo_contato = [string]$o.codigo_contato }
+    foreach ($c in $script:CamposDuplicar.Split(',')) { if (-not (Test-ValorVazio $o[$c])) { $d[$c] = $o[$c] } }
+    $d['etapa'] = Get-EtapaInicial
+    $d['codigo_atendimento_anterior'] = [string]$o.codigo
+    return [pscustomobject]@{ dados = $d; contato_ativo = [bool]$o.contato_ativo }
+}
+
+function Invoke-DuplicarAtendimento($a) {
+    $codigo = [string]$a.codigo
+    $simular = $true; if (Test-TemArg $a 'simular') { $simular = [bool]$a.simular }
+    $r = Get-DadosParaDuplicar $codigo
+    $zerados = @('valor', 'orcamento', 'dt_proposta', 'prox_acao', 'dt_prox_acao', 'motivo_desfecho', 'dt_desfecho', 'retomar_em', 'tentativas')
+    if ($simular) {
+        $s = [ordered]@{ simulado = $true; duplicado_de = $codigo; dados = $r.dados; zerados = $zerados; dt_entrada = (Get-Date).ToString('yyyy-MM-dd') }
+        if (-not $r.contato_ativo) { $s['aviso'] = 'O contato do atendimento de origem está inativo: reative-o ou abra o atendimento com outro contato da empresa.' }
+        return $s
+    }
+    if (-not $r.contato_ativo) { throw ('O contato ' + $r.dados.codigo_contato + ' está inativo. Reative-o antes de duplicar (ou use abrir_atendimento com outro contato). Nada foi gravado.') }
+    $args2 = [ordered]@{}
+    foreach ($k in $r.dados.Keys) { $args2[$k] = $r.dados[$k] }
+    foreach ($k in @('id_operacao', 'autor', 'promover_pre_cliente')) { if (Test-TemArg $a $k) { $args2[$k] = $a.$k } }
+    $g = Invoke-AbrirAtendimento ([pscustomobject]$args2)
+    $g['duplicado_de'] = $codigo
+    return $g
+}
+
 function Invoke-GerenciarLista($a) {
     Assert-EsquemaGravavel
     $tipo = ([string]$a.tipo).Trim(); $valor = ([string]$a.valor).Trim(); $acao = [string]$a.acao
@@ -2577,6 +2623,18 @@ $script:Ferramentas = @(
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer' }
             versao = [ordered]@{ type = 'integer' }
             acao = [ordered]@{ type = 'string'; enum = @('desativar', 'reativar', 'excluir_pre_cliente') }
+            autor = $script:PropAutor } }
+    },
+    [ordered]@{
+        name = 'duplicar_atendimento'; title = 'Duplicar atendimento'; handler = 'Invoke-DuplicarAtendimento'; annotations = $script:Gravacao
+        description = ('Abre um atendimento NOVO copiando do atendimento de origem: contato, responsável, origem, prioridade, categoria, tipo de venda, máquina, família e última interação. ' +
+                       'Nascem vazios valor, orçamento, data da proposta, próxima ação, desfecho, motivo, retomada e tentativas; dt_entrada = hoje; etapa = a inicial; o anterior é a origem (encerrado também pode ser duplicado). ' +
+                       'simular = true (padrão) só devolve os dados da cópia; false grava pelo mesmo caminho do abrir_atendimento (aceita id_operacao).')
+        inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('codigo'); properties = [ordered]@{
+            codigo = [ordered]@{ type = 'string'; pattern = '^AT-\d{4}-\d{4}$'; description = 'Atendimento de origem.' }
+            simular = [ordered]@{ type = 'boolean'; default = $true; description = 'true: só mostra a cópia. false: grava.' }
+            id_operacao = [ordered]@{ type = 'string'; maxLength = 120; description = 'Identificador da criação: repetir com o mesmo id não duplica.' }
+            promover_pre_cliente = [ordered]@{ type = 'boolean'; description = 'Necessário se a empresa ainda for pré-cliente.' }
             autor = $script:PropAutor } }
     },
     [ordered]@{

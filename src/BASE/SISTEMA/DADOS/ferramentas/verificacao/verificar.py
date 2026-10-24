@@ -635,9 +635,21 @@ def verificar_esquema_atual():
             falha('Esquema atual', '%s = %s; a última migração estrutural leva a %s' % (nome, m.group(1) if m else '?', ultimo))
 
 
+def verificar_regra_duplicar():
+    # DEV-28 (ciclo 017): a regra da cópia do "duplicar atendimento" é a mesma no front e no conector
+    crm = re.search(r'CAMPOS_DUPLICAR As String = "([^"]*)"', ler_cp1252(os.path.join(FONTE, 'modulos', 'modCRM.bas')))
+    con = re.search(r"\$script:CamposDuplicar = '([^']*)'",
+                    open(os.path.join(BASE, 'IA', 'mcp', 'lib', 'Ferramentas.ps1'), encoding='utf-8-sig').read())
+    if not crm or not con:
+        falha('Duplicar atendimento', 'CAMPOS_DUPLICAR (modCRM) ou $script:CamposDuplicar (Ferramentas.ps1) não encontrado')
+    elif crm.group(1) != con.group(1):
+        falha('Duplicar atendimento', 'campos copiados diferentes: front "%s" x conector "%s"' % (crm.group(1), con.group(1)))
+
+
 def main():
     vba = fontes_vba()
     verificar_contrato_conector()
+    verificar_regra_duplicar()
     verificar_esquema_atual()
     verificar_matriz_campos()
     verificar_espelho_backup()

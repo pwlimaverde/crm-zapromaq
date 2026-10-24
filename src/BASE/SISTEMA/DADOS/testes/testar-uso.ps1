@@ -471,6 +471,27 @@ Public Function AtualizarLote() As String
     modLote.AtualizarDuplicados a, f
     AtualizarLote = a & "|" & f
 End Function
+' DEV-28: a copia da duplicacao como texto "campo=valor" (datas AAAA-MM-DD), em ordem alfabetica
+Public Function DuplicarTexto(ByVal id As Long) As String
+    Dim d As Object, k As Variant, s As String, v As Variant, ch() As String, i As Long, j As Long, t As String
+    Set d = modCRM.DadosParaDuplicar(id)
+    If d Is Nothing Then Exit Function
+    ReDim ch(0 To d.Count - 1)
+    For Each k In d.Keys
+        ch(i) = CStr(k): i = i + 1
+    Next k
+    For i = 0 To UBound(ch) - 1
+        For j = i + 1 To UBound(ch)
+            If ch(j) < ch(i) Then t = ch(i): ch(i) = ch(j): ch(j) = t
+        Next j
+    Next i
+    For i = 0 To UBound(ch)
+        v = d(ch(i))
+        If VarType(v) = vbDate Then v = Format$(v, "yyyy-mm-dd")
+        s = s & IIf(s = "", "", "|") & ch(i) & "=" & CStr(v)
+    Next i
+    DuplicarTexto = s
+End Function
 Public Sub DesfazerFiltro(ByVal aba As String, ByVal estadoOrdem As String)
     Dim ws As Worksheet, lo As ListObject
     Set ws = ThisWorkbook.Worksheets(aba): Set lo = Tabela(aba)
@@ -659,6 +680,26 @@ End Sub
         [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM clientes WHERE cnpj IN ('" + $cnA + "','" + $cnI + "')")
         [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id > ' + $maxLog26)
     }
+
+    # DEV-28 (ciclo 017): a regra da duplicação no front - copia, zera, etapa inicial, hoje e o anterior; nada grava
+    $idO28 = [int](Valor 'SELECT TOP 1 o.id FROM oportunidades o INNER JOIN contatos ct ON o.id_contato = ct.id WHERE ct.ativo=True AND o.responsavel IS NOT NULL AND o.maquina IS NOT NULL ORDER BY o.id' 0)
+    $n28 = [int](Valor 'SELECT COUNT(*) FROM oportunidades' 0)
+    $txt28 = [string]$xl.Run($t2 + 'DuplicarTexto', $idO28)
+    $m28 = @{}; foreach ($par in $txt28.Split('|')) { $kv = $par.Split('=', 2); if ($kv.Count -eq 2) { $m28[$kv[0]] = $kv[1] } }
+    $etIni28 = [string](Valor "SELECT TOP 1 valor FROM listas WHERE tipo='Etapa' AND ativo=True AND encerra=False ORDER BY ordem, id" '')
+    $resp28 = [string](Valor ('SELECT responsavel FROM oportunidades WHERE id=' + $idO28) '')
+    $maq28 = [string](Valor ('SELECT maquina FROM oportunidades WHERE id=' + $idO28) '')
+    $cto28 = [int](Valor ('SELECT id_contato FROM oportunidades WHERE id=' + $idO28) 0)
+    Conferir 'DEV-28 a cópia traz responsável, máquina e o contato ativo da origem' ($m28['responsavel'] -eq $resp28 -and $m28['maquina'] -eq $maq28 -and [int]$m28['id_contato'] -eq $cto28) $txt28
+    Conferir 'DEV-28 a cópia tem etapa inicial, entrada hoje e o anterior = origem' ($m28['etapa'] -eq $etIni28 -and $m28['dt_entrada'] -eq (Get-Date).ToString('yyyy-MM-dd') -and [int]$m28['id_atendimento_anterior'] -eq $idO28) $txt28
+    $zer28 = @('valor', 'orcamento', 'dt_proposta', 'prox_acao', 'dt_prox_acao', 'motivo_desfecho', 'dt_desfecho', 'retomar_em', 'tentativas', 'observacoes') | Where-Object { $m28.ContainsKey($_) }
+    Conferir 'DEV-28 a cópia não traz os campos que nascem vazios' (@($zer28).Count -eq 0) ($zer28 -join ',')
+    Conferir 'DEV-28 duplicar não grava nada (só o Salvar da ficha grava)' ([int](Valor 'SELECT COUNT(*) FROM oportunidades' 0) -eq $n28) ''
+    [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=False WHERE id=' + $cto28)
+    try {
+        $txt28b = [string]$xl.Run($t2 + 'DuplicarTexto', $idO28)
+        Conferir 'DEV-28 contato inativo não é copiado (a ficha pede o contato)' ($txt28b -notmatch '(^|\|)id_contato=') $txt28b
+    } finally { [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=True WHERE id=' + $cto28) }
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
 
     # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original
