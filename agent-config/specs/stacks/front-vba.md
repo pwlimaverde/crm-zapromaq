@@ -170,3 +170,6 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 - Ciclo 015: lote atualiza duplicado por CNPJ de empresa ativa (`modLote.MudancasDoLote` pura no autoteste,
   `AtualizarDuplicado(s)`, `DiferencaDaLinha`); `modCRM.AtualizarCampos` grava só os campos dados, com versão e a ação
   de log informada ("ALTERAR LOTE"). `Const` de módulo VBA só no cabeçalho (o verificar.py recusa depois de Sub).
+- Ciclo 016: rota com as empresas ativas do raio sem atendimento (`modPlanejamento.EmpresasSemAtendimento`, linhas
+  "(sem)" depois dos candidatos); `GerarVisitas` recusa id sem atendimento; atalho `cmdCriarAtendimento`
+  (`ContatoParaAtalho`, `AnteriorParaRetomada`, `frmCRM.DefinirAnteriorInicial` antes do `Abrir`) volta marcado.

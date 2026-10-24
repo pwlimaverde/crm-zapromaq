@@ -116,3 +116,4 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
   (`New-PastaExtrato`, manifesto, `descartar_extratos`); `exportar_base` sem `destino`.
 - Ciclo 013: matriz de consumidores `IA\teste\consumidores.json` (skill -> ferramenta -> parâmetros) conferida contra o
   `tools/list` no testar-mcp; atualizar `versao_conector` dela a cada `VersaoServidor` novo.
+- Ciclo 016 (1.10.0): `listar_candidatos.sem_atendimento` (aditivo, até 200) em `Get-CandidatosPlanejamento`.
