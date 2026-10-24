@@ -235,6 +235,22 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "DEV-21 encerrado com retomada que chegou", modCalc.SituacaoDaEtapa(True, Null, Date), "Retomada a avaliar"
     Confere "DEV-21 encerrado com retomada futura continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date + 5), "Encerrado"
     Confere "DEV-23 copia local nunca salva dados", modConfig.SalvarPermitido(), False
+    ' ---- DEV-26 (ciclo 015): o que o lote muda numa empresa ja cadastrada (mesmo CNPJ)
+    Dim lin26 As Object, at26 As Object, m26 As Object
+    Set lin26 = CreateObject("Scripting.Dictionary"): Set at26 = CreateObject("Scripting.Dictionary")
+    lin26("empresa") = "EMPRESA NOVA": lin26("cidade") = "": lin26("uf") = "PR"
+    lin26("telefone") = "4130000000": lin26("observacoes") = "VEIO DO LOTE": lin26("aderencia") = "3"
+    at26("empresa") = "EMPRESA VELHA": at26("cidade") = "CURITIBA": at26("uf") = "PR"
+    at26("telefone") = Null: at26("observacoes") = "NOTA ANTIGA": at26("aderencia") = 3
+    Set m26 = modLote.MudancasDoLote(lin26, at26)
+    Confere "DEV-26 nome da empresa do lote substitui", m26("empresa"), "EMPRESA NOVA"
+    Confere "DEV-26 campo vazio no lote nao apaga", m26.Exists("cidade"), False
+    Confere "DEV-26 valor igual nao entra", m26.Exists("uf"), False
+    Confere "DEV-26 nota igual nao entra", m26.Exists("aderencia"), False
+    Confere "DEV-26 telefone novo entra", m26("telefone"), "4130000000"
+    Confere "DEV-26 observacao acrescentada numa linha nova", m26("observacoes"), "NOTA ANTIGA" & vbCrLf & "VEIO DO LOTE"
+    at26("observacoes") = "NOTA ANTIGA" & vbCrLf & "VEIO DO LOTE"
+    Confere "DEV-26 observacao ja presente nao duplica", modLote.MudancasDoLote(lin26, at26).Exists("observacoes"), False
     ' ---- DEV-24 (ciclo 013): CSV para planilha neutraliza texto com cara de formula; numero e data nao mudam
     Confere "DEV-24 CSV =1+1 sai literal", modRelatorio.CampoCsv("=1+1"), "'=1+1"
     Confere "DEV-24 CSV +5541 sai literal", modRelatorio.CampoCsv("+5541"), "'+5541"
