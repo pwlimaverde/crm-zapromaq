@@ -3,8 +3,9 @@
 ## Papel
 
 Dois conectores MCP por stdio, iniciados pelo Claude Desktop (e opcionalmente pelo Codex):
-- **dados** (`IA\mcp\servidor.ps1`, `crm-zapromaq`): consultar e alterar o CRM — 41 ferramentas (16 novas da spec 003: visitas,
-  planejamentos, candidatos, lotes, municípios e roteiro; esquemas 1.0 e 1.1 aceitos).
+- **dados** (`IA\mcp\servidor.ps1`, `crm-zapromaq`): consultar e alterar o CRM — 43 ferramentas (1.11.0; 16 da spec 003: visitas,
+  planejamentos, candidatos, lotes, municípios e roteiro; `descartar_extratos` no ciclo 012 e `duplicar_atendimento`
+  no 017); exige o esquema 1.2.
 - **desenvolvimento** (`IA\mcp-dev\servidor-dev.ps1`, `crm-zapromaq-dev`): manter o sistema na
   empresa — fontes, prévia, migrações, conferência, montagem de teste e publicação.
 

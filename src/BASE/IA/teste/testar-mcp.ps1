@@ -567,6 +567,17 @@ try {
     $d23 = Invoke-DescartarExtratos ([pscustomobject]@{ simular = $false; autor = 'teste' })
     Conferir 'DEV-23 descarte apaga só o vencido com manifesto válido' (-not (Test-Path -LiteralPath $velha) -and (Test-Path -LiteralPath $semMan) -and (Test-Path -LiteralPath $proc23) -and (Test-Path -LiteralPath $e23.pasta)) ($d23 | ConvertTo-Json -Compress -Depth 4)
     Conferir 'DEV-23 descarte registrado em descartes.log' ((Get-Content -LiteralPath (Join-Path $raiz23 'descartes.log') -Raw) -match '20200101-000000-aaaa')
+    # revisão final: junção dentro de uma pasta vencida não pode levar o descarte para fora da raiz
+    $alvoJ = Join-Path $env:TEMP ('crm-fora-da-raiz-' + $PID); New-Item -ItemType Directory -Path $alvoJ -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $alvoJ 'nao-apagar.txt') -Value 'fora da raiz'
+    $velhaJ = Join-Path $raiz23 '20200101-000000-dddd'; New-Item -ItemType Directory -Path $velhaJ -Force | Out-Null; [void]$criadas23.Add($velhaJ)
+    $mvJ = [ordered]@{ tipo = 'extrato-crm'; versao_manifesto = 1; criado_em = '2020-01-01T00:00:00'; em_processamento = $false }
+    [System.IO.File]::WriteAllText((Join-Path $velhaJ 'crm-extrato.json'), (ConvertTo-Json $mvJ), (New-Object System.Text.UTF8Encoding($false)))
+    [void](cmd /c mklink /J (Join-Path $velhaJ 'juncao') $alvoJ)
+    try {
+        [void](Invoke-DescartarExtratos ([pscustomobject]@{ simular = $false; autor = 'teste' }))
+        Conferir 'revisão: o descarte apaga a pasta vencida sem seguir a junção (o arquivo de fora continua)' (-not (Test-Path -LiteralPath $velhaJ) -and (Test-Path -LiteralPath (Join-Path $alvoJ 'nao-apagar.txt'))) ''
+    } finally { Remove-Item -LiteralPath $alvoJ -Recurse -Force -ErrorAction SilentlyContinue }
 } finally {
     foreach ($c in $criadas23) { if (Test-Path -LiteralPath $c) { Remove-Item -LiteralPath $c -Recurse -Force } }
     $log23 = Join-Path $raiz23 'descartes.log'
