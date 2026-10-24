@@ -96,6 +96,7 @@ if (-not $Rapido) {
     Etapa 'recuperação, manutenção e diagnóstico (ciclo 007)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'SISTEMA\DADOS\testes\testar-recuperacao.ps1') }
     Etapa 'conector em pasta de versão e volta (DEV-05)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-conector-versoes.ps1') }
     Etapa 'MCP de desenvolvimento' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'IA\teste\testar-mcp-dev.ps1') -SemPrevia }
+    Etapa 'medição da compactação (DEV-25)' { & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $baseCopia 'SISTEMA\DADOS\testes\testar-compactacao.ps1') }
     Remove-Item -LiteralPath $copia -Recurse -Force -ErrorAction SilentlyContinue
 }
 

@@ -124,3 +124,7 @@ banco antigo: `-Recriar`. Mudança no
 - `Test-BancoEmUso` espera o `.laccdb` do último Close sumir (até 3 s) antes de decidir.
 - Volta: `MONTAR-FRONTEND.bat -Volta -Motivo`; manifesto de release em `execucao\releases` (`build\lib\Release.ps1`).
 - Testes: `testar-recuperacao.ps1` (ACE), `testar-build-lib.ps1`, `testar-publicacao-copia.ps1` (volta, Excel).
+- Ciclo 014: `operacao\scripts\medir-compactacao.ps1` (+ `MEDIR-COMPACTACAO.bat`) mede numa cópia e compacta por
+  `DAO.DBEngine.120.CompactDatabase`; nunca toca a origem (SHA-256), recusa `.laccdb`, apaga as cópias; teste
+  `testes\testar-compactacao.ps1` na etapa padrão do `verificar-tudo`. Em `.bat` escrito por `printf`/`echo`,
+  `\v` e `\f` viram caractere de controle: usar o Write.
