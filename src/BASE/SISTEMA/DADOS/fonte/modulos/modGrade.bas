@@ -124,6 +124,33 @@ Public Sub GradeAbrirFicha()
     AbrirFichaDaLinha ActiveSheet, Selection
 End Sub
 
+'----------------------------------------------------------
+' DEV-28 (ciclo 017): menu da linha de Atendimentos - abre a ficha
+' em atendimento NOVO preenchido pela duplicacao da linha (contato
+' copiado se ativo; senao a ficha pede o contato). Nada grava ate o
+' Salvar; com gravacao, a grade e remontada.
+'----------------------------------------------------------
+Public Sub GradeDuplicarAtendimento()
+    Dim ws As Worksheet, id As Long, f As frmCRM, d As Object, idCto As Long
+    Set ws = ActiveSheet
+    If TabelaDaAba(ws) <> "oportunidades" Then Exit Sub
+    id = IDdaLinha(ws, ActiveCell)
+    If id = 0 Then Exit Sub
+    If Not modMenu.Pronto() Then Exit Sub
+    Set d = modCRM.DadosParaDuplicar(id)
+    If d Is Nothing Then Exit Sub
+    If d.Exists("id_contato") Then idCto = CLng(d("id_contato"))
+    modConfig.gGravados = ""
+    Set f = New frmCRM
+    f.PrepararDuplicacao id
+    If idCto > 0 Then
+        f.Abrir "oportunidades", idCto
+    Else
+        f.Abrir "oportunidades", 0, 0, , True
+    End If
+    If modConfig.gGravados <> "" Then Montar ws
+End Sub
+
 Public Sub GradeVoltar()
     ThisWorkbook.Worksheets("Inicio").Activate
 End Sub
@@ -919,6 +946,13 @@ Public Sub MenuDaLinha(ByVal ws As Object, ByVal alvo As Object)
     Set bt = bar.Controls.Add(Type:=1)
     bt.Caption = "Abrir ficha"
     bt.OnAction = "modGrade.GradeAbrirFicha"
+
+    ' DEV-28: atendimento novo a partir desta linha (nada grava ate o Salvar da ficha)
+    If TabelaDaAba(ws) = "oportunidades" Then
+        Set bt = bar.Controls.Add(Type:=1)
+        bt.Caption = "Duplicar atendimento"
+        bt.OnAction = "modGrade.GradeDuplicarAtendimento"
+    End If
 
     ' copiar telefone, e-mail ou linhas inteiras: a aba protegida
     ' deixa copiar, mas o menu padrao estava bloqueado

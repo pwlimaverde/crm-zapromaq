@@ -25,6 +25,9 @@ Option Explicit
 ' AbrirAtendimento. Vazio = sem identificador (comportamento antigo).
 Public gIdOperacao As String
 Public gHashOperacao As String
+' DEV-28 (ciclo 017): o que passa do atendimento de origem para o duplicado - a regra num lugar
+' so, igual a $script:CamposDuplicar do conector (o verificar.py confere as duas listas).
+Public Const CAMPOS_DUPLICAR As String = "responsavel,origem,prioridade,categoria,tipo_venda,maquina,familia,ultima_interacao"
 
 Private Const TENTATIVAS As Long = 5
 
@@ -402,6 +405,43 @@ falha:
     nErr = Err.Number: sErr = Err.Description
     modDB.Desfazer cn
     Err.Raise nErr, "modCRM.Atualizar", sErr
+End Function
+
+'----------------------------------------------------------
+' DEV-28 (ciclo 017): etapa inicial = a primeira etapa ativa que nao
+' encerra, pela ordem da lista (nenhum nome de etapa no codigo).
+'----------------------------------------------------------
+Public Function EtapaInicial() As String
+    EtapaInicial = CStr(modDB.ConsultarValor("SELECT TOP 1 valor FROM listas WHERE tipo='Etapa' AND ativo=True " & _
+                                             "AND encerra=False ORDER BY ordem, id", ""))
+End Function
+
+'----------------------------------------------------------
+' DEV-28: dados do atendimento NOVO duplicado de idOrigem - so le,
+' nada grava (a ficha grava no Salvar). campo -> valor: os campos de
+' CAMPOS_DUPLICAR que a origem tem, o contato (so se ativo), a etapa
+' inicial, dt_entrada = hoje e o anterior = origem. Valor, orcamento,
+' proposta, agenda, desfecho, retomada e tentativas nascem vazios.
+' Nothing = origem nao encontrada.
+'----------------------------------------------------------
+Public Function DadosParaDuplicar(ByVal idOrigem As Long) As Object
+    Dim d As Object, r As Variant, nomes As Variant, j As Long, n As Long
+    nomes = Split(CAMPOS_DUPLICAR, ",")
+    n = UBound(nomes) + 1
+    r = modDB.Consultar("SELECT o." & Join(nomes, ", o.") & ", o.id_contato, ct.ativo FROM oportunidades o " & _
+                        "LEFT JOIN contatos ct ON o.id_contato = ct.id WHERE o.id=?", Array(modDB.P(modDB.adInteger, idOrigem)))
+    If IsEmpty(r) Then Exit Function
+    Set d = CreateObject("Scripting.Dictionary")
+    For j = 0 To n - 1
+        If Not IsNull(r(1, j + 1)) Then d(nomes(j)) = r(1, j + 1)
+    Next j
+    If Not IsNull(r(1, n + 2)) Then
+        If CBool(r(1, n + 2)) Then d("id_contato") = CLng(r(1, n + 1))
+    End If
+    d("etapa") = EtapaInicial()
+    d("dt_entrada") = Date
+    d("id_atendimento_anterior") = idOrigem
+    Set DadosParaDuplicar = d
 End Function
 
 '----------------------------------------------------------

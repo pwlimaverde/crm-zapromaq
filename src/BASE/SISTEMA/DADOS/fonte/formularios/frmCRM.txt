@@ -57,6 +57,7 @@ Private mUsarConjunto As Boolean
 Private mCadastroRapido As Boolean
 Private mAbrindoComVinculo As Boolean  ' Novo com vinculo ja dado: nao pergunta
 Private mAnteriorInicial As Long       ' DEV-27: anterior sugerido pelo atalho da rota (Perdido/Descartado com retomada)
+Private mDuplicarDe As Long            ' DEV-28: atendimento de origem da duplicacao (0 = nao e duplicacao)
 ' Enquanto a ficha monta combos e filtros, os eventos Change/Click
 ' NAO consultam o banco: sem esta trava, abrir a ficha fazia de 5 a
 ' 7 consultas seguidas (uma por combo preenchido), contra a regra de
@@ -70,6 +71,12 @@ Private mIdOperacao As String      ' DEV-13: identificador da criação em curso
 Private mHashOperacao As String    ' conteúdo da última tentativa: mudou a digitação, muda o identificador
 
 '==========================================================
+' DEV-28: antes do Abrir - a ficha abre em atendimento NOVO preenchido pela duplicacao
+' (modCRM.DadosParaDuplicar). Nada grava ate o Salvar.
+Public Sub PrepararDuplicacao(ByVal idOrigem As Long)
+    mDuplicarDe = idOrigem
+End Sub
+
 ' DEV-27: antes do Abrir, pelo atalho "Criar atendimento" da rota.
 Public Sub DefinirAnteriorInicial(ByVal idAnterior As Long)
     mAnteriorInicial = idAnterior
@@ -129,6 +136,9 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
         ModoLeitura
     End If
 
+    ' DEV-28: atendimento novo preenchido pela duplicacao (o contato ja veio pelo vinculo)
+    If mDuplicarDe > 0 And mTabela = "oportunidades" Then PreencherDuplicacao
+
     If irParaID > 0 Then
         If SelecionarID(irParaID) Then mPos = PosicaoNoConjunto(irParaID)
     End If
@@ -136,6 +146,18 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
 
     modTela.Encaixar Me
     Me.Show
+End Sub
+
+Private Sub PreencherDuplicacao()
+    Dim d As Object, i As Long, campo As String
+    Set d = modCRM.DadosParaDuplicar(mDuplicarDe)
+    mDuplicarDe = 0
+    If d Is Nothing Then Exit Sub
+    For i = LBound(mCampos) To UBound(mCampos)
+        campo = modSchema.Parte(CStr(mCampos(i)), 0)
+        If campo <> "id_contato" And d.Exists(campo) Then DefinirValor campo, modSchema.Parte(CStr(mCampos(i)), 2), d(campo)
+    Next i
+    VinculoEscolhido "id_atendimento_anterior"
 End Sub
 
 Private Sub UserForm_Initialize()
