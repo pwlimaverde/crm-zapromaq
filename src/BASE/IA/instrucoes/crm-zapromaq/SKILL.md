@@ -243,7 +243,9 @@ A AGENDAR e com data como AGENDADA).
 2. `criar_planejamento`: descrição, `cod_municipio`, `raio_km` de 1 a 500 e período
    (`data_inicio` até `data_fim`). O código `PL-AAAA-NNN` é gerado e não muda.
 3. `listar_candidatos`: atendimentos em aberto até o raio, na ordem de visita (qualificação, dias
-   parado, km); cidades não reconhecidas vêm à parte.
+   parado, km); cidades não reconhecidas vêm à parte. `sem_atendimento` traz as empresas **ativas** do
+   raio sem atendimento em aberto (pré-clientes inclusive; até 200): para visitar uma delas, abra antes
+   o atendimento (`abrir_atendimento`) - `gerar_visitas` só aceita atendimento.
 4. `gerar_visitas` com os códigos escolhidos: primeiro com `simular` (padrão `true`), mostre o
    resultado ao usuário e só então repita com `simular=false`. Se um atendimento for recusado,
    nada é gravado. Até 100 por chamada.

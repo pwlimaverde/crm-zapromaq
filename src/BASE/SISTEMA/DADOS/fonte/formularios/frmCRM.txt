@@ -56,6 +56,7 @@ Private mUsarConjunto As Boolean
 ' gravado o registro, devolve o controle a quem chamou.
 Private mCadastroRapido As Boolean
 Private mAbrindoComVinculo As Boolean  ' Novo com vinculo ja dado: nao pergunta
+Private mAnteriorInicial As Long       ' DEV-27: anterior sugerido pelo atalho da rota (Perdido/Descartado com retomada)
 ' Enquanto a ficha monta combos e filtros, os eventos Change/Click
 ' NAO consultam o banco: sem esta trava, abrir a ficha fazia de 5 a
 ' 7 consultas seguidas (uma por combo preenchido), contra a regra de
@@ -69,6 +70,11 @@ Private mIdOperacao As String      ' DEV-13: identificador da criação em curso
 Private mHashOperacao As String    ' conteúdo da última tentativa: mudou a digitação, muda o identificador
 
 '==========================================================
+' DEV-27: antes do Abrir, pelo atalho "Criar atendimento" da rota.
+Public Sub DefinirAnteriorInicial(ByVal idAnterior As Long)
+    mAnteriorInicial = idAnterior
+End Sub
+
 Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long = 0, _
                  Optional ByVal irParaID As Long = 0, Optional ByVal conjunto As Variant, _
                  Optional ByVal novo As Boolean = False)
@@ -112,6 +118,11 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
         mAbrindoComVinculo = False
         DefinirValor CampoPrincipal(), "K", vinculoInicial
         VinculoEscolhido CampoPrincipal()
+        ' DEV-27 (decisao 13): o atalho da rota ja liga o Perdido/Descartado com retomada
+        If mAnteriorInicial > 0 And mTabela = "oportunidades" Then
+            DefinirValor "id_atendimento_anterior", "K", mAnteriorInicial
+            VinculoEscolhido "id_atendimento_anterior"
+        End If
     ElseIf novo Then
         cmdNovo_Click
     Else

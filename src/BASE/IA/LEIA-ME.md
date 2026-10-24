@@ -4,6 +4,12 @@
 depende e o aviso da versão atual. O `testar-mcp` falha se uma ferramenta ou parâmetro citado sumir do catálogo: toda
 nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills afetadas antes da publicação.
 
+## Conector 1.10.0 — rota com todos do raio (ciclo 016)
+
+**Nota de mudança (DEV-27) - aditiva:** `listar_candidatos` ganha `sem_atendimento` (empresas ativas do raio sem
+atendimento em aberto, pré-clientes inclusive, até 200), `quantidade_sem_atendimento` e `sem_atendimento_truncado`.
+`candidatos` não muda; `gerar_visitas` continua aceitando só atendimento (abrir o atendimento antes).
+
 ## Conector 1.9.0 — agenda, paginação e extratos (ciclo 012)
 
 **Nota de mudança (DEV-21, DEV-22, DEV-23) - QUEBRA DE CONTRATO avisada:**

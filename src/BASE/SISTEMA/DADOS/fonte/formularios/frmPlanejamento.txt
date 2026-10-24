@@ -27,6 +27,7 @@ Private mPagina As String              ' VISITAS ou CANDIDATOS
 Private mIdsGrade As Variant           ' ids das linhas da grade atual (visitas ou candidatos)
 Private mOpoGrade As Variant           ' atendimento de cada linha de candidatos
 Private mMarcados As Object            ' atendimentos marcados (id do atendimento -> True)
+Private mCliGrade As Variant           ' DEV-27: empresa de cada linha "(sem)" de candidatos (0 = linha de atendimento)
 
 '----------------------------------------------------------
 Private Sub UserForm_Initialize()
@@ -73,6 +74,7 @@ Public Sub UI_Acao(ByVal nome As String)
         Case "cmdMarcarTodos":     cmdMarcarTodos_Click
         Case "cmdMarcar":          cmdMarcar_Click
         Case "cmdGerar":           cmdGerar_Click
+        Case "cmdCriarAtendimento": cmdCriarAtendimento_Click
         Case "cmdRoteiro":         cmdRoteiro_Click
         Case "cmdFechar":          cmdFechar_Click
     End Select
@@ -347,6 +349,7 @@ Private Sub AtivarBotoes(ByVal ligado As Boolean)
     cmdMarcarTodos.Enabled = ligado And (mPagina = "CANDIDATOS")
     cmdMarcar.Enabled = ligado And (mPagina = "CANDIDATOS")
     cmdGerar.Enabled = ligado And (mPagina = "CANDIDATOS")
+    cmdCriarAtendimento.Enabled = ligado And (mPagina = "CANDIDATOS")
 End Sub
 
 Private Sub CarregarVisitas()
@@ -382,12 +385,30 @@ Private Sub CarregarCandidatos()
     mGrade.Cabecalho Array("Marca", "Atendimento", "Empresa", "Cidade/UF", "Km", "Dias")
     c = modPlanejamento.Candidatos(mIdPl)
     If IsEmpty(c) Then n = 0 Else n = UBound(c, 1)
-    ReDim m(1 To IIf(n > 0, n, 1), 1 To 6)
-    ReDim mIdsGrade(0 To IIf(n > 0, n - 1, 0))
-    ReDim mOpoGrade(0 To IIf(n > 0, n - 1, 0))
+    ' DEV-27: depois dos candidatos, as empresas ativas do raio sem atendimento em aberto
+    Dim s As Variant, ns As Long, tot As Long
+    s = modPlanejamento.EmpresasSemAtendimento(mIdPl)
+    If IsEmpty(s) Then ns = 0 Else ns = UBound(s, 1)
+    tot = n + ns
+    ReDim m(1 To IIf(tot > 0, tot, 1), 1 To 6)
+    ReDim mIdsGrade(0 To IIf(tot > 0, tot - 1, 0))
+    ReDim mOpoGrade(0 To IIf(tot > 0, tot - 1, 0))
+    ReDim mCliGrade(0 To IIf(tot > 0, tot - 1, 0))
+    For i = 1 To ns
+        mIdsGrade(n + i - 1) = ""
+        mOpoGrade(n + i - 1) = 0
+        mCliGrade(n + i - 1) = CLng(s(i, 1))
+        m(n + i, 1) = "--"
+        m(n + i, 2) = "(sem)"
+        m(n + i, 3) = CStr(s(i, 2))
+        m(n + i, 4) = CStr(s(i, 3)) & "/" & CStr(s(i, 4))
+        m(n + i, 5) = Format$(s(i, 6), "0.0")
+        m(n + i, 6) = ""
+    Next i
     For i = 1 To n
         mIdsGrade(i - 1) = CStr(c(i, 2))
         mOpoGrade(i - 1) = CLng(c(i, 1))
+        mCliGrade(i - 1) = 0
         sinal = "[ ]"
         If mMarcados.Exists(CLng(c(i, 1))) Then sinal = "[x]": marcados = marcados + 1
         If CLng(c(i, 9)) > 0 Then sinal = sinal & "*"
@@ -398,8 +419,9 @@ Private Sub CarregarCandidatos()
         m(i, 5) = Format$(c(i, 7), "0.0")
         m(i, 6) = modDB.Nz(c(i, 8))
     Next i
-    If n = 0 Then mGrade.Clear Else mGrade.Carregar m
-    lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s). [x] marcado; * j" & ChrW$(&HE1) & " tem visita pendente."
+    If tot = 0 Then mGrade.Clear Else mGrade.Carregar m
+    lblPagina.Caption = n & " candidato(s), " & marcados & " marcado(s), " & ns & " sem atendimento. " & _
+                        "[x] marcado; * j" & ChrW$(&HE1) & " tem visita pendente; (sem): Criar atendimento antes."
 End Sub
 
 '----------------------------------------------------------
@@ -411,6 +433,11 @@ Private Sub cmdMarcar_Click()
     i = mGrade.ListIndex
     If i < 0 Then Exit Sub
     opo = mOpoGrade(i)
+    ' DEV-27: Gerar visitas so aceita atendimento lancado
+    If opo = 0 Then
+        lblPagina.Caption = "Empresa sem atendimento: use Criar atendimento antes de gerar a visita."
+        Exit Sub
+    End If
     If mMarcados.Exists(opo) Then mMarcados.Remove opo Else mMarcados.Add opo, True
     RecarregarPagina
 End Sub
@@ -420,16 +447,62 @@ Private Sub cmdMarcarTodos_Click()
     If mPagina <> "CANDIDATOS" Or mGrade.ListCount = 0 Then Exit Sub
     todos = True
     For i = LBound(mOpoGrade) To UBound(mOpoGrade)
-        If Not mMarcados.Exists(mOpoGrade(i)) Then todos = False
+        If mOpoGrade(i) > 0 Then
+            If Not mMarcados.Exists(mOpoGrade(i)) Then todos = False
+        End If
     Next i
     If todos Then
         mMarcados.RemoveAll
     Else
+        ' DEV-27: so as linhas com atendimento (as "(sem)" nao entram)
         For i = LBound(mOpoGrade) To UBound(mOpoGrade)
-            If Not mMarcados.Exists(mOpoGrade(i)) Then mMarcados.Add mOpoGrade(i), True
+            If mOpoGrade(i) > 0 Then
+                If Not mMarcados.Exists(mOpoGrade(i)) Then mMarcados.Add mOpoGrade(i), True
+            End If
         Next i
     End If
     RecarregarPagina
+End Sub
+
+'----------------------------------------------------------
+' DEV-27 (decisoes 12 e 13): atalho para a empresa "(sem)" da rota -
+' abre a ficha de atendimento novo com o contato (o unico ativo, ou
+' a escolha, que oferece cadastrar) e, se houver, o Perdido/Descartado
+' com retomada como anterior. O atendimento criado volta marcado.
+'----------------------------------------------------------
+Private Sub cmdCriarAtendimento_Click()
+    Dim i As Long, idCli As Long, idCto As Long, idAnt As Long, antes As Long, novo As Long
+    Dim f As frmCRM, v As frmVinculo
+    If mPagina <> "CANDIDATOS" Or mGrade.ListCount = 0 Then Exit Sub
+    i = mGrade.ListIndex
+    If i < 0 Then
+        lblPagina.Caption = "Escolha uma empresa sem atendimento (linha (sem))."
+        Exit Sub
+    End If
+    idCli = CLng(mCliGrade(i))
+    If idCli = 0 Then
+        lblPagina.Caption = "Esta linha j" & ChrW$(&HE1) & " tem atendimento: marque e gere a visita."
+        Exit Sub
+    End If
+    idCto = modPlanejamento.ContatoParaAtalho(idCli)
+    If idCto = 0 Then
+        Set v = New frmVinculo
+        If v.EscolherContatoDe(idCli) Then idCto = v.IdEscolhido
+        Unload v
+        If idCto = 0 Then Exit Sub
+    End If
+    idAnt = modPlanejamento.AnteriorParaRetomada(idCli)
+    antes = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM oportunidades", 0))
+    Set f = New frmCRM
+    If idAnt > 0 Then f.DefinirAnteriorInicial idAnt
+    f.Abrir "oportunidades", idCto
+    novo = CLng(modDB.ConsultarValor("SELECT MAX(id) FROM oportunidades WHERE id_cliente=? AND id > ?", 0, _
+                                     Array(modDB.P(modDB.adInteger, idCli), modDB.P(modDB.adInteger, antes))))
+    If novo > 0 Then
+        If Not mMarcados.Exists(novo) Then mMarcados.Add novo, True
+    End If
+    RecarregarPagina
+    If novo > 0 Then lblPagina.Caption = "Atendimento criado e marcado: gere a visita."
 End Sub
 
 Private Sub cmdGerar_Click()
