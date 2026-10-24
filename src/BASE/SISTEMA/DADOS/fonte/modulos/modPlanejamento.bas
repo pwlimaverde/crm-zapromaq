@@ -379,6 +379,116 @@ Falha:
     Err.Raise numErro, "modPlanejamento.Candidatos", descErro
 End Function
 
+'----------------------------------------------------------
+' DEV-27 (ciclo 016): empresas ATIVAS do raio SEM atendimento em aberto
+' (pre-clientes inclusive; espelho de listar_candidatos.sem_atendimento).
+' Vem depois dos candidatos, na ordem qualificacao e km; ate 200.
+' Matriz base 1: id_cliente, empresa, cidade, uf, qualificacao, km, estagio.
+'----------------------------------------------------------
+Public Function EmpresasSemAtendimento(ByVal idPlanejamento As Long) As Variant
+    Dim d As Variant, base As Variant, mapa As Object, ordens As Object, comAberto As Object
+    Dim m As Variant, cli As Variant, i As Long, j As Long, n As Long, chave As String, km As Double
+    Dim linhas() As Variant, t As Variant, qual As String, ordQ As Long, cn As Object
+    On Error GoTo Falha
+    Set cn = modDB.AbrirLeitura()
+    d = modDB.ConsultarEm(cn, "SELECT cod_municipio_base, raio_km FROM planejamentos WHERE id=?", Array(modDB.P(modDB.adInteger, idPlanejamento)))
+    If Not IsEmpty(d) Then
+        base = modDB.ConsultarEm(cn, "SELECT lat, lon FROM municipios WHERE cod_ibge=?", Array(modDB.P(modDB.adInteger, CLng(d(1, 1)))))
+    End If
+    If IsEmpty(d) Or IsEmpty(base) Then
+        modDB.FecharLeitura cn
+        Exit Function
+    End If
+    Set mapa = CreateObject("Scripting.Dictionary")
+    mapa.CompareMode = 1
+    m = modDB.ConsultarEm(cn, "SELECT nome_busca, uf, lat, lon FROM municipios")
+    If Not IsEmpty(m) Then
+        For i = 1 To UBound(m, 1)
+            mapa(CStr(m(i, 2)) & "|" & CStr(m(i, 1))) = Array(m(i, 3), m(i, 4))
+        Next i
+    End If
+    Set ordens = CreateObject("Scripting.Dictionary")
+    ordens.CompareMode = 1
+    m = modDB.ConsultarEm(cn, "SELECT valor, ordem FROM listas WHERE tipo='Qualificacao'")
+    If Not IsEmpty(m) Then
+        For i = 1 To UBound(m, 1)
+            If Not IsNull(m(i, 2)) Then ordens(CStr(m(i, 1))) = CLng(m(i, 2))
+        Next i
+    End If
+    Set comAberto = CreateObject("Scripting.Dictionary")
+    m = modDB.ConsultarEm(cn, "SELECT id_cliente, etapa FROM oportunidades")
+    cli = modDB.ConsultarEm(cn, "SELECT id, empresa, cidade, uf, qualificacao, estagio, ativo FROM clientes")
+    modDB.FecharLeitura cn
+    Set cn = Nothing
+    If Not IsEmpty(m) Then
+        For i = 1 To UBound(m, 1)
+            If Not modCRM.EtapaEncerra(modDB.Nz(m(i, 2))) Then comAberto(CLng(m(i, 1))) = True
+        Next i
+    End If
+    If IsEmpty(cli) Then Exit Function
+    ReDim linhas(1 To UBound(cli, 1))
+    For i = 1 To UBound(cli, 1)
+        ' empresa inativa fica fora (decisao 11); ativo nulo (cadastro antigo) conta como ativo
+        If Not IsNull(cli(i, 7)) Then
+            If Not CBool(cli(i, 7)) Then GoTo proxima
+        End If
+        If comAberto.Exists(CLng(cli(i, 1))) Then GoTo proxima
+        chave = modDB.Nz(cli(i, 4)) & "|" & NomeBusca(modDB.Nz(cli(i, 3)))
+        If Not mapa.Exists(chave) Then GoTo proxima
+        km = DistanciaKm(CDbl(base(1, 1)), CDbl(base(1, 2)), CDbl(mapa(chave)(0)), CDbl(mapa(chave)(1)))
+        If km > CDbl(d(1, 2)) Then GoTo proxima
+        qual = modDB.Nz(cli(i, 5))
+        ordQ = 999
+        If ordens.Exists(qual) Then ordQ = ordens(qual)
+        n = n + 1
+        linhas(n) = Array(CLng(cli(i, 1)), modDB.Nz(cli(i, 2)), modDB.Nz(cli(i, 3)), modDB.Nz(cli(i, 4)), qual, Round(km, 1), _
+                          modDB.Nz(cli(i, 6)), ordQ)
+proxima:
+    Next i
+    If n = 0 Then Exit Function
+    ' ordem: qualificacao e km (poucas linhas: ordenacao simples)
+    For i = 1 To n - 1
+        For j = i + 1 To n
+            If linhas(j)(7) < linhas(i)(7) Or (linhas(j)(7) = linhas(i)(7) And linhas(j)(5) < linhas(i)(5)) Then
+                t = linhas(i): linhas(i) = linhas(j): linhas(j) = t
+            End If
+        Next j
+    Next i
+    If n > 200 Then n = 200
+    Dim saida() As Variant
+    ReDim saida(1 To n, 1 To 7)
+    For i = 1 To n
+        For j = 0 To 6
+            saida(i, j + 1) = linhas(i)(j)
+        Next j
+    Next i
+    EmpresasSemAtendimento = saida
+    Exit Function
+Falha:
+    Dim numErro As Long, descErro As String
+    numErro = Err.Number: descErro = Err.Description
+    If Not cn Is Nothing Then modDB.FecharLeitura cn
+    Err.Raise numErro, "modPlanejamento.EmpresasSemAtendimento", descErro
+End Function
+
+' DEV-27 (decisao 13): o atalho liga como anterior SO o Perdido ou Descartado com
+' retomar_em da empresa (o de retomada mais recente). 0 = nenhum.
+Public Function AnteriorParaRetomada(ByVal idCliente As Long) As Long
+    AnteriorParaRetomada = CLng(modDB.ConsultarValor( _
+        "SELECT TOP 1 o.id FROM oportunidades o WHERE o.id_cliente=? AND o.retomar_em IS NOT NULL AND o.etapa IN " & _
+        "(SELECT l.valor FROM listas l WHERE l.tipo='Etapa' AND l.encerra=True AND l.resultado='PERDA') " & _
+        "ORDER BY o.retomar_em DESC, o.id DESC", 0, Array(modDB.P(modDB.adInteger, idCliente))))
+End Function
+
+' DEV-27: contato do atendimento criado pelo atalho - o unico contato ativo da empresa;
+' 0 = nenhum ou varios (a ficha pede a escolha, que tambem oferece cadastrar).
+Public Function ContatoParaAtalho(ByVal idCliente As Long) As Long
+    Dim d As Variant
+    d = modDB.Consultar("SELECT id FROM contatos WHERE id_cliente=? AND ativo=True", Array(modDB.P(modDB.adInteger, idCliente)))
+    If IsEmpty(d) Then Exit Function
+    If UBound(d, 1) = 1 Then ContatoParaAtalho = CLng(d(1, 1))
+End Function
+
 ' Ordem de visita: qualificacao (ordem da lista), dias parado (mais tempo primeiro; sem data = 0,
 ' como no conector), km (menor primeiro).
 Private Function CandidatoAntesQue(ByVal a As Variant, ByVal b As Variant) As Boolean
@@ -414,6 +524,12 @@ Public Function GerarVisitas(ByVal idPlanejamento As Long, ByVal idsOportunidade
         Exit Function
     End If
     For i = LBound(idsOportunidade) To UBound(idsOportunidade)
+        ' DEV-27 (decisao 10): Gerar visitas e a unica passagem que grava, e so com atendimento lancado
+        If CLng(idsOportunidade(i)) <= 0 Then
+            modDB.Desfazer cn
+            GerarVisitas = "Nada gravado: linha sem atendimento. Crie o atendimento antes (Criar atendimento) - Gerar visitas so aceita atendimento lancado."
+            Exit Function
+        End If
         etapa = modDB.ConsultarValorEm(cn, "SELECT etapa FROM oportunidades WHERE id=?", "", _
                                        Array(modDB.P(modDB.adInteger, CLng(idsOportunidade(i)))))
         If etapa = "" Then
