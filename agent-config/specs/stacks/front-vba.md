@@ -173,3 +173,6 @@ powershell -File src\BASE\SISTEMA\DADOS\testes\diagnosticar-compilacao.ps1  # qu
 - Ciclo 016: rota com as empresas ativas do raio sem atendimento (`modPlanejamento.EmpresasSemAtendimento`, linhas
   "(sem)" depois dos candidatos); `GerarVisitas` recusa id sem atendimento; atalho `cmdCriarAtendimento`
   (`ContatoParaAtalho`, `AnteriorParaRetomada`, `frmCRM.DefinirAnteriorInicial` antes do `Abrir`) volta marcado.
+- Ciclo 017: duplicar atendimento - `modCRM.CAMPOS_DUPLICAR` (igual a `$script:CamposDuplicar`, o verificar.py
+  confere), `EtapaInicial`, `DadosParaDuplicar` (só lê); `frmCRM.PrepararDuplicacao` antes do `Abrir`; menu da linha
+  "Duplicar atendimento" (`modGrade.GradeDuplicarAtendimento`).
