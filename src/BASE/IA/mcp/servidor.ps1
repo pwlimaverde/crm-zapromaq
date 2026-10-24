@@ -27,7 +27,8 @@ Add-Type -AssemblyName System.Data
 # (sem ciclo); id_operacao nas criações; log com estação, usuário técnico, versão e autor declarado.
 # 1.9.0 (ciclo 012): situação "Retomada a avaliar"; retomadas_a_avaliar e cursor no planejamento; exportar_base
 # sem destino (raiz execucao\extratos, manifesto); descartar_extratos; roteiro na raiz de extratos.
-$script:VersaoServidor = '1.9.0'
+# 1.10.0 (ciclo 016): listar_candidatos ganha sem_atendimento (aditivo).
+$script:VersaoServidor = '1.10.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.

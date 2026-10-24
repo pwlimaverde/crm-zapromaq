@@ -2206,7 +2206,7 @@ function Get-CandidatosPlanejamento($ctx, $pl) {
     foreach ($pv in $ctx.Consultar("SELECT id_oportunidade, COUNT(*) AS n FROM visitas WHERE situacao='PENDENTE' GROUP BY id_oportunidade", @())) { $pendPorAt[[int]$pv.id_oportunidade] = [int]$pv.n }
     $candidatos = New-Object System.Collections.ArrayList
     $naoReconhecidas = New-Object System.Collections.ArrayList
-    $abertos = $ctx.Consultar('SELECT o.id, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao, ct.nome AS contato, ct.telefone AS contato_telefone FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id', @())
+    $abertos = $ctx.Consultar('SELECT o.id, o.id_cliente, o.codigo, o.etapa, o.ultima_interacao, c.empresa, c.cidade, c.uf, c.qualificacao, ct.nome AS contato, ct.telefone AS contato_telefone FROM (oportunidades o INNER JOIN clientes c ON o.id_cliente = c.id) INNER JOIN contatos ct ON o.id_contato = ct.id', @())
     foreach ($o in $abertos) {
         if ((Get-PapelEtapa ([string]$o.etapa)).encerra) { continue }
         $chave = ([string]$o.uf + '|' + (ConvertTo-NomeBusca ([string]$o.cidade)))
@@ -2227,17 +2227,42 @@ function Get-CandidatosPlanejamento($ctx, $pl) {
             visita_pendente = ($pendentes -gt 0); ordem_qualificacao = $ordemQ })
     }
     $ordenados = @($candidatos | Sort-Object -Property @{ e = 'ordem_qualificacao'; Ascending = $true }, @{ e = { if ($null -eq $_.dias_parado) { 0 } else { $_.dias_parado } }; Descending = $true }, @{ e = 'km'; Ascending = $true })
-    return [pscustomobject]@{ candidatos = $ordenados; nao_reconhecidas = @($naoReconhecidas) }
+
+    # DEV-27 (ciclo 016): empresas ATIVAS do raio sem atendimento em aberto - pré-clientes inclusive (decisão 11).
+    # Vêm depois dos candidatos, na ordem qualificação e km; a lista dos candidatos não muda.
+    $comAberto = @{}
+    foreach ($o in $abertos) { if (-not (Get-PapelEtapa ([string]$o.etapa)).encerra) { $comAberto[[int]$o.id_cliente] = $true } }
+    $sem = New-Object System.Collections.ArrayList
+    foreach ($c in $ctx.Consultar('SELECT id, codigo_cliente, estagio, empresa, cidade, uf, qualificacao, ativo FROM clientes', @())) {
+        if ($null -ne $c.ativo -and -not [bool]$c.ativo) { continue }
+        if ($comAberto.ContainsKey([int]$c.id)) { continue }
+        $chave = ([string]$c.uf + '|' + (ConvertTo-NomeBusca ([string]$c.cidade)))
+        if (-not $mapa.ContainsKey($chave)) { continue }
+        $m = $mapa[$chave]
+        $km = Get-DistanciaKm ([double]$base[0].lat) ([double]$base[0].lon) ([double]$m.lat) ([double]$m.lon)
+        if ($km -gt [double]$pl.raio_km) { continue }
+        $qual = [string]$c.qualificacao
+        $ordemQ = 999; if ($ordens.ContainsKey($qual)) { $ordemQ = $ordens[$qual] }
+        [void]$sem.Add([pscustomobject]@{
+            id_cliente = [int]$c.id; codigo_cliente = $c.codigo_cliente; estagio = [string]$c.estagio; empresa = [string]$c.empresa
+            cidade = [string]$c.cidade; uf = [string]$c.uf; qualificacao = $qual; km = [math]::Round($km, 1); ordem_qualificacao = $ordemQ })
+    }
+    $semOrd = @($sem | Sort-Object -Property ordem_qualificacao, km, empresa)
+    return [pscustomobject]@{ candidatos = $ordenados; nao_reconhecidas = @($naoReconhecidas); sem_atendimento = $semOrd }
 }
 
+$script:LimiteSemAtendimento = 200
 function Invoke-ListarCandidatos($a) {
     $id = [int]$a.id_planejamento
     return Invoke-Transacao {
         param($ctx)
         $pl = Get-PlanejamentoNaTransacao $ctx $id
         $r = Get-CandidatosPlanejamento $ctx $pl
+        $sem = @($r.sem_atendimento)
         return [ordered]@{ id = $id; codigo = $pl.codigo; raio_km = $pl.raio_km; quantidade = $r.candidatos.Count
-            candidatos = @($r.candidatos); nao_reconhecidas = $r.nao_reconhecidas }
+            candidatos = @($r.candidatos); nao_reconhecidas = $r.nao_reconhecidas
+            quantidade_sem_atendimento = $sem.Count; sem_atendimento_truncado = ($sem.Count -gt $script:LimiteSemAtendimento)
+            sem_atendimento = @($sem | Select-Object -First $script:LimiteSemAtendimento) }
     }
 }
 
@@ -2743,7 +2768,7 @@ $script:Ferramentas = @(
     },
     [ordered]@{
         name = 'listar_candidatos'; title = 'Candidatos do planejamento'; handler = 'Invoke-ListarCandidatos'; annotations = $script:SoLeitura
-        description = 'Atendimentos em aberto a até raio_km da cidade-base do planejamento, na ordem de visita (qualificação, dias parado, km). Cidades não reconhecidas vêm à parte.'
+        description = 'Atendimentos em aberto a até raio_km da cidade-base do planejamento, na ordem de visita (qualificação, dias parado, km). Cidades não reconhecidas vêm à parte. sem_atendimento: empresas ativas do raio sem atendimento em aberto (pré-clientes inclusive), até 200, com quantidade_sem_atendimento; para visitar, abra o atendimento antes (gerar_visitas só aceita atendimento).'
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('id_planejamento'); properties = [ordered]@{
             id_planejamento = [ordered]@{ type = 'integer' } } }
     },
