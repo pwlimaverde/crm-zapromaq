@@ -418,6 +418,16 @@ Public Function OperacaoAnteriorEm(ByVal cn As Object, ByVal idOp As String, ByV
     r = ConsultarEm(cn, "SELECT tabela, id_registro, codigo, hash_conteudo FROM operacoes WHERE id_operacao=?", _
                     Array(P(adVarWChar, idOp)))
     If IsEmpty(r) Then Exit Function
+    ' o registro da operacao foi excluido depois (ex.: pre-cliente apagado; o lote usa
+    ' identificador estavel por linha): a operacao antiga nao vale mais - cria de novo
+    ' (tabela vem do proprio codigo: clientes, contatos ou oportunidades)
+    If Nz(r(1, 1)) = tabela Then
+        If CLng(ConsultarValorEm(cn, "SELECT COUNT(*) FROM " & tabela & " WHERE id=?", 0, _
+                                 Array(P(adInteger, CLng(Nz(r(1, 2), "0")))))) = 0 Then
+            ExecutarEm cn, "DELETE FROM operacoes WHERE id_operacao=?", Array(P(adVarWChar, idOp))
+            Exit Function
+        End If
+    End If
     If Nz(r(1, 1)) <> tabela Or Nz(r(1, 4)) <> hash Then
         Err.Raise ERRO_ESCRITA_RECUSADA, "modDB.OperacaoAnteriorEm", "Este identificador de opera" & ChrW$(231) & ChrW$(227) & _
                   "o j" & ChrW$(225) & " foi usado com outro conte" & ChrW$(250) & "do. Nada foi gravado."

@@ -238,10 +238,10 @@ Private Sub Conferir(ByRef d As Object, ByRef cnpjBase As Object, ByRef nomeBase
 
     ' DEV-12: valor fora da lista não entra (a ficha também só aceita valor da lista)
     If d("segmento") <> "" Then
-        If Not NaLista("Segmento", d("segmento")) Then Marcar d, "ERRO", "segmento fora da lista: " & d("segmento")
+        If Not NaLista("Segmento", d("segmento")) Then Marcar d, "ERRO", "segmento fora da lista: " & d("segmento") Else d("segmento") = DaLista("Segmento", d("segmento"))
     End If
     If d("qualificacao") <> "" Then
-        If Not NaLista("Qualificacao", d("qualificacao")) Then Marcar d, "ERRO", "qualifica" & ChrW$(231) & ChrW$(227) & "o fora da lista: " & d("qualificacao")
+        If Not NaLista("Qualificacao", d("qualificacao")) Then Marcar d, "ERRO", "qualifica" & ChrW$(231) & ChrW$(227) & "o fora da lista: " & d("qualificacao") Else d("qualificacao") = DaLista("Qualificacao", d("qualificacao"))
     End If
 
     ' depois de TODAS as conferencias: o estado final decide se comeca fora
@@ -364,7 +364,8 @@ Private Sub CarregarSegmentos()
         If Not IsEmpty(d) Then
             mSegmentos(CStr(tipo)) = True
             For i = 1 To UBound(d, 1)
-                mSegmentos(CStr(tipo) & "|" & LCase$(modDB.Nz(d(i, 1)))) = True
+                ' guarda o valor EXATO da lista: a linha do lote grava este, nao a caixa digitada (secao 5.1)
+                mSegmentos(CStr(tipo) & "|" & LCase$(modDB.Nz(d(i, 1)))) = modDB.Nz(d(i, 1))
             Next i
         End If
     Next tipo
@@ -375,6 +376,14 @@ Private Function NaLista(ByVal tipo As String, ByVal valor As String) As Boolean
     If mSegmentos Is Nothing Then NaLista = True: Exit Function
     If Not mSegmentos.Exists(tipo) Then NaLista = True: Exit Function
     NaLista = mSegmentos.Exists(tipo & "|" & LCase$(valor))
+End Function
+
+' O valor como esta na lista (ex.: "metalurgia" no lote -> "Metalurgia"), igual ao
+' conector (Resolve-ValorLista): campo de lista grava o valor exato, nao a caixa colada.
+Private Function DaLista(ByVal tipo As String, ByVal valor As String) As String
+    DaLista = valor
+    If mSegmentos Is Nothing Then Exit Function
+    If mSegmentos.Exists(tipo & "|" & LCase$(valor)) Then DaLista = CStr(mSegmentos(tipo & "|" & LCase$(valor)))
 End Function
 
 '----------------------------------------------------------

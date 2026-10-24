@@ -52,6 +52,9 @@ try {
     Conferir 'a versão do registro subiu uma vez' ($cli.versao -eq $v1 + 1) ([string]$cli.versao)
     $nLog = [int](Invoke-Escalar $cn "SELECT COUNT(*) FROM log_alteracoes WHERE id > ? AND origem='MIGRACAO' AND acao='NORMALIZACAO'" @((New-Parametro 'inteiro' $maxLog)) $null)
     Conferir 'cada campo alterado tem log com origem MIGRACAO (valor antigo e novo)' ($nLog -ge 4) ([string]$nLog)
+    # DEV-06 parte B: depois do esquema 1.2, TODA linha nova de auditoria identifica estação e usuário técnico
+    $semAutor = [int](Invoke-Escalar $cn "SELECT COUNT(*) FROM log_alteracoes WHERE id > ? AND origem='MIGRACAO' AND (estacao IS NULL OR usuario_tecnico IS NULL OR versao_cliente IS NULL)" @((New-Parametro 'inteiro' $maxLog)) $null)
+    Conferir 'log da migração com estação, usuário técnico e versão (DEV-06B)' ($semAutor -eq 0) ([string]$semAutor + ' linha(s) sem')
     Conferir 'a saída traz a prévia por campo' (@($log.linhas | Where-Object { $_ -match 'clientes\.empresa: \d+ valor' }).Count -eq 1) ($log.linhas -join ' | ')
     $maxLog2 = [int](Invoke-Escalar $cn 'SELECT MAX(id) FROM log_alteracoes' @() $null)
     [void](Aplicar $cn)

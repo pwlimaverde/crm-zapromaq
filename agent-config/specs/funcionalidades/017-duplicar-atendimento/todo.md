@@ -29,3 +29,13 @@ Achados e destino (sem crítico aberto):
   no raio fica abaixo de um segundo; acima disso, ordenar no SQL.
 - **FYI (teste):** o `testar-mcp` não é repetível no mesmo banco (contexto gravado fica); no `verificar-tudo` o banco
   é sempre novo.
+
+## Revisão completa (ciclos 007 a 017, diff c955a1e..develop), 24/10/2026
+
+- **Corrigido (b361c2a):** conector repetia como "bloqueio" erro de regra que cita "bloqueado" e a recusa por esquema.
+- **Corrigido (e443230):** log da migração 005 sem estação, usuário técnico e versão (DEV-06B).
+- **Corrigido (7d1d24c):** lote gravava segmento/qualificação na caixa colada; operação de registro excluído
+  devolvia id inexistente (lote com identificador estável por linha).
+- **Risco aceito:** cascata de ativo (front `MudarAtivo`, conector `Set-AtivoEm`) grava log mesmo se o UPDATE da
+  linha afetar 0 (corrida de milissegundos na mesma transação); conector mantém a operação de registro excluído
+  como "repetida" (o id_operacao do conector é por chamada, não por conteúdo).
