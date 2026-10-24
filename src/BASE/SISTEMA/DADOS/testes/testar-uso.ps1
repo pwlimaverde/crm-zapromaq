@@ -454,6 +454,17 @@ Public Function FiltrarEOrdenar(ByVal aba As String, ByVal cabFiltro As String, 
     ws.Cells(1, 3).Value2 = lo.ListColumns(cabOrdem).Index & "|2"
     ws.Protect "zpm"
 End Function
+' DEV-24: a celula guarda formula? e de que tipo e o valor (numero continua Double)
+Public Function TemFormula(ByVal aba As String, ByVal id As Long, ByVal cab As String) As Boolean
+    Dim k As Long
+    k = Linha(aba, id)
+    If k > 0 Then TemFormula = Tabela(aba).ListColumns(cab).DataBodyRange.Cells(k, 1).HasFormula
+End Function
+Public Function TipoValor(ByVal aba As String, ByVal id As Long, ByVal cab As String) As String
+    Dim k As Long
+    k = Linha(aba, id)
+    If k > 0 Then TipoValor = TypeName(Tabela(aba).ListColumns(cab).DataBodyRange.Cells(k, 1).Value2)
+End Function
 Public Sub DesfazerFiltro(ByVal aba As String, ByVal estadoOrdem As String)
     Dim ws As Worksheet, lo As ListObject
     Set ws = ThisWorkbook.Worksheets(aba): Set lo = Tabela(aba)
@@ -573,6 +584,35 @@ End Sub
     Conferir 'DEV-20 registro excluído em outra estação sai da grade' ($rx -eq '' -and [int]$xl.Run($t2 + 'Linha', 'Contatos', $idN) -eq 0) $rx
     Conferir 'DEV-20 abas continuam protegidas depois do feed' ([bool]$wsCli.ProtectContents -and [bool]$wsCto.ProtectContents -and [bool]$wsOpo.ProtectContents)
     [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id > ' + $maxLog011)
+
+    # DEV-24 (ciclo 013): texto do cadastro com cara de fórmula aparece como texto na grade; moeda continua número
+    $cli24 = $xl.Run($tf + 'modDB.Consultar', 'SELECT TOP 4 id, empresa FROM clientes ORDER BY id')
+    $txt24 = @('=1+1', '+5541', '-X', '@X')
+    $orig24 = @{}
+    for ($k = 1; $k -le 4; $k++) {
+        $id24 = [int]$cli24.GetValue($k, 1); $orig24[$id24] = [string]$cli24.GetValue($k, 2)
+        [void]$xl.Run($t2 + 'Definir', 'clientes', 'empresa', $id24, $txt24[$k - 1])
+    }
+    try {
+        [void]$xl.Run($tf + 'modGrade.GradeClientes')
+        $xl.EnableEvents = $false
+        $ruins24 = @()
+        for ($k = 1; $k -le 4; $k++) {
+            $id24 = [int]$cli24.GetValue($k, 1)
+            $cel24 = Celula 'Clientes' $id24 'Empresa'
+            if ($cel24 -ne $txt24[$k - 1] -or [bool]$xl.Run($t2 + 'TemFormula', 'Clientes', $id24, 'Empresa')) { $ruins24 += ($txt24[$k - 1] + ' -> [' + $cel24 + ']') }
+        }
+        Conferir 'DEV-24 =1+1, +5541, -X e @X aparecem como texto na grade (sem fórmula)' ($ruins24.Count -eq 0) ($ruins24 -join '; ')
+        $idV24 = [int](Valor 'SELECT MIN(id) FROM oportunidades WHERE valor IS NOT NULL' 0)
+        [void]$xl.Run($tf + 'modGrade.GradeOportunidades')
+        $xl.EnableEvents = $false
+        $tipoV24 = [string]$xl.Run($t2 + 'TipoValor', 'Oportunidades', $idV24, 'Valor (R$)')
+        Conferir 'DEV-24 o valor do atendimento continua número na grade' ($tipoV24 -eq 'Double') $tipoV24
+    } finally {
+        foreach ($id24 in @($orig24.Keys)) { [void]$xl.Run($t2 + 'Definir', 'clientes', 'empresa', [int]$id24, [string]$orig24[$id24]) }
+        [void]$xl.Run($tf + 'modGrade.GradeClientes')
+        $xl.EnableEvents = $false
+    }
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
 
     # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original

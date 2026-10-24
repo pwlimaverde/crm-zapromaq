@@ -606,6 +606,21 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
     Conferir ('tools/list moderno: exatamente as ' + $script:FerramentasEsperadas.Count + ' ferramentas do contrato') ($faltam.Count -eq 0 -and $sobram.Count -eq 0 -and $nomesModerno.Count -eq $script:FerramentasEsperadas.Count) ('faltam: ' + ($faltam -join ',') + ' | sobram: ' + ($sobram -join ','))
     $incompletas = @($r.result.tools | Where-Object { -not $_.title -or -not $_.description -or $null -eq $_.inputSchema -or $_.inputSchema.type -ne 'object' -or $null -eq $_.annotations -or $null -eq $_.annotations.readOnlyHint })
     Conferir 'toda ferramenta tem título, descrição, inputSchema de objeto e annotations' ($incompletas.Count -eq 0) (($incompletas | ForEach-Object { $_.name }) -join ',')
+    # DEV-07 (ciclo 013): matriz de consumidores (skills do comercial, fora de BASE) contra o catálogo publicado
+    $mat = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'consumidores.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $porNome = @{}; foreach ($f in $r.result.tools) { $porNome[[string]$f.name] = $f }
+    $quebras = @()
+    foreach ($c in $mat.consumidores) {
+        foreach ($pf in $c.ferramentas.PSObject.Properties) {
+            if ($pf.Name -eq '*') { continue }
+            if (-not $porNome.ContainsKey($pf.Name)) { $quebras += ($c.skill + ': ' + $pf.Name + ' não existe'); continue }
+            $props = @($porNome[$pf.Name].inputSchema.properties.PSObject.Properties | ForEach-Object { $_.Name })
+            foreach ($par in @($pf.Value)) { if ($props -notcontains $par) { $quebras += ($c.skill + ': ' + $pf.Name + '.' + $par + ' não existe') } }
+        }
+    }
+    Conferir ('DEV-07 matriz de consumidores (' + @($mat.consumidores).Count + ' skills) bate com o catálogo') ($quebras.Count -eq 0) ($quebras -join '; ')
+    $vServ = [regex]::Match([IO.File]::ReadAllText($servidor), "VersaoServidor = '([^']+)'").Groups[1].Value
+    Conferir 'DEV-07 matriz revista na versão atual do conector' ([string]$mat.versao_conector -eq $vServ) ([string]$mat.versao_conector + ' x ' + $vServ)
     $r = Enviar 'tools/call' (Moderno ([ordered]@{ name = 'obter_atendimento'; arguments = [ordered]@{ codigo = 'XX' } }))
     Conferir 'tools/call moderno: erro de ferramenta com resultType' ($r.result.resultType -eq 'complete' -and $r.result.isError -eq $true)
     $r = Enviar 'metodo/inexistente' (Moderno $null)

@@ -114,3 +114,5 @@ nova = caso novo no teste + contagem de ferramentas atualizada (`instalar-mcp.ps
   por chave (`Get-ChavePlanejamento` ordinal + `cursor` com filtro e geração da base; `Array.Sort(chaves, itens)` pelo
   PowerShell não reordena os itens - ordenar as chaves e buscar por dicionário); extratos em `execucao\extratos`
   (`New-PastaExtrato`, manifesto, `descartar_extratos`); `exportar_base` sem `destino`.
+- Ciclo 013: matriz de consumidores `IA\teste\consumidores.json` (skill -> ferramenta -> parâmetros) conferida contra o
+  `tools/list` no testar-mcp; atualizar `versao_conector` dela a cada `VersaoServidor` novo.
