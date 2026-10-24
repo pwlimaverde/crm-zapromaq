@@ -1,11 +1,13 @@
-# Plano: Manutenção física (rascunho)
+# Plano: Manutenção física - medir a compactação (ciclo 014)
 
 Spec: [SPEC.md](SPEC.md)
 
-## Fatias (teste que falha primeiro, depois prova)
+## Fatias
 
-- medir a compactação numa cópia (ensaio); adotar só se houver ganho
+1. `testar-compactacao.ps1` (falha: script não existe) → `medir-compactacao.ps1` + `.bat`.
+2. Etapa no `verificar-tudo` (padrão).
+3. `docs\manutencao-fisica.md` (medição, critério, reparo), PLANO D33, `verificar-tudo -Completo`.
 
-## Depende de
+## Checkpoints 🖥
 
-006, 007
+- Medição na rede (homologação) sobre a última cópia validada; conclusão registrada no PLANO.
