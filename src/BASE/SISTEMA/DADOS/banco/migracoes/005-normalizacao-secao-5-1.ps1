@@ -64,10 +64,14 @@
                 $par += (New-Parametro 'data' $agora); $par += (New-Parametro 'texto' 'MIGRACAO 005'); $par += (New-Parametro 'inteiro' $l.id)
                 [void](Invoke-Comando $cn ('UPDATE ' + $tabela + ' SET ' + ($sets -join ', ') + ', versao=versao+1, alterado_em=?, alterado_por=? WHERE id=?') $par $tx)
                 foreach ($k in $mud.Keys) {
-                    [void](Invoke-Comando $cn ('INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem) VALUES (?,?,?,?,?,?,?,?,?)') @(
+                    # DEV-06 parte B (esquema 1.2, que a 004 já criou): estação, usuário técnico e versão em toda linha nova
+                    [void](Invoke-Comando $cn ('INSERT INTO log_alteracoes (tabela, id_registro, campo, valor_antigo, valor_novo, acao, usuario, quando, origem,' +
+                                               ' usuario_tecnico, estacao, versao_cliente) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)') @(
                         (New-Parametro 'texto' $tabela), (New-Parametro 'inteiro' $l.id), (New-Parametro 'texto' $k),
                         (New-Parametro 'memo' $mud[$k].antigo), (New-Parametro 'memo' $mud[$k].novo), (New-Parametro 'texto' 'NORMALIZACAO'),
-                        (New-Parametro 'texto' 'MIGRACAO 005'), (New-Parametro 'data' $agora), (New-Parametro 'texto' 'MIGRACAO')) $tx)
+                        (New-Parametro 'texto' 'MIGRACAO 005'), (New-Parametro 'data' $agora), (New-Parametro 'texto' 'MIGRACAO'),
+                        (New-Parametro 'texto' ([Environment]::UserName)), (New-Parametro 'texto' ([Environment]::MachineName)),
+                        (New-Parametro 'texto' 'MIGRACAO 005')) $tx)
                     if (-not $porCampo.Contains($k)) { $porCampo[$k] = 0; $exemplos[$k] = New-Object System.Collections.ArrayList }
                     $porCampo[$k]++
                     if ($exemplos[$k].Count -lt 3) { [void]$exemplos[$k].Add(([string]$mud[$k].antigo).Split("`n")[0].Trim() + ' -> ' + ([string]$mud[$k].novo).Split("`n")[0].Trim()) }
