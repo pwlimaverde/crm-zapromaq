@@ -289,6 +289,19 @@ try {
     Conferir 'manifesto salvo em releases\release-<versão>.json' ((Split-Path -Leaf $arq) -eq 'release-1.7.json' -and ((Get-Content -LiteralPath $arq -Raw -Encoding UTF8 | ConvertFrom-Json).tipo -eq 'volta'))
 } finally { Remove-Item -LiteralPath $tmpR -Recurse -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- DEV-08 (ciclo 018): versões mínimas do cliente gravadas pela montagem'
+$minV = Get-VersoesMinimas
+$versaoServidorV = ([regex]::Match([IO.File]::ReadAllText((Join-Path (Split-Path -Parent (Split-Path -Parent $dados)) 'IA\mcp\servidor.ps1')), "(?m)^\`$script:VersaoServidor = '([^']+)'")).Groups[1].Value
+Conferir 'versoes-minimas.json: front X.Y e conector X.Y.Z' ($minV.front -match '^\d+\.\d+$' -and $minV.conector -match '^\d+\.\d+\.\d+$') ($minV | ConvertTo-Json -Compress)
+Conferir 'a mínima do front não passa da próxima versão publicada' ((Compare-Versao $minV.front (Get-ProximaVersao (Get-VersaoAtual $dados))) -le 0) ($minV.front)
+Conferir 'a mínima do conector não passa da versão do conector desta BASE' ([version]$minV.conector -le [version]$versaoServidorV) ($minV.conector + ' x ' + $versaoServidorV)
+$tmpM = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-minima-' + $PID + '.json')
+try {
+    [System.IO.File]::WriteAllText($tmpM, '{ "front": "1.6.0", "conector": "1.12.0" }')
+    $erroM = $null; try { [void](Get-VersoesMinimas $tmpM) } catch { $erroM = $_ }
+    Conferir 'versão mínima do front fora do formato é recusada' ($null -ne $erroM)
+} finally { Remove-Item -LiteralPath $tmpM -Force -ErrorAction SilentlyContinue }
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1

@@ -282,7 +282,7 @@ End Function
 '==========================================================
 Public Function AbrirTransacao() As Object
     Dim cn As Object, d As Variant, i As Long, esq As String, man As String
-    Dim motivo As String, camposAntes As Variant
+    Dim motivo As String, camposAntes As Variant, minima As String
     Set cn = NovaConexao()
     cn.BeginTrans
     ' DEV-08: toda gravacao do front passa por aqui. Esquema e manutencao sao
@@ -291,15 +291,19 @@ Public Function AbrirTransacao() As Object
     ' preservado: quem chamou pode estar no meio da leitura de outra consulta.
     camposAntes = gCampos
     On Error GoTo falhou
-    d = ConsultarEm(cn, "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao')")
+    d = ConsultarEm(cn, "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao','versao_minima_front')")
     On Error GoTo 0
     gCampos = camposAntes
     If Not IsEmpty(d) Then
         For i = 1 To UBound(d, 1)
-            If Nz(d(i, 1)) = "versao_esquema" Then esq = Nz(d(i, 2)) Else man = Nz(d(i, 2))
+            Select Case Nz(d(i, 1))
+                Case "versao_esquema": esq = Nz(d(i, 2))
+                Case "manutencao": man = Nz(d(i, 2))
+                Case "versao_minima_front": minima = Nz(d(i, 2))
+            End Select
         Next i
     End If
-    motivo = MotivoRecusaEscrita(esq, man)
+    motivo = MotivoRecusaEscrita(esq, man, minima)
     If motivo <> "" Then
         Desfazer cn
         modDiag.Registrar "gravacao", "inicio", "", ERRO_ESCRITA_RECUSADA, motivo, "recusada"
@@ -321,7 +325,12 @@ End Function
 ' Mesma regra de Get-MotivoRecusaEscrita (conector, Banco.ps1).
 ' manutencao = "estacao|usuario|PID|inicio|motivo" (config).
 '----------------------------------------------------------
-Public Function MotivoRecusaEscrita(ByVal esquema As String, ByVal manutencao As String) As String
+' DEV-08 (ciclo 018): versaoMinima = config.versao_minima_front, gravada pela
+' montagem; copia do CRM mais velha que ela nao grava. versaoCliente vazio =
+' a desta copia (modConfig.VERSAO_FRONT); o autoteste passa a versao.
+Public Function MotivoRecusaEscrita(ByVal esquema As String, ByVal manutencao As String, _
+                                    Optional ByVal versaoMinima As String = "", _
+                                    Optional ByVal versaoCliente As String = "") As String
     Dim partes As Variant, quem As String
     If Len(Trim$(manutencao)) > 0 Then
         partes = Split(manutencao, "|")
@@ -334,6 +343,15 @@ Public Function MotivoRecusaEscrita(ByVal esquema As String, ByVal manutencao As
     If esquema <> modConfig.VERSAO_ESQUEMA Then
         MotivoRecusaEscrita = "O banco est" & ChrW$(225) & " no esquema " & esquema & " e esta c" & ChrW$(243) & _
             "pia do CRM espera o " & modConfig.VERSAO_ESQUEMA & ": nada foi gravado. Feche e abra pelo INICIAR-CRM."
+        Exit Function
+    End If
+    If Len(Trim$(versaoMinima)) > 0 Then
+        If versaoCliente = "" Then versaoCliente = modConfig.VERSAO_FRONT
+        If modConfig.NumeroVersao(versaoCliente) < modConfig.NumeroVersao(versaoMinima) Then
+            MotivoRecusaEscrita = "Esta c" & ChrW$(243) & "pia do CRM " & ChrW$(233) & " a vers" & ChrW$(227) & "o " & versaoCliente & _
+                " e o banco exige a " & Trim$(versaoMinima) & " ou mais nova: nada foi gravado. " & _
+                "Feche o CRM e abra pelo INICIAR-CRM (a c" & ChrW$(243) & "pia " & ChrW$(233) & " atualizada)."
+        End If
     End If
 End Function
 

@@ -778,6 +778,27 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atM.versao; tentativas = [int]$atM.tentativas; observacoes_acrescentar = 'depois da manutenção'; autor = 'teste' })
         Conferir 'manutenção desligada: gravação volta a funcionar' (-not $res.isError) $res.content[0].text
 
+        Write-Host '--- DEV-08 (ciclo 018): versão mínima do conector no ponto de escrita'
+        Conferir 'motivo puro: conector abaixo da mínima recusa' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '' '1.12.0' '1.11.0') -match 'exige a 1\.12\.0')
+        Conferir 'motivo puro: conector na mínima grava' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '' '1.12.0' '1.12.0') -eq '')
+        Conferir 'motivo puro: 1.12.0 passa da mínima 1.9.0 (comparação numérica)' ((Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '' '1.9.0' '1.12.0') -eq '')
+        Conferir 'transitório: recusa por versão mínima não se repete' (-not (Test-ErroTransitorio (Get-MotivoRecusaEscrita $script:EsquemasSuportados[0] '' '9.0.0' '1.0.0')))
+        $atV = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        Executa-Visita "INSERT INTO config (chave, valor) VALUES ('versao_minima_conector', ?)" @((P 'texto' '99.0.0'))
+        try {
+            $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atV.versao; tentativas = [int]$atV.tentativas + 1; autor = 'teste' })
+            Conferir 'mínima acima deste conector: gravação recusada citando a versão' ($res.isError -and $res.content[0].text -match '99\.0\.0') $res.content[0].text
+            $atV2 = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+            Conferir 'mínima acima deste conector: leitura continua e nada mudou' ([int]$atV2.versao -eq [int]$atV.versao)
+        } finally { Executa-Visita "DELETE FROM config WHERE chave='versao_minima_conector'" }
+        Executa-Visita "INSERT INTO config (chave, valor) VALUES ('versao_minima_conector', ?)" @((P 'texto' $vServ))
+        try {
+            $st18 = Dados (Chamar 'crm_status' ([ordered]@{}))
+            Conferir 'crm_status mostra a versão mínima do conector' ([string]$st18.versao_minima_conector -eq $vServ -and $vServ -match '^\d+\.\d+\.\d+$') ([string]$st18.versao_minima_conector + ' x ' + $vServ)
+            $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atV.versao; tentativas = [int]$atV.tentativas; observacoes_acrescentar = 'versão mínima atendida'; autor = 'teste' })
+            Conferir 'mínima igual a este conector: gravação passa' (-not $res.isError) $res.content[0].text
+        } finally { Executa-Visita "DELETE FROM config WHERE chave='versao_minima_conector'" }
+
         Write-Host '--- DEV-15: reativar a empresa reativa só a empresa; ação com versão antiga é recusada'
         $c15 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
         $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'desativar'; autor = 'teste' }))

@@ -1,0 +1,5 @@
+{
+  "_sobre": "DEV-08 (ciclo 018): versão mínima do cliente no ponto de escrita. A montagem que publica grava estes valores em config.versao_minima_front e config.versao_minima_conector (na cópia, junto com config.versao_front); cópia do front ou conector mais velha que a mínima não grava (a leitura continua). Suba a mínima quando a regra de gravação mudar de um jeito que a versão antiga gravaria errado (ex.: ciclo 018, C34). Nunca acima da versão que está sendo publicada.",
+  "front": "1.6",
+  "conector": "1.12.0"
+}

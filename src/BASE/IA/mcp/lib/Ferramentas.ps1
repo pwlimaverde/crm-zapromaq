@@ -278,6 +278,8 @@ function Invoke-CrmStatus($a) {
         atualizacao_pendente = (-not ($script:EsquemasSuportados -contains $esq))
         esquemas_suportados = @($script:EsquemasSuportados)
         versao_front        = Invoke-Valor "SELECT valor FROM config WHERE chave='versao_front'" @()
+        # DEV-08 (ciclo 018): conector mais velho que a mínima não grava (aditivo)
+        versao_minima_conector = Invoke-Valor "SELECT valor FROM config WHERE chave='versao_minima_conector'" @()
         ambiente            = Invoke-Valor "SELECT valor FROM config WHERE chave='ambiente'" @()
         registros           = $cont
         ultimo_log_id       = Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @()
