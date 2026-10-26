@@ -4,7 +4,7 @@
 - [x] P2 próxima ação só hoje ou futuro (feature/prox-acao-futura)
 - [x] P3 retomada a avaliar igual nos dois canais (feature/retomada-avaliar)
 - [x] P4 retomar_em desabilitado fora de Perdido/Descartado (feature/retomada-habilitada)
-- [ ] P5 restauração pela última cópia validada (feature/restaurar-validada)
+- [x] P5 restauração pela última cópia validada (feature/restaurar-validada)
 - [ ] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
 - [ ] P7 skill cobre o catálogo inteiro (feature/skill-catalogo)
 - [ ] P8 checar-ambiente completo (feature/checar-ambiente)
