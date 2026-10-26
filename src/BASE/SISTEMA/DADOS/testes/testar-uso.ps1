@@ -699,8 +699,103 @@ End Sub
     try {
         $txt28b = [string]$xl.Run($t2 + 'DuplicarTexto', $idO28)
         Conferir 'DEV-28 contato inativo não é copiado (a ficha pede o contato)' ($txt28b -notmatch '(^|\|)id_contato=') $txt28b
+        # ciclo 018: sem o contato, a ficha mostra a empresa da origem (e o contato se escolhe nela)
+        $emp28 = [string](Valor ('SELECT cl.empresa FROM oportunidades o INNER JOIN clientes cl ON o.id_cliente = cl.id WHERE o.id=' + $idO28) '')
+        Conferir 'DEV-28 contato inativo: a cópia traz a empresa da origem' ($txt28b -match ('(^|\|)empresa=' + [regex]::Escape($emp28) + '(\||$)') -and $txt28b -match '(^|\|)id_cliente=\d') $txt28b
     } finally { [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=True WHERE id=' + $cto28) }
     [void]$xl.Run($tf + 'modCRM.LimparCacheListas')
+
+    # ciclo 018 (DEV-28): o botão "Duplicar" da ficha de oportunidades abre a mesma duplicação do menu da grade.
+    # Um timer do Windows faz o papel do usuário: na ficha da origem lê o botão e clica nele; na ficha nova
+    # lê o que veio preenchido, cancela e fecha; depois fecha a ficha da origem. Nada pode ser gravado.
+    $mdp = $wb.VBProject.VBComponents.Add(1); $mdp.Name = 'modTesteDuplicar'
+    $mdp.CodeModule.AddFromString(@'
+Option Explicit
+Private Declare PtrSafe Function SetTimer Lib "user32" (ByVal hWnd As LongPtr, ByVal nIDEvent As LongPtr, ByVal uElapse As Long, ByVal lpTimerFunc As LongPtr) As LongPtr
+Private Declare PtrSafe Function KillTimer Lib "user32" (ByVal hWnd As LongPtr, ByVal nIDEvent As LongPtr) As Long
+Private Declare PtrSafe Function FindWindowW Lib "user32" (ByVal cls As LongPtr, ByVal titulo As LongPtr) As LongPtr
+Private Declare PtrSafe Function SendMessageW Lib "user32" (ByVal hWnd As LongPtr, ByVal msg As Long, ByVal wp As LongPtr, ByVal lp As LongPtr) As LongPtr
+Private Declare PtrSafe Function GetDlgItemTextW Lib "user32" (ByVal hDlg As LongPtr, ByVal id As Long, ByVal buf As LongPtr, ByVal tam As Long) As Long
+Private mTimer As LongPtr, mTiques As Long, mOcupado As Boolean, mEtapa As Long, mRes As String
+
+Public Function Rodar(ByVal idOrigem As Long) As String
+    Dim f As New frmCRM
+    mEtapa = 0: mTiques = 0: mRes = "": mOcupado = False
+    mTimer = SetTimer(0, 0, 300, AddressOf Tique)
+    f.Abrir "oportunidades", 0, idOrigem, Array(idOrigem)
+    KillTimer 0, mTimer
+    Rodar = mRes
+End Function
+
+Private Function Visiveis() As Collection
+    Dim f As Object, c As New Collection
+    For Each f In VBA.UserForms
+        If TypeName(f) = "frmCRM" Then If f.Visible Then c.Add f
+    Next f
+    Set Visiveis = c
+End Function
+
+Public Sub Tique(ByVal h As LongPtr, ByVal m As Long, ByVal id As LongPtr, ByVal t As Long)
+    Dim dlg As LongPtr, c As Collection, f As Object, buf As String, n As Long
+    On Error Resume Next
+    If mOcupado Then Exit Sub
+    mOcupado = True
+    mTiques = mTiques + 1
+    If mTiques > 150 Then KillTimer 0, mTimer
+    dlg = FindWindowW(StrPtr("#32770"), StrPtr("CRM Zapromaq"))
+    If dlg <> 0 Then
+        buf = String$(1024, vbNullChar)
+        n = GetDlgItemTextW(dlg, &HFFFF&, StrPtr(buf), 1024)
+        mRes = mRes & "|caixa=" & Replace(Left$(buf, n), vbCrLf, " ")
+        SendMessageW dlg, &H111, 2, 0
+        mOcupado = False
+        Exit Sub
+    End If
+    ' uma escolha de vinculo aberta sozinha travaria o teste: registra e fecha
+    For Each f In VBA.UserForms
+        If TypeName(f) = "frmVinculo" Then
+            If f.Visible Then mRes = mRes & "|vinculo=aberto": f.Hide
+        End If
+    Next f
+    Set f = Nothing
+    Set c = Visiveis()
+    If mEtapa = 0 And c.Count = 1 Then
+        Set f = c(1)
+        mRes = mRes & "|rotulo=" & f.Controls("cmdAtendimento").Caption & "|habilitado=" & f.Controls("cmdAtendimento").Enabled
+        mEtapa = 1
+        mOcupado = False
+        f.UI_Acao "cmdAtendimento"
+        mRes = mRes & "|voltou=1"
+        f.UI_Acao "cmdFechar"
+    ElseIf mEtapa = 1 And c.Count = 2 Then
+        Set f = c(2)
+        mEtapa = 2
+        mRes = mRes & "|etapa=" & f.Controls("c_etapa").Value & "|anterior=" & f.Controls("c_id_atendimento_anterior").Value & _
+               "|contato=" & f.Controls("c_id_contato").Value & "|empresa=" & f.Controls("c_empresa").Value & _
+               "|salvar=" & f.Controls("cmdSalvar").Enabled
+        f.UI_Acao "cmdCancelar"
+        f.UI_Acao "cmdFechar"
+        mOcupado = False
+    Else
+        mOcupado = False
+    End If
+End Sub
+'@)
+    $n28c = [int](Valor 'SELECT COUNT(*) FROM oportunidades' 0)
+    $rdp = [string]$xl.Run("'" + $n + "'!modTesteDuplicar.Rodar", $idO28)
+    Write-Host ('  duplicar pela ficha: ' + $rdp)
+    $mdp28 = @{}; foreach ($par in $rdp.Split('|')) { $kv = $par.Split('=', 2); if ($kv.Count -eq 2) { $mdp28[$kv[0]] = $kv[1] } }
+    Conferir 'DEV-28 ficha de oportunidades: o botão de ação é "Duplicar" e está habilitado' ($mdp28['rotulo'] -eq 'Duplicar' -and $mdp28['habilitado'] -match 'True|Verdadeiro') $rdp
+    Conferir 'DEV-28 Duplicar na ficha abre atendimento novo com a etapa inicial, o anterior = origem e o contato' ($mdp28['etapa'] -eq $etIni28 -and [int]$mdp28['anterior'] -eq $idO28 -and [int]$mdp28['contato'] -eq $cto28 -and $mdp28['salvar'] -match 'True|Verdadeiro') $rdp
+    Conferir 'DEV-28 Duplicar na ficha sem Salvar não grava e não mostra caixa' ([int](Valor 'SELECT COUNT(*) FROM oportunidades' 0) -eq $n28c -and $rdp -notmatch 'caixa=' -and $mdp28['voltou'] -eq '1') $rdp
+    [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=False WHERE id=' + $cto28)
+    try {
+        $rdp2 = [string]$xl.Run("'" + $n + "'!modTesteDuplicar.Rodar", $idO28)
+        Write-Host ('  duplicar pela ficha (contato inativo): ' + $rdp2)
+        $mdp28b = @{}; foreach ($par in $rdp2.Split('|')) { $kv = $par.Split('=', 2); if ($kv.Count -eq 2) { $mdp28b[$kv[0]] = $kv[1] } }
+        Conferir 'DEV-28 Duplicar na ficha com contato inativo: empresa da origem preenchida, contato vazio' ($mdp28b['empresa'] -eq $emp28 -and $mdp28b['contato'] -eq '' -and $mdp28b['etapa'] -eq $etIni28 -and $rdp2 -notmatch 'vinculo=|caixa=') $rdp2
+    } finally { [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=True WHERE id=' + $cto28) }
+    Conferir 'DEV-28 Duplicar na ficha (contato inativo) não grava' ([int](Valor 'SELECT COUNT(*) FROM oportunidades' 0) -eq $n28c) ''
 
     # Fase 3.2b: gravacao de visitas pelo front (C08, C10, C11, C13, V6, V7, conflito), com volta ao estado original
     $tv = "'" + $n + "'!"

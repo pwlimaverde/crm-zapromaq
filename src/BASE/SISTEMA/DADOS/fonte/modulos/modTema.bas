@@ -85,6 +85,7 @@ Public Const ICO_IMPORTAR As Long = &HE8B5&   ' Import
 Public Const ICO_PAINEL As Long = &HE9D9&   ' Diagnostic
 Public Const ICO_PINO As Long = &HE718&   ' Pin
 Public Const ICO_ABRIR As Long = &HE8A7&   ' OpenInNewWindow
+Public Const ICO_COPIAR As Long = &HE8C8&   ' Copy
 Public Const ICO_PONTO As Long = &HEA3B&   ' CircleFill
 
 ' Cor de uma parte (fundo, texto, hover, borda) de uma variante de botao. -1 = nao se aplica.

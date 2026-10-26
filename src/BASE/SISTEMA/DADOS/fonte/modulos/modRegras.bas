@@ -99,3 +99,16 @@ Public Function FormaCiclo(ByVal idAtual As Long, ByVal idAnterior As Long, ByVa
         passos = passos + 1
     Loop
 End Function
+
+
+' DEV-28 (ciclo 018): rotulo do botao de acao da ficha (cmdAtendimento).
+' clientes: Promover (pre-cliente ou sem registro) ou + Contato;
+' contatos: + Atend.; oportunidades: Duplicar (mesma rotina do menu da grade).
+Public Function RotuloBotaoAcao(ByVal tabela As String, ByVal temRegistro As Boolean, ByVal preCliente As Boolean) As String
+    Select Case tabela
+        Case "clientes"
+            If Not temRegistro Or preCliente Then RotuloBotaoAcao = "Promover" Else RotuloBotaoAcao = "+ Contato"
+        Case "contatos": RotuloBotaoAcao = "+ Atend."
+        Case "oportunidades": RotuloBotaoAcao = "Duplicar"
+    End Select
+End Function

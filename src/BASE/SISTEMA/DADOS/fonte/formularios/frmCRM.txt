@@ -58,6 +58,7 @@ Private mCadastroRapido As Boolean
 Private mAbrindoComVinculo As Boolean  ' Novo com vinculo ja dado: nao pergunta
 Private mAnteriorInicial As Long       ' DEV-27: anterior sugerido pelo atalho da rota (Perdido/Descartado com retomada)
 Private mDuplicarDe As Long            ' DEV-28: atendimento de origem da duplicacao (0 = nao e duplicacao)
+Private mClienteDuplicacao As Long     ' ciclo 018: empresa da origem quando o contato dela esta inativo
 ' Enquanto a ficha monta combos e filtros, os eventos Change/Click
 ' NAO consultam o banco: sem esta trava, abrir a ficha fazia de 5 a
 ' 7 consultas seguidas (uma por combo preenchido), contra a regra de
@@ -131,7 +132,11 @@ Public Sub Abrir(ByVal tabela As String, Optional ByVal vinculoInicial As Long =
             VinculoEscolhido "id_atendimento_anterior"
         End If
     ElseIf novo Then
+        ' duplicacao sem contato ativo: nao abre a escolha generica (empresa e contato);
+        ' o contato se escolhe na empresa da origem, pelo botao do campo (ciclo 018)
+        mAbrindoComVinculo = (mDuplicarDe > 0)
         cmdNovo_Click
+        mAbrindoComVinculo = False
     Else
         ModoLeitura
     End If
@@ -153,6 +158,11 @@ Private Sub PreencherDuplicacao()
     Set d = modCRM.DadosParaDuplicar(mDuplicarDe)
     mDuplicarDe = 0
     If d Is Nothing Then Exit Sub
+    ' contato inativo: a empresa da origem fica na ficha e o contato se escolhe nela
+    If d.Exists("id_cliente") Then
+        mClienteDuplicacao = CLng(d("id_cliente"))
+        lblStatus.Caption = "Duplicando: o contato da origem est" & ChrW$(&HE1) & " inativo. Escolha um contato ativo da empresa (bot" & ChrW$(&HE3) & "o do campo Contato) e salve."
+    End If
     For i = LBound(mCampos) To UBound(mCampos)
         campo = modSchema.Parte(CStr(mCampos(i)), 0)
         If campo <> "id_contato" And d.Exists(campo) Then DefinirValor campo, modSchema.Parte(CStr(mCampos(i)), 2), d(campo)
@@ -1031,31 +1041,24 @@ Private Sub cmdVisitas_Click()
     AjustarBotaoVisitas
 End Sub
 
+' Rotulo pela regra pura (modRegras.RotuloBotaoAcao, com Confere); em
+' oportunidades e o Duplicar (ciclo 018), so com registro e fora de edicao.
 Private Sub AjustarBotaoAcao()
+    Dim preCliente As Boolean
+    If mTabela = "clientes" And mID <> 0 Then preCliente = (EstagioAtual() = "Pré-cliente")
+    cmdAtendimento.Caption = modRegras.RotuloBotaoAcao(mTabela, mID <> 0, preCliente)
     Select Case mTabela
-        Case "clientes"
-            If mID = 0 Then
-                cmdAtendimento.Caption = "Promover"
-                cmdAtendimento.Enabled = False
-            ElseIf EstagioAtual() = "Pré-cliente" Then
-                cmdAtendimento.Caption = "Promover"
-                cmdAtendimento.Enabled = True
-            Else
-                cmdAtendimento.Caption = "+ Contato"
-                cmdAtendimento.Enabled = True
-            End If
-        Case "contatos"
-            cmdAtendimento.Caption = "+ Atend."
-            cmdAtendimento.Enabled = (mID > 0)
-        Case Else
-            cmdAtendimento.Caption = "Atend."
-            cmdAtendimento.Enabled = False
+        Case "clientes":      cmdAtendimento.Enabled = (mID <> 0)
+        Case "oportunidades": cmdAtendimento.Enabled = (mID > 0 And Not mEditando)
+        Case Else:            cmdAtendimento.Enabled = (mID > 0)
     End Select
     AjustarBotaoVisitas
     If cmdAtendimento.Caption = "Promover" Then
         IconeBotao "cmdAtendimento", modTema.ICO_PROMOVER
     ElseIf mTabela = "clientes" Then
         IconeBotao "cmdAtendimento", modTema.ICO_CONTATO
+    ElseIf mTabela = "oportunidades" Then
+        IconeBotao "cmdAtendimento", modTema.ICO_COPIAR
     Else
         IconeBotao "cmdAtendimento", modTema.ICO_ATENDIMENTO
     End If
@@ -1131,6 +1134,7 @@ End Sub
 Private Sub cmdNovo_Click()
     Dim i As Long, spec As Variant
     mNovo = True: mID = 0: mVersao = 0: mClienteRegistro = 0: mContatoLido = 0: mAnteriorLido = 0
+    mClienteDuplicacao = 0
     Set mLidos = CreateObject("Scripting.Dictionary")
     For i = LBound(mCampos) To UBound(mCampos)
         spec = Split(mCampos(i), "|")
@@ -1514,6 +1518,9 @@ Private Sub TrocarVinculo(ByVal nomeCampo As String)
         EscolherAnterior
     ElseIf nomeCampo = "id_contato" And Not mNovo And mClienteRegistro <> 0 Then
         TrocarContato
+    ElseIf nomeCampo = "id_contato" And mNovo And mClienteDuplicacao <> 0 Then
+        ' duplicacao com o contato da origem inativo: so os contatos da mesma empresa
+        EscolherContatoDaEmpresa mClienteDuplicacao
     Else
         EscolherVinculo nomeCampo
     End If
@@ -1557,9 +1564,13 @@ Private Sub AbrirVinculado(ByVal nomeCampo As String)
 End Sub
 
 Private Sub TrocarContato()
+    EscolherContatoDaEmpresa mClienteRegistro
+End Sub
+
+Private Sub EscolherContatoDaEmpresa(ByVal idCliente As Long)
     Dim f As frmVinculo
     Set f = New frmVinculo
-    If f.EscolherContatoDe(mClienteRegistro) Then
+    If f.EscolherContatoDe(idCliente) Then
         DefinirValor "id_contato", "K", f.IdEscolhido
         VinculoEscolhido "id_contato"
     End If
@@ -1736,6 +1747,9 @@ Private Sub cmdAtendimento_Click()
             End If
         Case "contatos"
             AbrirOutraTela "oportunidades", mID
+        Case "oportunidades"
+            ' DEV-28 (ciclo 018): a mesma duplicacao do menu da grade; nada grava ate o Salvar
+            If modGrade.AbrirDuplicacao(mID) Then lblStatus.Caption = "Atendimento duplicado gravado."
     End Select
 End Sub
 
