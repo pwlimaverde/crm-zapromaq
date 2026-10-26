@@ -52,6 +52,23 @@ Public Function CriticarRetomada(ByVal encerraNova As Boolean, ByVal perdaNova A
 End Function
 
 
+' C34 (secao 5.2, ciclo 018): a proxima acao nova ou alterada e hoje ou
+' futura; a vencida ja gravada continua (cobranca) e nao trava a gravacao
+' de outro campo. Mesma regra de Test-ProxAcaoPermitida (conector).
+Public Function CriticarProxAcao(ByVal dtNova As Variant, ByVal dtLida As Variant, ByVal hoje As Date) As String
+    If IsNull(dtNova) Or IsEmpty(dtNova) Then Exit Function
+    If Not IsDate(dtNova) Then Exit Function
+    If Not (IsNull(dtLida) Or IsEmpty(dtLida)) Then
+        If IsDate(dtLida) Then If DateValue(CDate(dtLida)) = DateValue(CDate(dtNova)) Then Exit Function
+    End If
+    If DateValue(CDate(dtNova)) >= DateValue(hoje) Then Exit Function
+    CriticarProxAcao = "A data da pr" & ChrW$(243) & "xima a" & ChrW$(231) & ChrW$(227) & "o tem de ser hoje ou futura: " & _
+        Format$(CDate(dtNova), "dd/mm/yyyy") & " j" & ChrW$(225) & " passou." & vbCrLf & vbCrLf & _
+        "A pr" & ChrW$(243) & "xima a" & ChrW$(231) & ChrW$(227) & "o vencida que j" & ChrW$(225) & " estava gravada continua valendo; " & _
+        "para reagendar, informe hoje ou uma data futura. Nada foi gravado."
+End Function
+
+
 ' C29 (DEV-11): o contato do atendimento existe, esta ativo e e da empresa
 ' do atendimento. Mesma regra de Test-ContatoDoAtendimento (conector).
 Public Function CriticarContatoDoAtendimento(ByVal existe As Boolean, ByVal ativo As Boolean, _

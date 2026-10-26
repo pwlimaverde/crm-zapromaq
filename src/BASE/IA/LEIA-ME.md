@@ -4,6 +4,15 @@
 depende e o aviso da versão atual. O `testar-mcp` falha se uma ferramenta ou parâmetro citado sumir do catálogo: toda
 nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills afetadas antes da publicação.
 
+## Conector 1.12.0 — pendências finais (ciclo 018)
+
+**Nota de mudança (seção 5.2 e DEV-08, DEV-21) - QUEBRA DE CONTRATO avisada** (publicar junto com as skills revistas):
+
+- **`atualizar_atendimento` e `abrir_atendimento`** (e `duplicar_atendimento`, que grava pelo mesmo caminho):
+  `dt_prox_acao` **nova ou alterada anterior a hoje é recusada** (erro com "C34"). A próxima ação vencida que já
+  estava gravada continua e não trava a gravação de outro campo; para reagendar, informe hoje ou uma data futura.
+  Skills afetadas (matriz): `zapromaq-contexto-cliente` e `crm-zapromaq`.
+
 ## Conector 1.11.0 — duplicar atendimento (ciclo 017)
 
 **Nota de mudança (DEV-28) - aditiva:** ferramenta nova **`duplicar_atendimento`** (43 ferramentas): `codigo` de origem,

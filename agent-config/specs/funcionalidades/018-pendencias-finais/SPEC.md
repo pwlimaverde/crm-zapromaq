@@ -14,7 +14,7 @@ Fechar o que o documento-base de aceite pede e ainda não está no código, sem 
       contato inativo: a ficha abre com a empresa da origem e a escolha do contato já nessa empresa.
       (`Confere` de `modRegras.RotuloBotaoAcao`; `testar-uso` abre a duplicação pela ficha sem gravar)
 - [ ] P2 (5.2) `dt_prox_acao` nova ou alterada anterior a hoje é recusada nos três canais; a vencida já gravada fica.
-      (`Confere`; caso C38 na matriz; `testar-mcp`) - conector 1.12.0, nota de mudança.
+      (`Confere`; caso C34 na matriz; `testar-mcp`) - conector 1.12.0, nota de mudança.
 - [ ] P3 (DEV-21) "Retomada a avaliar" só em Perdido e Descartado, igual no front e no conector. (`Confere`; `testar-mcp`)
 - [ ] P4 (5.2, DEV-10) `retomar_em` desabilitado na ficha fora de Perdido e Descartado (`modRegras.RetomadaHabilitada`).
 - [ ] P5 (DEV-03) Restauração sem `-Backup` usa a última cópia **validada**. (`testar-recuperacao`)

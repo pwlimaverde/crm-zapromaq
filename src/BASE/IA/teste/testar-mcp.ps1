@@ -172,6 +172,14 @@ Write-Host '--- DEV-16: atendimento anterior sem ciclo (mesmo caso C33 do front)
 Conferir 'C33 anterior que fecha ciclo é recusado (A -> B -> A)' (Test-AnteriorFormaCiclo 10 20 @{ 20 = 10; 10 = 0 })
 Conferir 'C33 corrente sem ciclo passa' (-not (Test-AnteriorFormaCiclo 10 20 @{ 20 = 30; 30 = 0 }))
 
+Write-Host '--- seção 5.2: próxima ação só hoje ou futura (mesmo caso C34 do front)'
+Conferir 'C34 próxima ação nova no passado é recusada' ((Test-ProxAcaoPermitida '2026-10-25' $null '2026-10-26') -match 'C34')
+Conferir 'C34 próxima ação alterada para o passado é recusada' ((Test-ProxAcaoPermitida '2026-10-20' '2026-10-25' '2026-10-26') -match 'C34')
+Conferir 'C34 próxima ação hoje passa' ($null -eq (Test-ProxAcaoPermitida '2026-10-26' $null '2026-10-26'))
+Conferir 'C34 próxima ação futura passa' ($null -eq (Test-ProxAcaoPermitida '2026-11-03' '2026-10-01' '2026-10-26'))
+Conferir 'C34 vencida já gravada que não mudou não trava' ($null -eq (Test-ProxAcaoPermitida '2026-10-01' '2026-10-01' '2026-10-26'))
+Conferir 'C34 sem próxima ação passa' ($null -eq (Test-ProxAcaoPermitida $null '2026-10-01' '2026-10-26'))
+
 Write-Host '--- DEV-03: mensagem controlada de escrita durante o backup (pura)'
 Conferir 'backup em curso + erro de consulta atualizável vira a mensagem do backup' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $true) -match 'Cópia de segurança')
 Conferir 'sem backup em curso o erro segue o caminho normal' ((Get-MensagemEscritaRecusada 'A operação deve usar uma consulta atualizável.' $false) -eq '')
@@ -704,6 +712,12 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Conferir 'Pedido Fechado sem motivo é recusado' ($res.isError -and $res.content[0].text -match 'motivo')
         $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; etapa = 'Etapa Inventada' })
         Conferir 'etapa fora da lista é recusada' ($res.isError -and $res.content[0].text -match 'lista')
+        $ontem = (Get-Date).AddDays(-1).ToString('yyyy-MM-dd')
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$g.versao; dt_prox_acao = $ontem; autor = 'teste' })
+        Conferir 'C34 atualizar_atendimento recusa próxima ação no passado' ($res.isError -and $res.content[0].text -match 'C34') $res.content[0].text
+        $res = Chamar 'abrir_atendimento' ([ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'
+                                                       dt_prox_acao = $ontem; autor = 'teste' })
+        Conferir 'C34 abrir_atendimento recusa próxima ação no passado' ($res.isError -and $res.content[0].text -match 'C34') $res.content[0].text
         # retomada (item 4): o anterior tem de ser da mesma empresa do contato (o front também recusa).
         # Recusado, nada é gravado: o teste não deixa atendimento novo no banco.
         $res = Chamar 'abrir_atendimento' ([ordered]@{ codigo_contato = 'CT-0001-0001'; etapa = 'Contato Inicial'; responsavel = 'Vendedor A'
@@ -829,9 +843,17 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
         Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLog28))
 
         Write-Host '--- restauração do banco de teste'
+        # a data original é vencida (C34: o conector não grava próxima ação no passado): volta direto no banco
+        Executa-Visita 'UPDATE oportunidades SET dt_prox_acao=? WHERE codigo=?' @((P 'data' (ConvertTo-DataOuNulo $at.dt_prox_acao)), (P 'texto' 'AT-0001-0001'))
         $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
-        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao; autor = 'teste' })
-        Conferir 'próxima ação do AT-0001-0001 restaurada' (-not $res.isError) $res.content[0].text
+        Conferir 'próxima ação do AT-0001-0001 restaurada' ([string]$atAgora.dt_prox_acao -eq [string]$at.dt_prox_acao) ([string]$atAgora.dt_prox_acao)
+        # C34: a vencida já gravada não trava a gravação de outro campo (mesma data reenviada + outro campo)
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; dt_prox_acao = [string]$at.dt_prox_acao
+                                                           tentativas = [int]$atAgora.tentativas + 1; autor = 'teste' })
+        Conferir 'C34 próxima ação vencida já gravada não trava outro campo' (-not $res.isError) $res.content[0].text
+        $atAgora = Dados (Chamar 'obter_atendimento' ([ordered]@{ codigo = 'AT-0001-0001' }))
+        $res = Chamar 'atualizar_atendimento' ([ordered]@{ codigo = 'AT-0001-0001'; versao = [int]$atAgora.versao; tentativas = [int]$atAgora.tentativas - 1; autor = 'teste' })
+        Conferir 'tentativas do AT-0001-0001 restauradas' (-not $res.isError) $res.content[0].text
         $cliAgora = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
         $res = Chamar 'atualizar_cadastro_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$cliAgora.versao; cidade = [string]$cli.cidade; autor = 'teste' })
         Conferir 'cidade do cliente 2 restaurada' (-not $res.isError) $res.content[0].text
