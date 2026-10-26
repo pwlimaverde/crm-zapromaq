@@ -216,6 +216,25 @@ function Get-UltimoBackupValidado([string]$pasta) {
     return $melhor
 }
 
+# DEV-03 (ciclo 018): a cópia para RESTAURAR quando ninguém escolhe uma - a mais recente (pelo instante do
+# backup) COMPLETA (manifesto com consistencia = exclusiva) que tem <backup>.validado e cujo SHA-256 ainda é o
+# que a validação registrou (cópia trocada depois da validação não vale). Cópia simples (nao-verificada) e cópia
+# sem manifesto nunca entram. Devolve o FileInfo ou $null.
+function Get-BackupValidadoMaisRecente([string]$pasta) {
+    if (-not (Test-Path -LiteralPath $pasta)) { return $null }
+    $lista = @(Get-ChildItem -LiteralPath $pasta -Filter 'crm_*.accdb' -File -ErrorAction SilentlyContinue |
+               Where-Object { (Test-Path -LiteralPath ($_.FullName + '.validado')) -and (Test-Path -LiteralPath ($_.FullName + '.manifesto.json')) })
+    foreach ($f in @($lista | Sort-Object { Get-InstanteDoBackup $_ } -Descending)) {
+        try {
+            $man = Get-Content -LiteralPath ($f.FullName + '.manifesto.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$man.consistencia -ne 'exclusiva') { continue }
+            $j = Get-Content -LiteralPath ($f.FullName + '.validado') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$j.sha256 -and [string]$j.sha256 -eq (Get-HashArquivo $f.FullName)) { return $f }
+        } catch { }
+    }
+    return $null
+}
+
 # ------------------------------------------------------------------ janelas e aviso (seção 5.3, ciclo 007)
 # Janelas: 9h, 12h30 e 16h, de segunda a sexta. Tentativas no horário, +10 e +20 min; a janela ENCERRA 30 min
 # depois do início (20 min de tentativas + 10 de cópia e validação). Uma cópia conta para a janela se o instante

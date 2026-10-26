@@ -4,7 +4,8 @@
   Backup que nunca foi restaurado não é backup. Este script nunca sobrescreve a produção e nunca abre o
   arquivo de backup: copia o backup para execucao\backup\restauracao-teste-*.accdb e abre só essa cópia.
 
-  Escolha do backup (sem -Backup): o mais recente pelo manifesto, ou pelo NOME do arquivo
+  Escolha do backup (sem -Backup, ciclo 018): a última cópia VALIDADA (com .validado e manifesto, hash
+  conferido); cópia simples só com -Backup. "Última" pelo manifesto, ou pelo NOME do arquivo
   (crm_<tipo>_AAAAMMDD-HHMM_<estação>.accdb); o LastWriteTime só entra em último caso, porque
   Copy-Item preserva a data do banco original.
 
@@ -28,11 +29,16 @@ $pastaBkp = Get-PastaExecucao $raiz 'backup'
 $log = New-Log $raiz 'restauracao'
 
 if ([string]::IsNullOrWhiteSpace($Backup)) {
-    $ultimo = Get-BackupMaisRecente $pastaBkp
+    # DEV-03 (ciclo 018): sem -Backup, a última cópia VALIDADA (completa, com manifesto e hash conferido);
+    # a cópia simples mais nova, não verificada, só com -Backup explícito
+    $ultimo = Get-BackupValidadoMaisRecente $pastaBkp
     if ($null -eq $ultimo) {
-        $log.L('Nenhum backup encontrado em ' + $pastaBkp + '. Gere um com FAZER-BACKUP.bat.')
+        $qualquer = Get-BackupMaisRecente $pastaBkp
+        if ($null -eq $qualquer) { $log.L('Nenhum backup encontrado em ' + $pastaBkp + '. Gere um com FAZER-BACKUP.bat.') }
+        else { $log.L('Nenhuma cópia validada em ' + $pastaBkp + '. A mais recente (' + $qualquer.Name + ') não foi validada: para restaurá-la mesmo assim, informe -Backup.') }
         $log.Salvar(); exit 2
     }
+    $log.L('Sem -Backup: a última cópia validada é ' + $ultimo.Name + '.')
     $Backup = $ultimo.FullName
 }
 if (-not (Test-Path -LiteralPath $Backup)) { $log.L('Backup não encontrado: ' + $Backup); $log.Salvar(); exit 2 }

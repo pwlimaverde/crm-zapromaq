@@ -151,6 +151,23 @@ try {
     $manS = if ($simples.Count -eq 1) { Get-Content -LiteralPath ($simples[0].FullName + '.manifesto.json') -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
     Conferir 'cópia simples marcada como não verificada' ($r.codigo -eq 0 -and $null -ne $manS -and $manS.consistencia -eq 'nao-verificada') $r.saida
 
+    Write-Host '--- DEV-03 (ciclo 018): restaurar sem -Backup usa a última cópia VALIDADA, não a mais nova'
+    # aqui há uma cópia completa validada (diário) e uma cópia simples mais nova (periódico, sem .validado)
+    $val5 = Get-BackupValidadoMaisRecente $pastaBkp3
+    Conferir 'a última cópia validada é a completa, não a simples mais nova' ($null -ne $val5 -and $val5.Name -like 'crm_diario_*' -and $simples.Count -eq 1) ([string]$(if ($val5) { $val5.Name } else { 'nenhuma' }))
+    $r = Executar (Join-Path $b3 'SISTEMA\DADOS\operacao\scripts\restaurar-banco.ps1') @()
+    Conferir 'restaurar-banco sem -Backup restaura a cópia validada' ($r.codigo -eq 0 -and $r.saida -match 'crm_diario_' -and $r.saida -notmatch 'Backup\.\.: crm_periodico_') $r.saida
+    # .validado que não confere com o arquivo (cópia trocada depois da validação) não vale
+    $falso = Join-Path $pastaBkp3 ('crm_diario_' + (Get-Date).AddMinutes(30).ToString('yyyyMMdd-HHmm') + '_' + $env:COMPUTERNAME + '.accdb')
+    Copy-Item -LiteralPath $simples[0].FullName -Destination $falso
+    Copy-Item -LiteralPath ($copias3[0].FullName + '.validado') -Destination ($falso + '.validado')
+    Copy-Item -LiteralPath ($copias3[0].FullName + '.manifesto.json') -Destination ($falso + '.manifesto.json')
+    $val5b = Get-BackupValidadoMaisRecente $pastaBkp3
+    Conferir '.validado com hash de outro arquivo não conta como validado' ($null -ne $val5b -and $val5b.Name -eq $copias3[0].Name) ([string]$(if ($val5b) { $val5b.Name } else { 'nenhuma' }))
+    Remove-Item -LiteralPath $falso, ($falso + '.validado'), ($falso + '.manifesto.json') -Force
+    $r = Executar (Join-Path $b3 'SISTEMA\DADOS\operacao\scripts\restaurar-banco.ps1') @('-Backup', $simples[0].FullName)
+    Conferir 'com -Backup a cópia escolhida é restaurada (mesmo sem validação)' ($r.saida -match 'crm_periodico_') $r.saida
+
     Write-Host '--- DEV-03: quatro disparos simultâneos para a mesma janela = uma captura'
     $b4 = NovaBase 'base-janela'
     $pastaBkp4 = Join-Path $b4 'SISTEMA\DADOS\execucao\backup'
