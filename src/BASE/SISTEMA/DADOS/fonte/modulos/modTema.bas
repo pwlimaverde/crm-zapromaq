@@ -153,6 +153,10 @@ Public Function CorSituacao(ByVal situacao As String, ByVal parte As String) As 
         Case "IGNORAR|fundo": CorSituacao = 16118769
         Case "GRAVADO|texto": CorSituacao = 10243615
         Case "GRAVADO|fundo": CorSituacao = 16314088
+        Case "INDETERMINADA|texto": CorSituacao = 23178
+        Case "INDETERMINADA|fundo": CorSituacao = 13167101
+        Case "NAO PROCESSADA|texto": CorSituacao = 10392714
+        Case "NAO PROCESSADA|fundo": CorSituacao = 16118769
         Case Else: If LCase$(parte) = "fundo" Then CorSituacao = COR_AZUL_CLARO Else CorSituacao = COR_AZUL
     End Select
 End Function

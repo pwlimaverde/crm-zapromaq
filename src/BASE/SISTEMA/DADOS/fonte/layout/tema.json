@@ -139,6 +139,14 @@
     "GRAVADO": {
       "texto": "#1F4E9C",
       "fundo": "#E8EEF8"
+    },
+    "INDETERMINADA": {
+      "texto": "#8A5A00",
+      "fundo": "#FDE9C8"
+    },
+    "NAO PROCESSADA": {
+      "texto": "#8A949E",
+      "fundo": "#F1F3F5"
     }
   },
   "moldura": {

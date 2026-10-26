@@ -307,6 +307,23 @@ Private Sub Marcar(ByRef d As Object, ByVal status As String, ByVal motivo As St
     End If
 End Sub
 
+'----------------------------------------------------------
+' DEV-12 (ciclo 018): estado da linha cuja gravacao falhou, pelo estado
+' da gravacao em modDB - "indeterminada" (falha no commit) vira
+' INDETERMINADA; o resto, ERRO (nada foi gravado).
+'----------------------------------------------------------
+Public Function EstadoFalhaLinha(ByVal estadoGravacao As String) As String
+    If estadoGravacao = "indeterminada" Then EstadoFalhaLinha = "INDETERMINADA" Else EstadoFalhaLinha = "ERRO"
+End Function
+
+' A falha interrompe o lote (as linhas seguintes ficam NAO PROCESSADA)? Sim
+' quando o commit ficou indeterminado e quando a escrita foi recusada antes
+' de comecar (manutencao, esquema, versao minima: valeria para todas).
+Public Function FalhaInterrompeLote(ByVal estadoGravacao As String, ByVal numeroErro As Long) As Boolean
+    If estadoGravacao = "indeterminada" Then FalhaInterrompeLote = True: Exit Function
+    FalhaInterrompeLote = (numeroErro = modDB.ERRO_ESCRITA_RECUSADA And estadoGravacao = "nao_enviada")
+End Function
+
 Private Function Peso(ByVal status As String) As Long
     Select Case status
         Case "OK": Peso = 0
@@ -497,7 +514,8 @@ End Function
 ' vai usar depois.
 '==========================================================
 Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolean
-    Dim i As Long, d As Object, novo As Long, cod As Long
+    Dim i As Long, d As Object, novo As Long, cod As Long, j As Long
+    Dim estado As String, nErr As Long, sErr As String, parouEm As String
 
     gravados = 0
     falhas = ""
@@ -522,24 +540,44 @@ Public Function Gravar(ByRef gravados As Long, ByRef falhas As String) As Boolea
             ' mesma linha devolve a empresa já cadastrada em vez de duplicar
             modCRM.gIdOperacao = Left$("LOTE|" & Valor(i, "cnpj") & "|" & NomeNormalizado(Valor(i, "empresa")) & "|" & Valor(i, "cidade"), 120)
             modCRM.gHashOperacao = modDB.HashTexto(modDB.TextoDoDicionario(d))
+            modDB.NovaGravacao
+            novo = 0
             On Error Resume Next
             Err.Clear
             ' identificador do lote e da linha no log: o reprocessamento da mesma colagem é rastreável
             novo = modCRM.CriarCliente(d, False, cod, "lote " & mLote & " linha " & Valor(i, "linha"))
-            If Err.Number <> 0 Then
-                falhas = falhas & "linha " & Valor(i, "linha") & ": " & Err.Description & vbCrLf
-                mLinhas(i)("status") = "ERRO"
-                mLinhas(i)("motivo") = Err.Description
-                Err.Clear
+            nErr = Err.Number: sErr = Err.Description
+            Err.Clear
+            On Error GoTo 0
+            If nErr <> 0 Then
+                ' DEV-12 (ciclo 018): falha no commit = INDETERMINADA (pode ter gravado; gravar a
+                ' mesma colagem de novo reconhece a empresa pelo identificador da linha)
+                estado = modDB.EstadoGravacao()
+                mLinhas(i)("status") = EstadoFalhaLinha(estado)
+                mLinhas(i)("motivo") = sErr
+                falhas = falhas & "linha " & Valor(i, "linha") & " (" & mLinhas(i)("status") & "): " & sErr & vbCrLf
+                If FalhaInterrompeLote(estado, nErr) Then
+                    parouEm = Valor(i, "linha")
+                    Exit For
+                End If
             ElseIf novo > 0 Then
                 gravados = gravados + 1
                 mLinhas(i)("status") = "GRAVADO"
                 mLinhas(i)("motivo") = "id " & novo
             End If
-            On Error GoTo 0
         End If
 proximaLinha:
     Next i
+    ' as linhas que o lote nao alcancou depois da interrupcao: NAO PROCESSADA
+    If parouEm <> "" Then
+        For j = i + 1 To mLinhas.Count
+            If Entra(j) Then
+                mLinhas(j)("status") = "NAO PROCESSADA"
+                mLinhas(j)("motivo") = "o lote parou na linha " & parouEm & ": analise e grave de novo"
+            End If
+        Next j
+        falhas = falhas & "O lote parou na linha " & parouEm & "; as linhas seguintes ficaram NAO PROCESSADA." & vbCrLf
+    End If
     modCRM.gIdOperacao = "": modCRM.gHashOperacao = ""
     Application.Cursor = -4143                    ' xlDefault
 
