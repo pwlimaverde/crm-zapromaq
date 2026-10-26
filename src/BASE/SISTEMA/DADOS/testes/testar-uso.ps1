@@ -751,6 +751,13 @@ Public Sub Tique(ByVal h As LongPtr, ByVal m As Long, ByVal id As LongPtr, ByVal
         mOcupado = False
         Exit Sub
     End If
+    ' uma escolha de vinculo aberta sozinha travaria o teste: registra e fecha
+    For Each f In VBA.UserForms
+        If TypeName(f) = "frmVinculo" Then
+            If f.Visible Then mRes = mRes & "|vinculo=aberto": f.Hide
+        End If
+    Next f
+    Set f = Nothing
     Set c = Visiveis()
     If mEtapa = 0 And c.Count = 1 Then
         Set f = c(1)
@@ -786,7 +793,7 @@ End Sub
         $rdp2 = [string]$xl.Run("'" + $n + "'!modTesteDuplicar.Rodar", $idO28)
         Write-Host ('  duplicar pela ficha (contato inativo): ' + $rdp2)
         $mdp28b = @{}; foreach ($par in $rdp2.Split('|')) { $kv = $par.Split('=', 2); if ($kv.Count -eq 2) { $mdp28b[$kv[0]] = $kv[1] } }
-        Conferir 'DEV-28 Duplicar na ficha com contato inativo: empresa da origem preenchida, contato vazio' ($mdp28b['empresa'] -eq $emp28 -and $mdp28b['contato'] -eq '' -and $mdp28b['etapa'] -eq $etIni28) $rdp2
+        Conferir 'DEV-28 Duplicar na ficha com contato inativo: empresa da origem preenchida, contato vazio' ($mdp28b['empresa'] -eq $emp28 -and $mdp28b['contato'] -eq '' -and $mdp28b['etapa'] -eq $etIni28 -and $rdp2 -notmatch 'vinculo=|caixa=') $rdp2
     } finally { [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=True WHERE id=' + $cto28) }
     Conferir 'DEV-28 Duplicar na ficha (contato inativo) não grava' ([int](Valor 'SELECT COUNT(*) FROM oportunidades' 0) -eq $n28c) ''
 
