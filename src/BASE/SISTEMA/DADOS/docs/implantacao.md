@@ -42,6 +42,24 @@ teste na rede**.
 ## 5. Ambiente 🖥
 
 1. `SISTEMA\DADOS\testes\CHECAR-AMBIENTE.bat`: Excel 2019 64 bits, ACE, acesso ao VBA.
+2. Em **cada estação** (DEV-02), rodar o mesmo `CHECAR-AMBIENTE.bat` e guardar o relatório
+   (`execucao\logs\ambiente-*.txt`, um por estação). Desde o ciclo 018 ele confere também: conector no
+   Claude Desktop e no Codex, versão do front instalada x publicada, a pasta `%LOCALAPPDATA%\CRM Zapromaq`
+   (e se está sincronizada ou redirecionada para a rede) e a **escrita na pasta do banco** (o ACE cria o
+   `.laccdb` ali; sem escrita, a estação não grava). O que depender do servidor vai para a TI como pedido.
+3. Preencher a matriz de estações abaixo com o resultado. Publicação que exige pré-requisito novo lista
+   antes as estações afetadas.
+
+### Matriz de estações compatíveis
+
+| Estação | Papel | Excel 2019 64 bits | ACE 64 bits | Escrita na pasta do banco | `%LOCALAPPDATA%` local | Front instalado | Claude Desktop / Codex | Acesso ao modelo VBA | Relatório (data) |
+|---|---|---|---|---|---|---|---|---|---|
+| (estação do build) | build, publicação | obrigatório | obrigatório | obrigatória | sim | — | opcional | **sim** (só aqui) | |
+| (estação comercial) | uso do CRM | obrigatório | obrigatório | obrigatória | obrigatório | versão publicada | conforme o uso de IA | **não** | |
+
+Regras da matriz: acesso ao modelo de objeto do VBA só onde há build ou teste; fontes e publicação só para
+quem mantém o sistema; backups com leitura restrita (pedido para a TI). Sem nome real de estação no
+repositório: a matriz preenchida fica na pasta da rede, junto com os relatórios (`execucao\logs`).
 
 ## 6. Backup restaurável 🖥
 

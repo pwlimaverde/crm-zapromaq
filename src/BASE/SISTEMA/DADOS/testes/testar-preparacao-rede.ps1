@@ -333,6 +333,11 @@ try {
     if ($relAmb.Count -eq 1) {
         $tx = Get-Content -LiteralPath $relAmb[0].FullName -Raw -Encoding UTF8
         Conferir 'relatório confere conector, pasta IA e OneDrive' ($tx -match 'Conector MCP' -and $tx -match 'Pasta IA' -and $tx -match 'OneDrive') $tx
+        # DEV-02 (ciclo 018): front instalado, pasta local e sincronização, Codex e escrita na pasta do banco
+        Conferir 'relatório traz a versão do front instalada x publicada' ($tx -match 'Versão do front instalada\s+instalada: .+publicada: ') $tx
+        Conferir 'relatório traz a pasta %LOCALAPPDATA%\CRM Zapromaq e se é sincronizada' ($tx -match 'Cópia local do front \(pasta\)' -and $tx -match 'Cópia local fora de sincronização') $tx
+        Conferir 'relatório traz o conector no Codex' ($tx -match 'Conector MCP no Codex') $tx
+        Conferir 'relatório confere a escrita na pasta do banco (o teste não deixa arquivo)' ($tx -match 'OK\s+Escrita na pasta do banco \(\.laccdb\)' -and @(Get-ChildItem -LiteralPath $b6 -Filter '.teste-escrita-banco-*' -Force -ErrorAction SilentlyContinue).Count -eq 0) $tx
     }
 
     Write-Host '--- 006: trava de backup com dono e sessão'
