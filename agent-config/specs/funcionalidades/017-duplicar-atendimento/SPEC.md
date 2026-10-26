@@ -38,7 +38,7 @@ As decisões 15 a 19 do plano revisado. Novas:
 |---|---|---|---|
 | 017-1 | O contato é copiado só se estiver ativo; senão a ficha pede o contato (fluxo normal). | DEV-11. | — |
 | 017-2 | Etapa inicial = primeira etapa ativa que não encerra, pela `ordem` da lista. | Nenhum nome de etapa no código (spec 003). | Etapa inicial configurável. |
-| 017-3 | No front, a entrada é o menu da linha da grade (sem botão novo na ficha). | O layout da ficha está no limite de 1366×768. | Botão na ficha, se houver espaço. |
+| 017-3 | ~~No front, a entrada é o menu da linha da grade (sem botão novo na ficha).~~ Revista no ciclo 018 (decisão 018-1): a ficha de oportunidades ganha o botão "Duplicar" no lugar do "Atend." desabilitado (mesmo espaço), com a mesma rotina do menu da linha (`modGrade.AbrirDuplicacao`). | O botão de ação já existia na ficha, sem uso em oportunidades. | — |
 
 ## Limites
 

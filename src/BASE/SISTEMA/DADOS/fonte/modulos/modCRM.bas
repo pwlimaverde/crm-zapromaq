@@ -422,14 +422,17 @@ End Function
 ' CAMPOS_DUPLICAR que a origem tem, o contato (so se ativo), a etapa
 ' inicial, dt_entrada = hoje e o anterior = origem. Valor, orcamento,
 ' proposta, agenda, desfecho, retomada e tentativas nascem vazios.
-' Nothing = origem nao encontrada.
+' Sem o contato (inativo), vem a empresa da origem (id_cliente e o
+' nome em "empresa"): a ficha mostra a empresa e o contato se escolhe
+' nela (ciclo 018). Nothing = origem nao encontrada.
 '----------------------------------------------------------
 Public Function DadosParaDuplicar(ByVal idOrigem As Long) As Object
     Dim d As Object, r As Variant, nomes As Variant, j As Long, n As Long
     nomes = Split(CAMPOS_DUPLICAR, ",")
     n = UBound(nomes) + 1
-    r = modDB.Consultar("SELECT o." & Join(nomes, ", o.") & ", o.id_contato, ct.ativo FROM oportunidades o " & _
-                        "LEFT JOIN contatos ct ON o.id_contato = ct.id WHERE o.id=?", Array(modDB.P(modDB.adInteger, idOrigem)))
+    r = modDB.Consultar("SELECT o." & Join(nomes, ", o.") & ", o.id_contato, ct.ativo, o.id_cliente, cl.empresa " & _
+                        "FROM (oportunidades o LEFT JOIN contatos ct ON o.id_contato = ct.id) " & _
+                        "LEFT JOIN clientes cl ON o.id_cliente = cl.id WHERE o.id=?", Array(modDB.P(modDB.adInteger, idOrigem)))
     If IsEmpty(r) Then Exit Function
     Set d = CreateObject("Scripting.Dictionary")
     For j = 0 To n - 1
@@ -437,6 +440,10 @@ Public Function DadosParaDuplicar(ByVal idOrigem As Long) As Object
     Next j
     If Not IsNull(r(1, n + 2)) Then
         If CBool(r(1, n + 2)) Then d("id_contato") = CLng(r(1, n + 1))
+    End If
+    If Not d.Exists("id_contato") And Not IsNull(r(1, n + 3)) Then
+        d("id_cliente") = CLng(r(1, n + 3))
+        d("empresa") = modDB.Nz(r(1, n + 4))
     End If
     d("etapa") = EtapaInicial()
     d("dt_entrada") = Date

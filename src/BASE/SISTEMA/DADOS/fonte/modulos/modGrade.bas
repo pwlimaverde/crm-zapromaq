@@ -127,29 +127,44 @@ End Sub
 '----------------------------------------------------------
 ' DEV-28 (ciclo 017): menu da linha de Atendimentos - abre a ficha
 ' em atendimento NOVO preenchido pela duplicacao da linha (contato
-' copiado se ativo; senao a ficha pede o contato). Nada grava ate o
-' Salvar; com gravacao, a grade e remontada.
+' copiado se ativo; senao a ficha mostra a empresa e pede o contato).
+' Nada grava ate o Salvar; com gravacao, a grade e remontada.
 '----------------------------------------------------------
 Public Sub GradeDuplicarAtendimento()
-    Dim ws As Worksheet, id As Long, f As frmCRM, d As Object, idCto As Long
+    Dim ws As Worksheet, id As Long
     Set ws = ActiveSheet
     If TabelaDaAba(ws) <> "oportunidades" Then Exit Sub
     id = IDdaLinha(ws, ActiveCell)
     If id = 0 Then Exit Sub
-    If Not modMenu.Pronto() Then Exit Sub
-    Set d = modCRM.DadosParaDuplicar(id)
-    If d Is Nothing Then Exit Sub
+    modConfig.gGravados = ""
+    If AbrirDuplicacao(id) Then Montar ws
+End Sub
+
+'----------------------------------------------------------
+' DEV-28: a duplicacao, igual no menu da grade e no botao Duplicar
+' da ficha (ciclo 018). Abre a ficha nova (modal) e devolve True se
+' ela gravou algo. Os ids que ja estavam em gGravados (ficha de
+' origem aberta pela grade) continuam la, somados aos novos.
+'----------------------------------------------------------
+Public Function AbrirDuplicacao(ByVal idOrigem As Long) As Boolean
+    Dim f As frmCRM, d As Object, idCto As Long, antes As String
+    If idOrigem = 0 Then Exit Function
+    If Not modMenu.Pronto() Then Exit Function
+    Set d = modCRM.DadosParaDuplicar(idOrigem)
+    If d Is Nothing Then Exit Function
     If d.Exists("id_contato") Then idCto = CLng(d("id_contato"))
+    antes = modConfig.gGravados
     modConfig.gGravados = ""
     Set f = New frmCRM
-    f.PrepararDuplicacao id
+    f.PrepararDuplicacao idOrigem
     If idCto > 0 Then
         f.Abrir "oportunidades", idCto
     Else
         f.Abrir "oportunidades", 0, 0, , True
     End If
-    If modConfig.gGravados <> "" Then Montar ws
-End Sub
+    AbrirDuplicacao = (modConfig.gGravados <> "")
+    modConfig.gGravados = antes & modConfig.gGravados
+End Function
 
 Public Sub GradeVoltar()
     ThisWorkbook.Worksheets("Inicio").Activate

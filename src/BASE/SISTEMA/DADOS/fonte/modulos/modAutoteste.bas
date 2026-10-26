@@ -400,6 +400,13 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "TabelaDaAba", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Clientes")), "clientes"
     Confere "TabelaDaAba fora", modGrade.TabelaDaAba(ThisWorkbook.Worksheets("Inicio")), ""
     Confere "RotuloStatus", modAcoes.RotuloStatus("contatos", 0, True), "Desativar"
+    ' DEV-28 (ciclo 018): o botao de acao da ficha; em oportunidades e o Duplicar
+    Confere "botao acao oportunidades", modRegras.RotuloBotaoAcao("oportunidades", True, False), "Duplicar"
+    Confere "botao acao oportunidades sem registro", modRegras.RotuloBotaoAcao("oportunidades", False, False), "Duplicar"
+    Confere "botao acao contatos", modRegras.RotuloBotaoAcao("contatos", True, False), "+ Atend."
+    Confere "botao acao pre-cliente", modRegras.RotuloBotaoAcao("clientes", True, True), "Promover"
+    Confere "botao acao cliente sem registro", modRegras.RotuloBotaoAcao("clientes", False, False), "Promover"
+    Confere "botao acao cliente", modRegras.RotuloBotaoAcao("clientes", True, False), "+ Contato"
     ' item 5 (06/10/2026): SUSPEITO comeca fora; OK e SUSPEITO alternam
     Confere "lote: SUSPEITO comeca ignorado", modLote.ComecaIgnorada("SUSPEITO"), True
     Confere "lote: OK comeca entrando", modLote.ComecaIgnorada("OK"), False

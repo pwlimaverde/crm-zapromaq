@@ -45,5 +45,6 @@
   "painel": ["E9D9", "Diagnostic"],
   "pino": ["E718", "Pin"],
   "abrir": ["E8A7", "OpenInNewWindow"],
+  "copiar": ["E8C8", "Copy"],
   "ponto": ["EA3B", "CircleFill"]
 }
