@@ -52,6 +52,13 @@ Public Function CriticarRetomada(ByVal encerraNova As Boolean, ByVal perdaNova A
 End Function
 
 
+' Secao 5.2 e DEV-10 (ciclo 018): o campo retomar_em da ficha so fica
+' habilitado em Perdido e Descartado (etapa que encerra com resultado PERDA).
+Public Function RetomadaHabilitada(ByVal encerra As Boolean, ByVal perda As Boolean) As Boolean
+    RetomadaHabilitada = (encerra And perda)
+End Function
+
+
 ' C34 (secao 5.2, ciclo 018): a proxima acao nova ou alterada e hoje ou
 ' futura; a vencida ja gravada continua (cobranca) e nao trava a gravacao
 ' de outro campo. Mesma regra de Test-ProxAcaoPermitida (conector).
