@@ -5,7 +5,7 @@
 - [x] P3 retomada a avaliar igual nos dois canais (feature/retomada-avaliar)
 - [x] P4 retomar_em desabilitado fora de Perdido/Descartado (feature/retomada-habilitada)
 - [x] P5 restauração pela última cópia validada (feature/restaurar-validada)
-- [ ] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
+- [x] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
 - [ ] P7 skill cobre o catálogo inteiro (feature/skill-catalogo)
 - [ ] P8 checar-ambiente completo (feature/checar-ambiente)
 - [ ] P9 estados por linha do lote (feature/lote-estados)

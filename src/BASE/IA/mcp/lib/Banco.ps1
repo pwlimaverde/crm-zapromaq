@@ -186,11 +186,13 @@ function Invoke-TransacaoUmaVez([scriptblock]$bloco) {
         # transação (candidatos, roteiro) continua liberada durante a manutenção.
         $ctx | Add-Member -MemberType ScriptMethod -Name ConferirEscrita -Value {
             if ($this.Conferida) { return }
-            $c = New-Comando $this.Cn "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao')" @() $this.Tx
+            $c = New-Comando $this.Cn "SELECT chave, valor FROM config WHERE chave IN ('versao_esquema','manutencao','versao_minima_conector')" @() $this.Tx
             try { $linhas = Read-Linhas $c } finally { $c.Dispose() }
-            $esq = ''; $man = ''
-            foreach ($l in $linhas) { if ($l.chave -eq 'versao_esquema') { $esq = [string]$l.valor } else { $man = [string]$l.valor } }
-            $motivo = Get-MotivoRecusaEscrita $esq $man
+            $esq = ''; $man = ''; $min = ''
+            foreach ($l in $linhas) {
+                switch ([string]$l.chave) { 'versao_esquema' { $esq = [string]$l.valor } 'manutencao' { $man = [string]$l.valor } 'versao_minima_conector' { $min = [string]$l.valor } }
+            }
+            $motivo = Get-MotivoRecusaEscrita $esq $man $min
             if ($motivo) { throw $motivo }
             $this.Conferida = $true
         }
@@ -320,7 +322,9 @@ function Get-MensagemEscritaRecusada([string]$erro, [bool]$backupEmCurso) {
 
 # DEV-08: motivo para recusar uma escrita (vazio = pode gravar). Mesma regra de modDB.MotivoRecusaEscrita (front).
 # config.manutencao = 'estação|usuário|PID|início|motivo', ligada pela montagem/migrações enquanto mexem no banco.
-function Get-MotivoRecusaEscrita([string]$esquema, [string]$manutencao) {
+# Ciclo 018 (DEV-08): $versaoMinima = config.versao_minima_conector (gravada pela montagem); conector mais velho
+# que ela não grava. $versaoCliente vazio = a deste conector ($script:VersaoServidor).
+function Get-MotivoRecusaEscrita([string]$esquema, [string]$manutencao, [string]$versaoMinima = '', [string]$versaoCliente = '') {
     if (-not [string]::IsNullOrWhiteSpace($manutencao)) {
         $p = $manutencao.Split('|')
         $quem = if ($p.Count -ge 5) { ' (' + $p[4] + ', por ' + $p[0] + '\' + $p[1] + ' desde ' + $p[3] + ')' } else { '' }
@@ -329,6 +333,14 @@ function Get-MotivoRecusaEscrita([string]$esquema, [string]$manutencao) {
     if ($script:EsquemasSuportados -notcontains $esquema) {
         return ("Gravação bloqueada: o banco está no esquema '" + $esquema + "' e este conector conhece " +
                 ($script:EsquemasSuportados -join ', ') + '. Nada foi gravado. Atualize a pasta IA junto com o sistema.')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($versaoMinima)) {
+        if (-not $versaoCliente) { $versaoCliente = [string]$script:VersaoServidor }
+        $vm = $null; $vc = $null
+        if ([version]::TryParse($versaoMinima.Trim(), [ref]$vm) -and [version]::TryParse($versaoCliente, [ref]$vc) -and $vc -lt $vm) {
+            return ('Gravação bloqueada: este conector é a versão ' + $versaoCliente + ' e o banco exige a ' + $versaoMinima.Trim() +
+                    ' ou mais nova. Nada foi gravado. Atualize o conector (pasta IA publicada) e reinicie o Claude Desktop.')
+        }
     }
     return ''
 }

@@ -61,6 +61,11 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "DEV-08 manutencao cita o dono", (InStr(modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "EST-X|ana|12|2026-10-19 10:00|montagem"), "EST-X\ana") > 0), True
     Confere "DEV-08 manutencao em branco nao recusa", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "   "), ""
     Confere "DEV-08 esquema diferente recusa", (modDB.MotivoRecusaEscrita("1.0", "") <> ""), True
+    ' ciclo 018: versao minima do cliente (config.versao_minima_front) no ponto de escrita
+    Confere "DEV-08 copia abaixo da minima recusa", (InStr(modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "", "1.6", "1.5"), "exige a 1.6") > 0), True
+    Confere "DEV-08 copia na minima grava", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "", "1.6", "1.6"), ""
+    Confere "DEV-08 1.10 passa da minima 1.9", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "", "1.9", "1.10"), ""
+    Confere "DEV-08 sem minima grava", modDB.MotivoRecusaEscrita(modConfig.VERSAO_ESQUEMA, "", "", "1.0"), ""
     ' ---- DEV-03: mensagem controlada durante a copia exclusiva do backup
     Confere "DEV-03 backup em curso + consulta atualizavel", (InStr(modDB.MensagemEscritaRecusada("A opera" & ChrW$(231) & ChrW$(227) & "o deve usar uma consulta atualiz" & ChrW$(225) & "vel.", True), "backup") > 0), True
     Confere "DEV-03 sem backup segue o erro normal", modDB.MensagemEscritaRecusada("A operacao deve usar uma consulta atualizavel.", False), ""

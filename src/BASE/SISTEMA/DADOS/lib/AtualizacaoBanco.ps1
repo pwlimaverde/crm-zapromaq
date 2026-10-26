@@ -294,9 +294,25 @@ function Invoke-EnsaioDoBanco([string]$producao, [string]$pastaEnsaio, [int]$tot
 # config.versao_front é gravada NA CÓPIA, antes da troca (passo 11). Antes ela era gravada na produção
 # depois da troca, o que mudava o hash e impedia a reversão (Reverter-Troca exige o hash da troca).
 function Set-VersaoFrontNaCopia([string]$copia, [string]$versao) {
+    # DEV-08 (ciclo 018): as versões mínimas do cliente vão junto (banco\versoes-minimas.json)
+    $min = Get-VersoesMinimas
     $cn = Open-Banco $copia
     # a troca do arquivo do banco também renova a geração da base (config.geracao_base, spec 006)
-    try { Set-ConfigBanco $cn 'versao_front' $versao $null; [void](Set-GeracaoBase $cn) } finally { $cn.Close(); $cn.Dispose() }
+    try {
+        Set-ConfigBanco $cn 'versao_front' $versao $null
+        Set-ConfigBanco $cn 'versao_minima_front' $min.front $null
+        Set-ConfigBanco $cn 'versao_minima_conector' $min.conector $null
+        [void](Set-GeracaoBase $cn)
+    } finally { $cn.Close(); $cn.Dispose() }
+}
+
+# DEV-08 (ciclo 018): versões mínimas do front (X.Y) e do conector (X.Y.Z) que podem gravar.
+function Get-VersoesMinimas([string]$arquivo = '') {
+    if (-not $arquivo) { $arquivo = Join-Path (Split-Path -Parent $PSScriptRoot) 'banco\versoes-minimas.json' }
+    $j = [System.IO.File]::ReadAllText($arquivo, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    if ([string]$j.front -notmatch '^\d+\.\d+$') { throw ('versoes-minimas.json: front fora do formato X.Y: ' + [string]$j.front) }
+    if ([string]$j.conector -notmatch '^\d+\.\d+\.\d+$') { throw ('versoes-minimas.json: conector fora do formato X.Y.Z: ' + [string]$j.conector) }
+    return [pscustomobject]@{ front = [string]$j.front; conector = [string]$j.conector }
 }
 
 # Passo 11: troca o banco de produção pela cópia, só com a trava livre e o hash igual ao H0 (C19, C20).
