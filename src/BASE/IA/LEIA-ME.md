@@ -12,6 +12,10 @@ nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills 
   `dt_prox_acao` **nova ou alterada anterior a hoje é recusada** (erro com "C34"). A próxima ação vencida que já
   estava gravada continua e não trava a gravação de outro campo; para reagendar, informe hoje ou uma data futura.
   Skills afetadas (matriz): `zapromaq-contexto-cliente` e `crm-zapromaq`.
+- **Situação calculada (DEV-21)**: "Retomada a avaliar" passa a valer só para Perdido e Descartado (resultado
+  PERDA), igual ao front e à seção `retomadas_a_avaliar`; Pedido Fechado com `retomar_em` legado fica "Encerrado".
+  Afeta `buscar_atendimentos` (filtro `situacao`) e as listagens que trazem `situacao`. Skills afetadas:
+  `zapromaq-semanal-planejamento-atendimentos`, `crm-zapromaq-atendimentos-do-dia` e `crm-zapromaq`.
 
 ## Conector 1.11.0 — duplicar atendimento (ciclo 017)
 

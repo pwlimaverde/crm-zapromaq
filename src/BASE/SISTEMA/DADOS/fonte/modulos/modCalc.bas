@@ -16,22 +16,26 @@ Public Function Situacao(ByVal temContato As Boolean, ByVal etapa As String, _
                          ByVal dtProxAcao As Variant, ByVal retomarEm As Variant) As String
     If Not temContato Then Exit Function
     If etapa = "" Then Situacao = "Sem etapa definida": Exit Function
-    Situacao = SituacaoDaEtapa(modCRM.EtapaEncerra(etapa), dtProxAcao, retomarEm)
+    Situacao = SituacaoDaEtapa(modCRM.EtapaEncerra(etapa), dtProxAcao, retomarEm, _
+                               (modCRM.EtapaResultado(etapa) = "PERDA"))
 End Function
 
 '----------------------------------------------------------
-' Regra de prazo sem consultar a lista: quem chama diz se a etapa encerra.
+' Regra de prazo sem consultar a lista: quem chama diz se a etapa encerra
+' e se o resultado dela e PERDA (Perdido, Descartado).
 ' O autoteste usa esta funcao (ele nao acessa o banco).
 '----------------------------------------------------------
 Public Function SituacaoDaEtapa(ByVal encerrada As Boolean, ByVal dtProxAcao As Variant, _
-                               ByVal retomarEm As Variant) As String
+                               ByVal retomarEm As Variant, Optional ByVal perda As Boolean = False) As String
     Dim fimSemana As Date
 
     ' DEV-21 (ciclo 012): a agenda do aberto e so a proxima acao (retomar_em nao conta). Perdido ou
-    ' Descartado cuja retomada chegou vai para avaliacao, sem reabrir o atendimento.
+    ' Descartado cuja retomada chegou vai para avaliacao, sem reabrir o atendimento. Ciclo 018: so
+    ' Perdido e Descartado (resultado PERDA), igual ao conector; Pedido Fechado com retomada legada
+    ' continua Encerrado.
     If encerrada Then
         SituacaoDaEtapa = "Encerrado"
-        If Not IsNull(retomarEm) Then
+        If perda And Not IsNull(retomarEm) Then
             If IsDate(retomarEm) Then
                 If CDate(retomarEm) <= Date Then SituacaoDaEtapa = "Retomada a avaliar"
             End If

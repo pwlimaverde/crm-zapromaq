@@ -37,6 +37,10 @@ Fechar o que o documento-base de aceite pede e ainda não está no código, sem 
 | 018-1 | O botão de ação da ficha de oportunidades vira "Duplicar" (o "Atend." desabilitado não tinha uso). | Mesmo espaço no layout; substitui a decisão 017-3. | — |
 | 018-2 | Contato inativo na duplicação: a ficha mostra a empresa da origem e o botão do contato lista só os contatos dessa empresa. | O atendimento duplicado é da mesma empresa. | — |
 
+| 018-3 | `dt_prox_acao` no passado: recusada só quando nova ou alterada; encerrar em Perdido/Descartado limpa a data e não é conferido (C34). | 5.2: "datas já vencidas permanecem para cobrança". | — |
+| 018-4 | "Retomada a avaliar" só em Perdido e Descartado (resultado PERDA) nos dois canais; Pedido Fechado com `retomar_em` legado fica "Encerrado". | 5.2: retomada só existe em Perdido/Descartado; a seção do conector já filtrava PERDA. | — |
+| 018-5 | O conector 1.12.0 acumula todas as mudanças de contrato do ciclo (uma nota de mudança só), porque nada foi publicado entre elas. | Publicação única da 1.6. | Publicar no meio do ciclo exigiria versões separadas. |
+
 (As demais decisões de cada item ficam na seção do item, abaixo, à medida que forem tomadas.)
 
 ## Stacks tocadas

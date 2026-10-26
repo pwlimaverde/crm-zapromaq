@@ -2,7 +2,7 @@
 
 - [x] P1 botão Duplicar na ficha (feature/botao-duplicar)
 - [x] P2 próxima ação só hoje ou futuro (feature/prox-acao-futura)
-- [ ] P3 retomada a avaliar igual nos dois canais (feature/retomada-avaliar)
+- [x] P3 retomada a avaliar igual nos dois canais (feature/retomada-avaliar)
 - [ ] P4 retomar_em desabilitado fora de Perdido/Descartado (feature/retomada-habilitada)
 - [ ] P5 restauração pela última cópia validada (feature/restaurar-validada)
 - [ ] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
