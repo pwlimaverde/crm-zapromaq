@@ -432,6 +432,12 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "lote: OK alterna", modLote.PodeAlternar("OK"), True
     Confere "lote: SUSPEITO alterna", modLote.PodeAlternar("SUSPEITO"), True
     Confere "lote: DUPLICADO nao alterna", modLote.PodeAlternar("DUPLICADO"), False
+    ' DEV-12 (ciclo 018): estados por linha quando a gravacao falha
+    Confere "lote: falha no commit fica INDETERMINADA", modLote.EstadoFalhaLinha("indeterminada"), "INDETERMINADA"
+    Confere "lote: falha antes do commit fica ERRO", modLote.EstadoFalhaLinha("desfeita"), "ERRO"
+    Confere "lote: commit indeterminado interrompe o lote", modLote.FalhaInterrompeLote("indeterminada", 5), True
+    Confere "lote: escrita recusada antes de comecar interrompe", modLote.FalhaInterrompeLote("nao_enviada", modDB.ERRO_ESCRITA_RECUSADA), True
+    Confere "lote: erro de regra da linha nao interrompe", modLote.FalhaInterrompeLote("desfeita", modDB.ERRO_ESCRITA_RECUSADA), False
     Confere "lote: ERRO nao alterna", modLote.PodeAlternar("ERRO"), False
     Confere "lote: rotulo SUSPEITO incluido", modLote.RotuloLinha("SUSPEITO", False), "SUSPEITO - ENTRA"
     Confere "lote: rotulo SUSPEITO fora", modLote.RotuloLinha("SUSPEITO", True), "SUSPEITO - FORA"

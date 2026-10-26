@@ -471,6 +471,12 @@ Public Function AtualizarLote() As String
     modLote.AtualizarDuplicados a, f
     AtualizarLote = a & "|" & f
 End Function
+' ciclo 018 (DEV-12): o botao "Cadastrar" do lote
+Public Function GravarLote() As String
+    Dim g As Long, f As String
+    modLote.Gravar g, f
+    GravarLote = g & "|" & f
+End Function
 ' DEV-28: a copia da duplicacao como texto "campo=valor" (datas AAAA-MM-DD), em ordem alfabetica
 Public Function DuplicarTexto(ByVal id As Long) As String
     Dim d As Object, k As Variant, s As String, v As Variant, ch() As String, i As Long, j As Long, t As String
@@ -679,6 +685,28 @@ End Sub
     } finally {
         [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM clientes WHERE cnpj IN ('" + $cnA + "','" + $cnI + "')")
         [void]$xl.Run($tf + 'modDB.Executar', 'DELETE FROM log_alteracoes WHERE id > ' + $maxLog26)
+    }
+
+    # ciclo 018 (DEV-12): lote interrompido - com a manutenção ligada a primeira linha é recusada (ERRO, nada
+    # gravado) e as seguintes ficam NAO PROCESSADA; nada é cadastrado
+    $nParado0 = [int](Valor "SELECT COUNT(*) FROM clientes WHERE empresa LIKE 'LOTE PARADO%'" 0)
+    [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM config WHERE chave='manutencao'")
+    [void]$xl.Run($tf + 'modDB.Executar', "INSERT INTO config (chave, valor) VALUES ('manutencao', 'EST-TESTE|teste|1|2026-10-26 10:00|teste do lote')")
+    try {
+        $tb9 = "`t"
+        $lote9 = @(('2' + $tb9 + '2' + $tb9 + $tb9 + 'LOTE PARADO UM' + $tb9 + 'CURITIBA' + $tb9 + 'PR' + $tb9 + $tb9 + $tb9 + $tb9 + $tb9),
+                   ('2' + $tb9 + '2' + $tb9 + $tb9 + 'LOTE PARADO DOIS' + $tb9 + 'CURITIBA' + $tb9 + 'PR' + $tb9 + $tb9 + $tb9 + $tb9 + $tb9),
+                   ('2' + $tb9 + '2' + $tb9 + $tb9 + 'LOTE PARADO TRES' + $tb9 + 'CURITIBA' + $tb9 + 'PR' + $tb9 + $tb9 + $tb9 + $tb9 + $tb9)) -join "`r`n"
+        $ml9 = $tf + 'modLote.'
+        [void]$xl.Run($ml9 + 'Analisar', $lote9)
+        $antes9 = @(foreach ($k in 1..3) { [string]$xl.Run($ml9 + 'Valor', $k, 'status') }) -join ','
+        $r9 = [string]$xl.Run($t2 + 'GravarLote')
+        $est9 = @(foreach ($k in 1..3) { [string]$xl.Run($ml9 + 'Valor', $k, 'status') }) -join ','
+        Conferir 'DEV-12 lote parado: a linha recusada fica ERRO e as não alcançadas NAO PROCESSADA' ($antes9 -eq 'OK,OK,OK' -and $est9 -eq 'ERRO,NAO PROCESSADA,NAO PROCESSADA' -and $r9.StartsWith('0|')) ($antes9 + ' -> ' + $est9 + ' | ' + $r9)
+        Conferir 'DEV-12 lote parado: o motivo diz onde parou e nada foi cadastrado' ([string]$xl.Run($ml9 + 'Valor', 2, 'motivo') -match 'parou na linha' -and [int](Valor "SELECT COUNT(*) FROM clientes WHERE empresa LIKE 'LOTE PARADO%'" 0) -eq $nParado0) ([string]$xl.Run($ml9 + 'Valor', 2, 'motivo'))
+    } finally {
+        [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM config WHERE chave='manutencao'")
+        [void]$xl.Run($tf + 'modDB.Executar', "DELETE FROM clientes WHERE empresa LIKE 'LOTE PARADO%'")
     }
 
     # DEV-28 (ciclo 017): a regra da duplicação no front - copia, zera, etapa inicial, hoje e o anterior; nada grava
