@@ -772,7 +772,7 @@ Public Sub Tique(ByVal h As LongPtr, ByVal m As Long, ByVal id As LongPtr, ByVal
         mEtapa = 2
         mRes = mRes & "|etapa=" & f.Controls("c_etapa").Value & "|anterior=" & f.Controls("c_id_atendimento_anterior").Value & _
                "|contato=" & f.Controls("c_id_contato").Value & "|empresa=" & f.Controls("c_empresa").Value & _
-               "|salvar=" & f.Controls("cmdSalvar").Enabled
+               "|salvar=" & f.Controls("cmdSalvar").Enabled & "|retomada=" & f.Controls("c_retomar_em").Enabled
         f.UI_Acao "cmdCancelar"
         f.UI_Acao "cmdFechar"
         mOcupado = False
@@ -787,6 +787,8 @@ End Sub
     $mdp28 = @{}; foreach ($par in $rdp.Split('|')) { $kv = $par.Split('=', 2); if ($kv.Count -eq 2) { $mdp28[$kv[0]] = $kv[1] } }
     Conferir 'DEV-28 ficha de oportunidades: o botão de ação é "Duplicar" e está habilitado' ($mdp28['rotulo'] -eq 'Duplicar' -and $mdp28['habilitado'] -match 'True|Verdadeiro') $rdp
     Conferir 'DEV-28 Duplicar na ficha abre atendimento novo com a etapa inicial, o anterior = origem e o contato' ($mdp28['etapa'] -eq $etIni28 -and [int]$mdp28['anterior'] -eq $idO28 -and [int]$mdp28['contato'] -eq $cto28 -and $mdp28['salvar'] -match 'True|Verdadeiro') $rdp
+    # ciclo 018 (P4): na etapa inicial (aberta) o retomar_em fica desabilitado na ficha
+    Conferir 'DEV-10 ficha: retomar_em desabilitado em etapa aberta' ($mdp28['retomada'] -match 'False|Falso') $rdp
     Conferir 'DEV-28 Duplicar na ficha sem Salvar não grava e não mostra caixa' ([int](Valor 'SELECT COUNT(*) FROM oportunidades' 0) -eq $n28c -and $rdp -notmatch 'caixa=' -and $mdp28['voltou'] -eq '1') $rdp
     [void]$xl.Run($tf + 'modDB.Executar', 'UPDATE contatos SET ativo=False WHERE id=' + $cto28)
     try {

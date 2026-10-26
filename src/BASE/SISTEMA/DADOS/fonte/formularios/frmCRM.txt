@@ -59,6 +59,7 @@ Private mAbrindoComVinculo As Boolean  ' Novo com vinculo ja dado: nao pergunta
 Private mAnteriorInicial As Long       ' DEV-27: anterior sugerido pelo atalho da rota (Perdido/Descartado com retomada)
 Private mDuplicarDe As Long            ' DEV-28: atendimento de origem da duplicacao (0 = nao e duplicacao)
 Private mClienteDuplicacao As Long     ' ciclo 018: empresa da origem quando o contato dela esta inativo
+Private WithEvents mCboEtapa As MSForms.ComboBox  ' ciclo 018: trocar a etapa habilita ou nao o retomar_em
 ' Enquanto a ficha monta combos e filtros, os eventos Change/Click
 ' NAO consultam o banco: sem esta trava, abrir a ficha fazia de 5 a
 ' 7 consultas seguidas (uma por combo preenchido), contra a regra de
@@ -354,6 +355,7 @@ Private Sub MontarCampos()
             If tipo = "L" Then
                 Set ctl = fraCampos.Controls.Add("Forms.ComboBox.1", "c_" & campo, True)
                 PreencherCombo ctl, lista, True
+                If campo = "etapa" And mTabela = "oportunidades" Then Set mCboEtapa = ctl
             Else
                 Set ctl = fraCampos.Controls.Add("Forms.TextBox.1", "c_" & campo, True)
             End If
@@ -1105,6 +1107,36 @@ Private Sub TravarCampos(ByVal travar As Boolean)
             End If
         End If
     Next i
+    AjustarRetomada
+End Sub
+
+'----------------------------------------------------------
+' Secao 5.2 e DEV-10 (ciclo 018): retomar_em so existe em Perdido e
+' Descartado (modRegras.RetomadaHabilitada); nas outras etapas o campo
+' fica desabilitado - ao exibir o registro e ao trocar a etapa.
+'----------------------------------------------------------
+Private Sub AjustarRetomada()
+    Dim ctl As MSForms.Control, etapa As String, hab As Boolean
+    If mTabela <> "oportunidades" Then Exit Sub
+    On Error Resume Next
+    Set ctl = fraCampos.Controls("c_retomar_em")
+    etapa = CStr(fraCampos.Controls("c_etapa").Value)
+    On Error GoTo 0
+    If ctl Is Nothing Then Exit Sub
+    hab = modRegras.RetomadaHabilitada(modCRM.EtapaEncerra(etapa), (modCRM.EtapaResultado(etapa) = "PERDA"))
+    ctl.Enabled = hab
+    If Not hab Then
+        ctl.BackColor = modTema.COR_DESABILITADO
+    ElseIf mEditando Then
+        ctl.Locked = False
+        ctl.BackColor = modTema.COR_BRANCO
+    Else
+        ctl.BackColor = modTema.COR_ZEBRA
+    End If
+End Sub
+
+Private Sub mCboEtapa_Change()
+    AjustarRetomada
 End Sub
 
 '==========================================================

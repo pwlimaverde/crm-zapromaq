@@ -124,6 +124,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C26 retomada em etapa aberta recusada", (modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), Null) <> ""), True
     Confere "C26 retomada em perda passa", modRegras.CriticarRetomada(True, True, DateSerial(2026, 12, 1), Null), ""
     Confere "C26 retomada antiga sem mudar nao trava", modRegras.CriticarRetomada(False, False, DateSerial(2026, 12, 1), DateSerial(2026, 12, 1)), ""
+    ' ciclo 018: na ficha, retomar_em so fica habilitado em Perdido e Descartado
+    Confere "C26 ficha: retomada habilitada em Perdido/Descartado", modRegras.RetomadaHabilitada(True, True), True
+    Confere "C26 ficha: retomada desabilitada em Pedido Fechado", modRegras.RetomadaHabilitada(True, False), False
+    Confere "C26 ficha: retomada desabilitada em etapa aberta", modRegras.RetomadaHabilitada(False, False), False
     Confere "C27 reabrir orienta", (InStr(modRegras.TransicaoEtapa(True, False, False, dT), "atendimento NOVO") > 0), True
     Confere "C27 reabrir limpa motivo desfecho e retomada", IsNull(dT("motivo_desfecho")) And IsNull(dT("dt_desfecho")) And IsNull(dT("retomar_em")), True
     Set dT = CreateObject("Scripting.Dictionary")
