@@ -489,6 +489,9 @@ $hojeT = (Get-Date).Date
 Conferir 'DEV-21 aberto com retomada vencida segue a próxima ação' ((Get-Situacao $true 'Negociação' $hojeT.AddDays(30) $hojeT.AddDays(-1)) -eq 'Em dia')
 Conferir 'DEV-21 encerrado com retomada que chegou' ((Get-Situacao $true 'Perdido' $null $hojeT) -eq 'Retomada a avaliar')
 Conferir 'DEV-21 encerrado com retomada futura continua Encerrado' ((Get-Situacao $true 'Perdido' $null $hojeT.AddDays(5)) -eq 'Encerrado')
+# ciclo 018: só Perdido e Descartado (PERDA) viram "Retomada a avaliar", igual ao front e à seção retomadas_a_avaliar
+Conferir 'DEV-21 Pedido Fechado com retomada que chegou continua Encerrado' ((Get-Situacao $true 'Pedido Fechado' $null $hojeT) -eq 'Encerrado')
+Conferir 'DEV-21 Descartado com retomada que chegou é "Retomada a avaliar"' ((Get-Situacao $true 'Descartado' $null $hojeT) -eq 'Retomada a avaliar')
 $fila21 = Linhas-Visita "SELECT TOP 2 id, codigo, etapa, responsavel, dt_prox_acao, retomar_em FROM oportunidades WHERE etapa IN (SELECT valor FROM listas WHERE tipo='Etapa' AND encerra=False) ORDER BY id"
 $maxLog21 = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
 try {

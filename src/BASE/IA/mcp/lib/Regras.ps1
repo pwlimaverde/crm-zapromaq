@@ -236,9 +236,12 @@ function Get-Situacao([bool]$temContato, [string]$etapa, $dtProxAcao, $retomarEm
     $hoje = (Get-Date).Date
     # DEV-21 (ciclo 012): a agenda do aberto é só a próxima ação; Perdido/Descartado com retomar_em que chegou
     # vai para "Retomada a avaliar" (o encerrado não é reaberto). Espelho de modCalc.SituacaoDaEtapa.
-    if ((Get-PapelEtapa $etapa).encerra) {
+    # Ciclo 018: só Perdido e Descartado (resultado PERDA), como a seção retomadas_a_avaliar; Pedido Fechado com
+    # retomada legada continua Encerrado.
+    $papel = Get-PapelEtapa $etapa
+    if ($papel.encerra) {
         $ret = ConvertTo-DataOuNulo $retomarEm
-        if ($ret -and $ret -le $hoje) { return 'Retomada a avaliar' }
+        if ($papel.resultado -eq 'PERDA' -and $ret -and $ret -le $hoje) { return 'Retomada a avaliar' }
         return 'Encerrado'
     }
     $prox = ConvertTo-DataOuNulo $dtProxAcao

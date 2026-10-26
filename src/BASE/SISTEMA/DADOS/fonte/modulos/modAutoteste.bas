@@ -240,8 +240,10 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
             "A" & ChrW$(&HE7) & ChrW$(&HE3) & "o atrasada"
     ' DEV-21 (ciclo 012): a agenda do aberto e so a proxima acao; encerrado com retomada chegada vai para avaliacao
     Confere "DEV-21 aberto com retomada vencida segue a proxima acao", modCalc.SituacaoDaEtapa(False, Date + 30, Date - 1), "Em dia"
-    Confere "DEV-21 encerrado com retomada que chegou", modCalc.SituacaoDaEtapa(True, Null, Date), "Retomada a avaliar"
-    Confere "DEV-21 encerrado com retomada futura continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date + 5), "Encerrado"
+    Confere "DEV-21 encerrado com retomada que chegou", modCalc.SituacaoDaEtapa(True, Null, Date, True), "Retomada a avaliar"
+    Confere "DEV-21 encerrado com retomada futura continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date + 5, True), "Encerrado"
+    ' ciclo 018: so Perdido e Descartado (PERDA) viram "Retomada a avaliar", igual ao conector
+    Confere "DEV-21 Pedido Fechado com retomada que chegou continua encerrado", modCalc.SituacaoDaEtapa(True, Null, Date, False), "Encerrado"
     Confere "DEV-23 copia local nunca salva dados", modConfig.SalvarPermitido(), False
     ' ---- DEV-26 (ciclo 015): o que o lote muda numa empresa ja cadastrada (mesmo CNPJ)
     Dim lin26 As Object, at26 As Object, m26 As Object
