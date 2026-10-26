@@ -179,6 +179,10 @@ Regras que o conector confere e recusa com mensagem:
 - Campos de lista (`etapa`, `responsavel`, `familia`, `origem`, `prioridade`,
   `motivo_desfecho`, `segmento`, `uf`, `categoria`, `qualificacao`) só aceitam valores de `listar_opcoes`.
 - Datas em **AAAA-MM-DD**. Valor em reais como número (`850000.50`).
+- `dt_prox_acao` nova ou alterada só **hoje ou futura** (C34, 1.12.0): a vencida que já está gravada continua
+  (cobrança) e não trava outro campo; para reagendar, pergunte a nova data ao usuário.
+- Conector mais velho que a versão mínima do banco (`crm_status.versao_minima_conector`) não grava: peça a
+  atualização do conector.
 - Etapa **Pedido Fechado, Perdido ou Descartado** exige `motivo_desfecho` e `dt_desfecho`.
 - Etapas de proposta e negociação exigem `familia`.
 - Telefone: DDD + número, 10 ou 11 dígitos, **um número por campo**. Nome de quem
@@ -203,6 +207,10 @@ Regras que o conector confere e recusa com mensagem:
 
 - **Cadastrar:** `criar_cliente` — pré-cliente por padrão; `como_cliente=true` já dá código.
   Procure antes com `buscar_clientes`; nome repetido é recusado sem `ignorar_homonimo=true`.
+- **Alterar o cadastro:** `atualizar_cadastro_cliente` com o `codigo_cliente` (ou `id_cliente`, em pré-cliente) e a
+  `versao` de `obter_cliente` — empresa, CNPJ, cidade, UF, segmento, responsável, telefone, e-mail, qualificação, aderência,
+  porte e `observacoes_acrescentar`; só os campos que mudam. O contexto (`ctx_*`) não passa por aqui: use
+  `atualizar_contexto_cliente` com a `ctx_versao`.
 - **Promover:** `promover_cliente` (pré-cliente → cliente, próximo código). Não se desfaz pelo sistema.
 - **Desativar / reativar / excluir:** `alterar_situacao_cliente` com a `versao` de `obter_cliente`.
   Reativar a empresa reativa SÓ a empresa (ciclo 009): pergunte quais contatos ainda trabalham lá e

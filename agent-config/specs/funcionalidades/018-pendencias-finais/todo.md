@@ -6,7 +6,7 @@
 - [x] P4 retomar_em desabilitado fora de Perdido/Descartado (feature/retomada-habilitada)
 - [x] P5 restauração pela última cópia validada (feature/restaurar-validada)
 - [x] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
-- [ ] P7 skill cobre o catálogo inteiro (feature/skill-catalogo)
+- [x] P7 skill cobre o catálogo inteiro (feature/skill-catalogo)
 - [ ] P8 checar-ambiente completo (feature/checar-ambiente)
 - [ ] P9 estados por linha do lote (feature/lote-estados)
 - [ ] P10 contato homônimo no conector (feature/homonimo-conector)
