@@ -7,7 +7,7 @@
 - [x] P5 restauração pela última cópia validada (feature/restaurar-validada)
 - [x] P6 versão mínima do cliente no ponto de escrita (feature/versao-minima)
 - [x] P7 skill cobre o catálogo inteiro (feature/skill-catalogo)
-- [ ] P8 checar-ambiente completo (feature/checar-ambiente)
+- [x] P8 checar-ambiente completo (feature/checar-ambiente)
 - [ ] P9 estados por linha do lote (feature/lote-estados)
 - [ ] P10 contato homônimo no conector (feature/homonimo-conector)
 - [ ] P11 checksum das migrações (feature/checksum-migracoes)

@@ -9,7 +9,10 @@
   "Confiar no acesso ao modelo de objeto do projeto do VBA"; motor ACE;
   Edge (gerador visual); fontes Segoe UI e Segoe MDL2 Assets; resolução e
   escala da tela (layout de 1000 x 505 pt com Zoom automático); caminho UNC
-  e permissão de escrita na pasta BASE.
+  e permissão de escrita na pasta BASE; conector no Claude Desktop e no Codex;
+  versão do front instalada x publicada, pasta %LOCALAPPDATA%\CRM Zapromaq e se
+  ela é sincronizada; escrita na pasta do banco (onde o ACE cria o .laccdb).
+  Matriz de estações: SISTEMA\DADOS\docs\implantacao.md.
 #>
 $ErrorActionPreference = 'Continue'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib\Comum.ps1')
@@ -105,18 +108,51 @@ if (Test-Path -LiteralPath $cfgClaude) {
     try { $txtCfg = Get-Content -LiteralPath $cfgClaude -Raw -Encoding UTF8 } catch { }
     $achou = ($txtCfg -match 'crm-zapromaq')
     Item 'Conector MCP no Claude Desktop' $achou $(if ($achou) { 'crm-zapromaq registrado em ' + $cfgClaude } else { 'crm-zapromaq NÃO está em ' + $cfgClaude + ' (rode IA\INSTALAR-MCP.bat a partir da pasta da rede)' })
-    if ($achou -and $txtCfg -match '"([^"]*servidor\.ps1)"') {
+    if ($achou -and $txtCfg -match '"([^"]*(lancador|servidor)\.ps1)"') {
         $alvo = $Matches[1] -replace '\\\\', '\'
         Item 'Caminho do conector existe' (Test-Path -LiteralPath $alvo) $alvo
     }
 } else {
     $log.L('  INFO    ' + 'Conector MCP no Claude Desktop'.PadRight(36) + 'Claude Desktop não instalado nesta máquina (' + $cfgClaude + ' não existe)')
 }
-# Documents dentro do OneDrive: a cópia local do front (Documentos\CRM Zapromaq) passa a ser sincronizada
-# e pode ficar travada ou duplicada; o CRM roda de Documentos por decisão de projeto, então só se avisa.
+# DEV-02 (ciclo 018): cliente Codex com o conector registrado (opcional: só informa quando não há Codex)
+$codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+$cfgCodex = Join-Path $codexRoot 'config.toml'
+if (Test-Path -LiteralPath $cfgCodex) {
+    $txtCodex = ''
+    try { $txtCodex = Get-Content -LiteralPath $cfgCodex -Raw -Encoding UTF8 } catch { }
+    $achouCodex = ($txtCodex -match 'crm-zapromaq')
+    Item 'Conector MCP no Codex' $achouCodex $(if ($achouCodex) { 'crm-zapromaq registrado em ' + $cfgCodex } else { 'crm-zapromaq NÃO está em ' + $cfgCodex + ' (rode IA\INSTALAR-CLAUDE-E-CODEX.bat)' })
+} else {
+    $log.L('  INFO    ' + 'Conector MCP no Codex'.PadRight(36) + 'Codex não configurado nesta máquina (' + $cfgCodex + ' não existe)')
+}
+# Documents dentro do OneDrive: o atalho e o ícone ficam em Documentos\CRM Zapromaq; a cópia do front
+# fica em %LOCALAPPDATA%\CRM Zapromaq (DEV-23), fora da sincronização - aqui só se avisa.
 $docs = [Environment]::GetFolderPath('MyDocuments')
 $noOneDrive = ($docs -match 'OneDrive') -or ($env:OneDrive -and $docs.StartsWith($env:OneDrive, [StringComparison]::OrdinalIgnoreCase))
-Item 'Documentos fora do OneDrive' (-not $noOneDrive) $(if ($noOneDrive) { $docs + ' está no OneDrive: a sincronização pode travar ou duplicar o .xlsm local' } else { $docs })
+Item 'Documentos fora do OneDrive' (-not $noOneDrive) $(if ($noOneDrive) { $docs + ' está no OneDrive: só o atalho fica ali (a cópia do CRM fica em %LOCALAPPDATA%)' } else { $docs })
+
+# ---------------------------------------------------------------- front instalado (DEV-02, ciclo 018)
+# A cópia local do front fica em %LOCALAPPDATA%\CRM Zapromaq (INICIAR-CRM.bat); a pasta não pode ser
+# sincronizada (OneDrive, perfil móvel ou redirecionada para a rede): o .xlsm travaria ou duplicaria.
+$appLocal = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'CRM Zapromaq' } else { Join-Path $env:USERPROFILE 'AppData\Local\CRM Zapromaq' }
+Item 'Cópia local do front (pasta)' (Test-Path -LiteralPath $appLocal) $(if (Test-Path -LiteralPath $appLocal) { $appLocal } else { $appLocal + ' não existe: abra o CRM uma vez pelo INICIAR-CRM' })
+$sincronizada = ($appLocal -match 'OneDrive') -or ($env:OneDrive -and $appLocal.StartsWith($env:OneDrive, [StringComparison]::OrdinalIgnoreCase)) -or $appLocal.StartsWith('\\')
+Item 'Cópia local fora de sincronização' (-not $sincronizada) $(if ($sincronizada) { $appLocal + ' está sincronizada ou na rede: peça à TI para manter %LOCALAPPDATA% local' } else { 'pasta local, não sincronizada' })
+$instalada = ''
+try { $instalada = [string](Get-ItemProperty 'HKCU:\Software\Zapromaq\CRM' -ErrorAction Stop).VersaoInstaladaCRM } catch { }
+$publicada = ''
+$arqVerFront = Join-Path $raiz 'VERSAO-FRONT.txt'
+if (Test-Path -LiteralPath $arqVerFront) { $publicada = ([string](Get-Content -LiteralPath $arqVerFront -TotalCount 1 -Encoding UTF8)).Trim() }
+$frontOk = ($instalada -ne '' -and ($publicada -eq '' -or $instalada -eq $publicada))
+Item 'Versão do front instalada' $frontOk ('instalada: ' + $(if ($instalada) { $instalada } else { '(nenhuma)' }) + '   publicada: ' + $(if ($publicada) { $publicada } else { '(sem VERSAO-FRONT.txt)' }))
+
+# ---------------------------------------------------------------- pasta do banco (DEV-02, ciclo 018)
+# O ACE cria o .laccdb na pasta do banco: sem escrita ali, o CRM abre só leitura (ou não abre) nesta estação.
+$pastaBanco = Split-Path -Parent $banco
+$testeBanco = Join-Path $pastaBanco ('.teste-escrita-banco-' + $env:COMPUTERNAME + '-' + $PID + '.tmp')
+try { Set-Content -LiteralPath $testeBanco -Value 'ok' -ErrorAction Stop; Remove-Item -LiteralPath $testeBanco -Force; Item 'Escrita na pasta do banco (.laccdb)' $true $pastaBanco }
+catch { Item 'Escrita na pasta do banco (.laccdb)' $false ($pastaBanco + ': ' + $_.Exception.Message + ' - o ACE precisa criar o .laccdb ali (pedido para a TI)') }
 
 $log.L('')
 $log.L($(if ($pendencias -eq 0) { 'RESULTADO: ambiente pronto.' } else { 'RESULTADO: ' + $pendencias + ' ponto(s) de atenção acima.' }))
