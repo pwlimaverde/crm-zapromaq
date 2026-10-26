@@ -72,6 +72,8 @@ Textos gravados antes do ciclo 009 são normalizados pela migração 005 (origem
 - Encerrar em Perdido/Descartado (encerra + PERDA) limpa `prox_acao` e `dt_prox_acao`; reabrir limpa
   `motivo_desfecho`, `dt_desfecho` e `retomar_em` (e orienta "interesse novo = atendimento novo").
 - `retomar_em` nova ou alterada só em Perdido/Descartado; proposta/desfecho antes da entrada = aviso.
+- `dt_prox_acao` nova ou alterada só hoje ou futura (C34, ciclo 018); a vencida já gravada fica para cobrança e
+  não trava a gravação de outro campo.
 - Contato pertence a uma empresa (não é transferido); o contato do atendimento é conferido na transação
   (existe, ativo, mesma empresa). Reativar a empresa reativa só a empresa.
 - Ações (desativar/reativar/excluir) conferem a versão lida dentro da transação.

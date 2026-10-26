@@ -195,6 +195,18 @@ function Test-RetomadaPermitida([bool]$encerraNova, [bool]$perdaNova, $retomarNo
     return 'A data de retomada só existe em atendimento Perdido ou Descartado. Para um atendimento aberto, use a próxima ação (dt_prox_acao) (C26).'
 }
 
+# C34 (seção 5.2, ciclo 018): a próxima ação nova ou alterada é hoje ou futura; a vencida já gravada continua
+# (fica para cobrança) e não trava a edição de outro campo. Espelho de modRegras.CriticarProxAcao. Mensagem ou $null.
+function Test-ProxAcaoPermitida($dtNova, $dtLida, $hoje = $null) {
+    $n = ConvertTo-DataOuNulo $dtNova
+    if ($null -eq $n) { return $null }
+    if ((ConvertTo-DataOuNulo $dtLida) -eq $n) { return $null }
+    if ($null -eq $hoje) { $hoje = (Get-Date).Date } else { $hoje = ([datetime]$hoje).Date }
+    if ($n -ge $hoje) { return $null }
+    return ('A data da próxima ação (dt_prox_acao) tem de ser hoje ou futura: ' + $n.ToString('dd/MM/yyyy') +
+            ' já passou. A próxima ação vencida que já estava gravada continua valendo. Nada foi gravado (C34).')
+}
+
 # C29 (DEV-11): o contato do atendimento existe, está ativo e é da empresa do atendimento. Espelho de
 # modRegras.CriticarContatoDoAtendimento. Devolve a mensagem ou $null.
 function Test-ContatoDoAtendimento([bool]$existe, [bool]$ativo, [int]$idClienteContato, [int]$idClienteAtendimento) {

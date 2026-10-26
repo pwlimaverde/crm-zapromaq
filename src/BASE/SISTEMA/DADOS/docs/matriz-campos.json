@@ -1,6 +1,6 @@
 {
   "versao_matriz": "1.1",
-  "descricao": "Matriz versionada de campos (DEV-10, ciclo 009): tipo, tamanho, normalização (seção 5.1), lista, obrigatoriedade e quem edita. Ficha (modSchema/modValidacao), lote (modLote) e conector (Regras.ps1/Ferramentas.ps1) seguem esta matriz; o verificar.py confere tamanhos contra o DDL e o conector, e os campos de lista contra as duas normalizações. Casos compartilhados C17-C31.",
+  "descricao": "Matriz versionada de campos (DEV-10, ciclo 009): tipo, tamanho, normalização (seção 5.1), lista, obrigatoriedade e quem edita. Ficha (modSchema/modValidacao), lote (modLote) e conector (Regras.ps1/Ferramentas.ps1) seguem esta matriz; o verificar.py confere tamanhos contra o DDL e o conector, e os campos de lista contra as duas normalizações. Casos compartilhados C17-C34.",
   "normalizacoes": {
     "maiusculas": "texto comercial: MAIÚSCULAS, Trim, espaço repetido colapsado, acento preservado; URL, caminho e e-mail dentro do texto ficam como digitados",
     "maiusculas_multilinha": "como maiusculas, preservando as quebras de linha",
@@ -45,7 +45,7 @@
     { "tabela": "oportunidades", "campo": "ultima_interacao", "tipo": "data", "normalizacao": "data", "obrigatorio": false, "edita": "ficha, conector" },
     { "tabela": "oportunidades", "campo": "tentativas", "tipo": "inteiro", "normalizacao": "inteiro", "obrigatorio": false, "edita": "ficha, conector", "regra": "inteiro >= 0 (C19)" },
     { "tabela": "oportunidades", "campo": "prox_acao", "tipo": "memo", "normalizacao": "maiusculas_multilinha", "obrigatorio": false, "edita": "ficha, conector", "regra": "limpa ao encerrar em Perdido/Descartado (C25)" },
-    { "tabela": "oportunidades", "campo": "dt_prox_acao", "tipo": "data", "normalizacao": "data", "obrigatorio": false, "edita": "ficha, conector", "regra": "limpa ao encerrar em Perdido/Descartado (C25)" },
+    { "tabela": "oportunidades", "campo": "dt_prox_acao", "tipo": "data", "normalizacao": "data", "obrigatorio": false, "edita": "ficha, conector", "regra": "limpa ao encerrar em Perdido/Descartado (C25); nova ou alterada só hoje ou futura, a vencida já gravada fica (C34)" },
     { "tabela": "oportunidades", "campo": "retomar_em", "tipo": "data", "normalizacao": "data", "obrigatorio": false, "edita": "ficha, conector", "regra": "só em Perdido/Descartado (C26); limpa ao reabrir (C27)" },
     { "tabela": "oportunidades", "campo": "motivo_desfecho", "tipo": "texto", "tamanho": 60, "normalizacao": "lista", "lista": "Motivo", "obrigatorio": false, "edita": "ficha, conector", "regra": "obrigatório em etapa que encerra; limpa ao reabrir (C27)" },
     { "tabela": "oportunidades", "campo": "dt_desfecho", "tipo": "data", "normalizacao": "data", "obrigatorio": false, "edita": "ficha, conector", "regra": "obrigatória em etapa que encerra; antes da entrada = aviso (C28)" },

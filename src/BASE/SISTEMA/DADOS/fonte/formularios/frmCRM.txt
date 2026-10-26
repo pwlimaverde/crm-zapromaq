@@ -1269,6 +1269,11 @@ Private Sub Salvar()
         perdaNova = (modCRM.EtapaResultado(modDB.Nz(d("etapa"))) = "PERDA")
         critica = modRegras.CriticarRetomada(encNova, perdaNova, d("retomar_em"), Lido("retomar_em"))
         If critica <> "" Then MsgBox critica, vbExclamation, "CRM Zapromaq": Exit Sub
+        ' C34 (ciclo 018): proxima acao nova ou alterada so hoje ou futura (encerrar em perda a limpa)
+        If Not (encNova And perdaNova) Then
+            critica = modRegras.CriticarProxAcao(d("dt_prox_acao"), Lido("dt_prox_acao"), Date)
+            If critica <> "" Then MsgBox critica, vbExclamation, "CRM Zapromaq": Exit Sub
+        End If
         orientacao = modRegras.TransicaoEtapa(IIf(etapaLida = "", False, modCRM.EtapaEncerra(etapaLida)), encNova, perdaNova, d)
         If orientacao <> "" Then
             If MsgBox(orientacao & vbCrLf & vbCrLf & "Reabrir assim mesmo?", vbYesNo + vbQuestion, "CRM Zapromaq - reabrir atendimento") <> vbYes Then Exit Sub

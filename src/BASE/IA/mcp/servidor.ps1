@@ -29,7 +29,8 @@ Add-Type -AssemblyName System.Data
 # sem destino (raiz execucao\extratos, manifesto); descartar_extratos; roteiro na raiz de extratos.
 # 1.10.0 (ciclo 016): listar_candidatos ganha sem_atendimento (aditivo).
 # 1.11.0 (ciclo 017): duplicar_atendimento (ferramenta nova, aditiva).
-$script:VersaoServidor = '1.11.0'
+# 1.12.0 (ciclo 018): próxima ação só hoje ou futura (C34) e demais pendências finais (nota no IA\LEIA-ME.md).
+$script:VersaoServidor = '1.12.0'
 # Servidor "dual-era" (referencias/12-mcp-especificacao/2026-07-28_basic_versioning.md):
 # protocolo moderno 2026-07-28 (sem estado) e legado (initialize). O núcleo do
 # protocolo fica em lib\Protocolo.ps1, compartilhado com o MCP de desenvolvimento.

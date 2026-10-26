@@ -1,6 +1,6 @@
 {
   "_sobre": "Matriz consumidor x ferramenta do conector de dados (DEV-07, seção 6 do plano de 19/10/2026). Cada skill do comercial (fora de BASE) e as ferramentas e parâmetros de que depende. O testar-mcp confere que toda ferramenta e todo parâmetro citados existem no catálogo: mudou o contrato, esta matriz diz quem precisa ser avisado (nota de mudança no IA\\LEIA-ME.md).",
-  "versao_conector": "1.11.0",
+  "versao_conector": "1.12.0",
   "consumidores": [
     {
       "skill": "zapromaq-contexto-cliente",
@@ -16,7 +16,7 @@
         "obter_cliente": ["codigo_cliente"]
       },
       "muda_com": ["DEV-06", "DEV-10", "DEV-17"],
-      "atencao": "1.8.0: ctx_versao obrigatória em atualizar_contexto_* (lida em obter_*)."
+      "atencao": "1.8.0: ctx_versao obrigatória em atualizar_contexto_* (lida em obter_*). 1.12.0: atualizar_atendimento recusa dt_prox_acao nova ou alterada anterior a hoje (C34)."
     },
     {
       "skill": "zapromaq-inicializar-atendimento",

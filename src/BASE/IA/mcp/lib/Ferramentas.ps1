@@ -1230,6 +1230,9 @@ function Invoke-AtualizarAtendimento($a) {
             $novo[$c] = $null
             if (Test-Igual $atual[$c] $null) { $mud.Remove($c) } else { $mud[$c] = @{ Tipo = $script:DefsAtendimento[$c][0]; Novo = $null; Antigo = $atual[$c] } }
         }
+        # C34 (seção 5.2): próxima ação nova ou alterada só hoje ou futura; a vencida já gravada fica
+        $mPx = Test-ProxAcaoPermitida $novo.dt_prox_acao $atual.dt_prox_acao
+        if ($mPx) { throw $mPx }
         $avisos = Get-CriticaAtendimento $novo
         if ($tr.orientacao) { [void]$avisos.Add($tr.orientacao) }
         if ($mud.Count -eq 0) {
@@ -1769,6 +1772,9 @@ function Invoke-AbrirAtendimento($a) {
         $mRet = Test-RetomadaPermitida $papelNovo.encerra $perdaNova $novo.retomar_em $null
         if ($mRet) { throw $mRet }
         foreach ($c in (Get-TransicaoEtapa $false $papelNovo.encerra $perdaNova).limpar) { $novo[$c] = $null }
+        # C34 (seção 5.2): a próxima ação do atendimento novo é hoje ou futura
+        $mPx = Test-ProxAcaoPermitida $novo.dt_prox_acao $null
+        if ($mPx) { throw $mPx }
         $avisos = Get-CriticaAtendimento $novo
         $idAnt = $null
         if (Test-TemArg $a 'codigo_atendimento_anterior') {

@@ -158,6 +158,14 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "C33 anterior que fecha ciclo e recusado", modRegras.FormaCiclo(10, 20, Array(10, 20), Array(0, 10)), True
     Confere "C33 corrente sem ciclo passa", modRegras.FormaCiclo(10, 20, Array(20, 30), Array(30, 0)), False
 
+    ' ---- secao 5.2 (ciclo 018): proxima acao so hoje ou futura (mesmo caso C34 do conector)
+    Confere "C34 proxima acao nova no passado recusada", (modRegras.CriticarProxAcao(DateSerial(2026, 10, 25), Null, DateSerial(2026, 10, 26)) <> ""), True
+    Confere "C34 proxima acao alterada para o passado recusada", (modRegras.CriticarProxAcao(DateSerial(2026, 10, 20), DateSerial(2026, 10, 25), DateSerial(2026, 10, 26)) <> ""), True
+    Confere "C34 proxima acao hoje passa", modRegras.CriticarProxAcao(DateSerial(2026, 10, 26), Null, DateSerial(2026, 10, 26)), ""
+    Confere "C34 proxima acao futura passa", modRegras.CriticarProxAcao(DateSerial(2026, 11, 3), DateSerial(2026, 10, 1), DateSerial(2026, 10, 26)), ""
+    Confere "C34 vencida ja gravada sem mudar nao trava", modRegras.CriticarProxAcao(DateSerial(2026, 10, 1), DateSerial(2026, 10, 1), DateSerial(2026, 10, 26)), ""
+    Confere "C34 sem proxima acao passa", modRegras.CriticarProxAcao(Null, DateSerial(2026, 10, 1), DateSerial(2026, 10, 26)), ""
+
     ' ---- DEV-18/19: feed confiavel (ciclo 011) - lacunas de commit fora de ordem, geracao e dependencias
     Dim vistosF As Object, lacF As Object
     Set vistosF = CreateObject("Scripting.Dictionary"): vistosF.Add 11&, 0: vistosF.Add 13&, 0
