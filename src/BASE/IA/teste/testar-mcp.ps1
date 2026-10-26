@@ -799,6 +799,22 @@ Conferir 'exportar_base aceita planejamentos, visitas e municipios (lista e cons
             Conferir 'mínima igual a este conector: gravação passa' (-not $res.isError) $res.content[0].text
         } finally { Executa-Visita "DELETE FROM config WHERE chave='versao_minima_conector'" }
 
+        Write-Host '--- seção 5.2 (ciclo 018): contato homônimo na mesma empresa pede confirmação, como a ficha'
+        $ctH = Dados (Chamar 'obter_contato' ([ordered]@{ codigo_contato = 'CT-0001-0001' }))
+        $nCtH = [int](Invoke-Valor 'SELECT COUNT(*) FROM contatos' @())
+        $res = Chamar 'criar_contato' ([ordered]@{ codigo_cliente = 1; nome = ([string]$ctH.nome).ToLowerInvariant(); autor = 'teste' })
+        Conferir 'homônimo sem ignorar_homonimo é recusado e cita o contato existente' ($res.isError -and $res.content[0].text -match 'ignorar_homonimo' -and $res.content[0].text -match 'CT-0001-0001') $res.content[0].text
+        Conferir 'homônimo recusado: nada foi gravado' ([int](Invoke-Valor 'SELECT COUNT(*) FROM contatos' @()) -eq $nCtH)
+        $maxLogH = [int](Invoke-Valor 'SELECT MAX(id) FROM log_alteracoes' @())
+        $res = Chamar 'criar_contato' ([ordered]@{ codigo_cliente = 1; nome = [string]$ctH.nome; ignorar_homonimo = $true; id_operacao = 'TESTE-HOMONIMO-018'; autor = 'teste' })
+        $gH = if (-not $res.isError) { Dados $res } else { $null }
+        Conferir 'homônimo confirmado (ignorar_homonimo=true) grava e devolve o aviso' ($null -ne $gH -and $gH.gravado -and (@($gH.avisos) -join ' ') -match 'mesmo nome') $res.content[0].text
+        if ($gH) {
+            Executa-Visita 'DELETE FROM operacoes WHERE id_operacao=?' @((P 'texto' 'TESTE-HOMONIMO-018'))
+            Executa-Visita 'DELETE FROM contatos WHERE codigo=?' @((P 'texto' ([string]$gH.codigo_contato)))
+            Executa-Visita 'DELETE FROM log_alteracoes WHERE id > ?' @((P 'inteiro' $maxLogH))
+        }
+
         Write-Host '--- DEV-15: reativar a empresa reativa só a empresa; ação com versão antiga é recusada'
         $c15 = Dados (Chamar 'obter_cliente' ([ordered]@{ codigo_cliente = 2 }))
         $r15 = Dados (Chamar 'alterar_situacao_cliente' ([ordered]@{ codigo_cliente = 2; versao = [int]$c15.versao; acao = 'desativar'; autor = 'teste' }))

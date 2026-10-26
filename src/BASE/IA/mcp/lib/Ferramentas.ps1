@@ -1454,6 +1454,7 @@ function Invoke-CriarContato($a) {
     if ((Test-TemArg $a 'observacoes') -and [string]$a.observacoes -ne '') { $obs = Add-Observacao $null ([string]$a.observacoes) }
     $obs = Add-EmailsAdicionais $obs $extrasEmail
     $promover = [bool](Get-Arg $a 'promover_pre_cliente' $false)
+    $ignorarHomonimo = [bool](Get-Arg $a 'ignorar_homonimo' $false)
 
     for ($tentativa = 1; $tentativa -le 5; $tentativa++) {
         try {
@@ -1463,6 +1464,13 @@ function Invoke-CriarContato($a) {
                 if ($repetida) { return $repetida }
                 $cli = Get-ClienteNaTransacao $ctx $a
                 if (-not [bool]$cli.ativo) { throw ('A empresa ' + $cli.empresa + ' está inativa. Reative-a antes de cadastrar contato.') }
+                # seção 5.2 (ciclo 018): contato com o mesmo nome de outro da mesma empresa pede confirmação, como a
+                # ficha (modCRM.AvisoHomonimo): sem ignorar_homonimo=true, nada é gravado (nem a promoção)
+                $homonimos = @($ctx.Consultar('SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?', @((P 'inteiro' ([int]$cli.id)), (P 'texto' $d['nome']))) | ForEach-Object { [string]$_.codigo })
+                if ($homonimos.Count -gt 0 -and -not $ignorarHomonimo) {
+                    throw ('Já existe contato com o nome ' + $d['nome'] + ' nesta empresa (' + ($homonimos -join ', ') + '). Se for a mesma pessoa, use o cadastro existente; ' +
+                           'se for outra, confirme com o usuário e repita com ignorar_homonimo=true. Nada foi gravado.')
+                }
                 $codCli = $cli.codigo_cliente
                 $promovida = $false
                 if ($null -eq $codCli) {
@@ -1478,8 +1486,6 @@ function Invoke-CriarContato($a) {
                     $ctx.Log('clientes', [int]$cli.id, 'estagio', ('Pr' + [char]0x00E9 + '-cliente'), 'Cliente', 'PROMOVER')
                     $promovida = $true
                 }
-                # DEV-10: contato com o mesmo nome na mesma empresa é aviso, não bloqueio
-                $homonimos = @($ctx.Consultar('SELECT codigo FROM contatos WHERE id_cliente=? AND nome=?', @((P 'inteiro' ([int]$cli.id)), (P 'texto' $d['nome']))) | ForEach-Object { [string]$_.codigo })
                 $controle = [int]$ctx.Valor('SELECT MAX(controle) FROM contatos', @()) + 1
                 $codigo = 'CT-' + ([int]$codCli).ToString('0000') + '-' + $controle.ToString('0000')
                 $agora = Get-Date
@@ -2713,13 +2719,14 @@ $script:Ferramentas = @(
         name = 'criar_contato'; title = 'Cadastrar contato'; handler = 'Invoke-CriarContato'; annotations = $script:Gravacao
         description = ('Cadastra um contato numa empresa e gera o código CT-CCCC-NNNN (congelado). Nome obrigatório (GERAL para o contato geral da empresa); telefone só com DDD + número (10 ou 11 dígitos). ' +
                        'Em pré-cliente, a gravação é recusada a menos que promover_pre_cliente=true: cadastrar contato promove a empresa a cliente com o próximo código - confirme com o usuário antes. ' +
-                       'Confira com buscar_contatos se a pessoa já não existe.')
+                       'Confira com buscar_contatos se a pessoa já não existe; nome igual ao de outro contato da empresa é recusado sem ignorar_homonimo=true (confirme com o usuário).')
         inputSchema = [ordered]@{ type = 'object'; additionalProperties = $false; required = @('nome'); properties = [ordered]@{
             codigo_cliente = [ordered]@{ type = 'integer' }; id_cliente = [ordered]@{ type = 'integer'; description = 'Use para pré-cliente' }
             nome = [ordered]@{ type = 'string'; maxLength = 120 }; cargo = [ordered]@{ type = @('string', 'null'); maxLength = 60 }
             telefone = [ordered]@{ type = @('string', 'null') }; email = [ordered]@{ type = @('string', 'null'); maxLength = 120 }
             observacoes = [ordered]@{ type = 'string'; description = 'Primeira linha datada das observações' }
             promover_pre_cliente = [ordered]@{ type = 'boolean'; default = $false }
+            ignorar_homonimo = [ordered]@{ type = 'boolean'; default = $false; description = 'Confirma o cadastro quando já existe contato com o mesmo nome na empresa' }
             id_operacao = $script:PropIdOperacao
             autor = $script:PropAutor } }
     },

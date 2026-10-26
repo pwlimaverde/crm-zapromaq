@@ -194,7 +194,9 @@ Regras que o conector confere e recusa com mensagem:
 
 - **Cadastrar:** `criar_contato`. Antes, `buscar_contatos` para não duplicar a pessoa.
   Nome obrigatório (`GERAL` para o contato geral da empresa). O código `CT-CCCC-NNNN`
-  é gerado pelo conector e fica congelado.
+  é gerado pelo conector e fica congelado. Nome igual ao de outro contato da mesma empresa é recusado
+  (1.12.0, como a ficha): pergunte ao usuário se não é a mesma pessoa; sendo outra, repita com
+  `ignorar_homonimo=true`.
 - **Pré-cliente:** cadastrar contato promove a empresa a cliente e atribui o próximo
   código. O conector recusa sem `promover_pre_cliente=true`; pergunte ao usuário antes.
 - **Alterar:** `atualizar_contato` com a `versao` de `obter_contato` — nome, cargo,

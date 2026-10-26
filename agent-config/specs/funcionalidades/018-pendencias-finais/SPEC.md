@@ -41,6 +41,9 @@ Fechar o que o documento-base de aceite pede e ainda não está no código, sem 
 | 018-4 | "Retomada a avaliar" só em Perdido e Descartado (resultado PERDA) nos dois canais; Pedido Fechado com `retomar_em` legado fica "Encerrado". | 5.2: retomada só existe em Perdido/Descartado; a seção do conector já filtrava PERDA. | — |
 | 018-5 | O conector 1.12.0 acumula todas as mudanças de contrato do ciclo (uma nota de mudança só), porque nada foi publicado entre elas. | Publicação única da 1.6. | Publicar no meio do ciclo exigiria versões separadas. |
 
+| 018-6 | Homônimo no `criar_contato` usa o parâmetro `ignorar_homonimo` (o mesmo nome do `criar_cliente`), não um `confirmar_homonimo` novo. | Um nome só para a mesma confirmação no conector. | — |
+| 018-7 | Lote: só commit indeterminado ou escrita recusada antes de começar (manutenção, esquema, versão mínima) interrompem; erro de regra da linha não. | Recusa geral valeria para todas as linhas; erro da linha não. | — |
+
 (As demais decisões de cada item ficam na seção do item, abaixo, à medida que forem tomadas.)
 
 ## Stacks tocadas

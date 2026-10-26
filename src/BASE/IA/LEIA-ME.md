@@ -16,6 +16,10 @@ nota de mudança abaixo atualiza a matriz (`versao_conector`) e avisa as skills 
   PERDA), igual ao front e à seção `retomadas_a_avaliar`; Pedido Fechado com `retomar_em` legado fica "Encerrado".
   Afeta `buscar_atendimentos` (filtro `situacao`) e as listagens que trazem `situacao`. Skills afetadas:
   `zapromaq-semanal-planejamento-atendimentos`, `crm-zapromaq-atendimentos-do-dia` e `crm-zapromaq`.
+- **`criar_contato` com homônimo (seção 5.2)**: contato com o mesmo nome de outro da mesma empresa passa a ser
+  **recusado** sem o parâmetro novo `ignorar_homonimo=true` (antes gravava e só avisava), igual à confirmação da
+  ficha; a recusa cita os códigos existentes e nada é gravado (nem a promoção do pré-cliente). Skill afetada:
+  `crm-zapromaq` (nenhuma skill da matriz usa `criar_contato`).
 - **Versão mínima no ponto de escrita (DEV-08)**: a montagem grava `config.versao_minima_conector` (e a do front);
   conector mais velho que ela recusa toda gravação ("Gravação bloqueada: ... exige a X ou mais nova"), a leitura
   continua. `crm_status` ganha `versao_minima_conector` (aditivo). A mínima desta publicação é a **1.12.0**
