@@ -528,6 +528,15 @@ def verificar_contrato_conector():
     q = re.findall(r'\$qtdFerramentas = (\d+)', open(ins, encoding='utf-8-sig').read())
     if len(q) < 2 or int(q[-1]) != len(catalogo):
         falha('Contrato do conector', 'instalar-mcp.ps1 anuncia %s ferramentas; o catálogo tem %d' % (q[-1] if q else '?', len(catalogo)))
+    # DEV-07 (ciclo 018): a skill do Claude Desktop (crm-zapromaq) cobre o catálogo inteiro
+    skill = os.path.join(BASE, 'IA', 'instrucoes', 'crm-zapromaq', 'SKILL.md')
+    if not os.path.isfile(skill):
+        falha('Contrato do conector', 'IA/instrucoes/crm-zapromaq/SKILL.md ausente')
+        return
+    txt_skill = open(skill, encoding='utf-8-sig').read()
+    faltam = sorted(f for f in catalogo if not re.search(r'(?<![a-z_])' + re.escape(f) + r'(?![a-z_])', txt_skill))
+    if faltam:
+        falha('Contrato do conector', 'ferramenta(s) do catálogo fora da skill crm-zapromaq (SKILL.md): ' + ', '.join(faltam))
 
 
 def bloco_ps(txt, nome):
