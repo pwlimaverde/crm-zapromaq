@@ -10,7 +10,8 @@
   - Migração ESTRUTURAL (EsquemaPara preenchido) exige banco exclusivo (sem .laccdb): DDL no ACE
     não é transacional. Mudar versao_esquema obriga a publicar front e IA na mesma versão.
   - Antes de qualquer migração é feito um backup (execucao\backup). Sem backup, não migra.
-  - O que foi aplicado fica em config: chave 'migracao.NNN' = data e usuário.
+  - O que foi aplicado fica em config: chave 'migracao.NNN' = data e usuário, e 'sha256.migracao.NNN' = checksum
+    do arquivo (ciclo 018, DEV-04): migração aplicada que mudou depois é recusada (saída 4).
 
   Migração estrutural só pela montagem: no banco de produção ela é recusada (exit 3). A montagem
   aplica numa cópia de trabalho (-CopiaDeTrabalho, em execucao\publicacao ou execucao\ensaio) e só
@@ -61,10 +62,14 @@ if ($CopiaDeTrabalho) {
 
 $pasta = Join-Path $PSScriptRoot 'migracoes'
 $arquivos = @(Get-ChildItem -LiteralPath $pasta -Filter '*.ps1' -File | Where-Object { $_.Name -match '^\d{3}-' } | Sort-Object Name)
+# DEV-04 (ciclo 018): o checksum das aplicadas antes do checksum existir só é registrado onde a montagem pode
+# escrever (cópia de trabalho ou banco de TESTE); na produção, fora da montagem, só se informa
+$podeRegistrar = $CopiaDeTrabalho -or ((Get-AmbienteDoBanco $Banco) -eq 'TESTE')
+$porId = @{}
 $cn = Open-Banco $Banco
 try {
     $aplicadas = @{}
-    $leitor = (New-ComandoBanco $cn "SELECT chave, valor FROM config WHERE chave LIKE 'migracao.%'" @() $null).ExecuteReader()
+    $leitor = (New-ComandoBanco $cn "SELECT chave, valor FROM config WHERE chave LIKE 'migracao.%' OR chave LIKE 'sha256.migracao.%'" @() $null).ExecuteReader()
     while ($leitor.Read()) { $aplicadas[[string]$leitor.GetValue(0)] = [string]$leitor.GetValue(1) }
     $leitor.Close()
     $esquema = Get-VersaoEsquemaBanco $cn
@@ -75,12 +80,30 @@ try {
     foreach ($a in $arquivos) {
         $m = & $a.FullName
         if (-not $m.Id -or -not $m.Aplicar) { throw ($a.Name + ': migração sem Id ou sem Aplicar') }
+        $porId[[string]$m.Id] = $a.FullName
         if ($aplicadas.ContainsKey('migracao.' + $m.Id)) { $log.L('  já aplicada  ' + $a.Name); continue }
         $m['Arquivo'] = $a.Name
         $pendentes += , $m
         $log.L('  PENDENTE     ' + $a.Name + '  -  ' + $m.Descricao)
     }
-    if ($pendentes.Count -eq 0) { $log.L(''); $log.L('Nada a aplicar.'); $log.Salvar(); exit 0 }
+    # DEV-04: migração já aplicada que mudou depois é recusada antes de qualquer alteração
+    $conf = Test-ChecksumsMigracoes $aplicadas $porId
+    if (@($conf.divergentes).Count -gt 0) {
+        $log.L(''); $log.L('RECUSADO: migração já aplicada mudou depois de aplicada (checksum diferente): ' + (@($conf.divergentes) -join ', ') + '.')
+        $log.L('Volte o arquivo da migração ao conteúdo aplicado (repositório) - correção vai numa migração NOVA. Nada foi alterado.')
+        $log.Salvar(); exit 4
+    }
+    $semRegistro = @($conf.sem_registro)
+    if ($semRegistro.Count -gt 0) {
+        $log.L('  checksum ainda não registrado (aplicadas antes do ciclo 018): ' + ($semRegistro -join ', ') +
+               $(if ($podeRegistrar -and -not $Simular) { ' - registrando agora' } else { ' - registrado pela montagem' }))
+    }
+    if ($pendentes.Count -eq 0) {
+        if ($semRegistro.Count -gt 0 -and $podeRegistrar -and -not $Simular) {
+            foreach ($id in $semRegistro) { Set-ConfigBanco $cn (Get-ChaveChecksumMigracao $id) (Get-ChecksumMigracao $porId[$id]) $null }
+        }
+        $log.L(''); $log.L('Nada a aplicar.'); $log.Salvar(); exit 0
+    }
     if ($Simular) { $log.L(''); $log.L('Simulação: nada foi alterado.'); $log.Salvar(); exit 0 }
 } finally { $cn.Close(); $cn.Dispose() }
 
@@ -109,6 +132,7 @@ $sinal = ''
 $deixarSinal = $false
 try {
     if (-not $CopiaDeTrabalho) { $sinal = Set-Manutencao $cn ('migrações ' + (@($pendentes | ForEach-Object { $_.Id }) -join ',')); $log.L('manutenção ligada: ' + $sinal) }
+    if ($podeRegistrar) { foreach ($id in $semRegistro) { Set-ConfigBanco $cn (Get-ChaveChecksumMigracao $id) (Get-ChecksumMigracao $porId[$id]) $null } }
     foreach ($m in $pendentes) {
         $atual = Get-VersaoEsquemaBanco $cn
         if ($m.EsquemaDe -and $atual -ne $m.EsquemaDe) {
@@ -119,6 +143,7 @@ try {
         if ($m.EsquemaPara) {
             & $m.Aplicar $cn $null $log $pasta
             Set-ConfigBanco $cn ('migracao.' + $m.Id) ((Get-Date -Format 'yyyy-MM-dd HH:mm') + ' ' + $env:USERNAME) $null
+            Set-ConfigBanco $cn (Get-ChaveChecksumMigracao $m.Id) (Get-ChecksumMigracao (Join-Path $pasta $m.Arquivo)) $null
             Set-ConfigBanco $cn 'versao_esquema' $m.EsquemaPara $null
             $log.L('  esquema -> ' + $m.EsquemaPara)
         } else {
@@ -126,6 +151,7 @@ try {
             try {
                 & $m.Aplicar $cn $tx $log $pasta
                 Set-ConfigBanco $cn ('migracao.' + $m.Id) ((Get-Date -Format 'yyyy-MM-dd HH:mm') + ' ' + $env:USERNAME) $tx
+                Set-ConfigBanco $cn (Get-ChaveChecksumMigracao $m.Id) (Get-ChecksumMigracao (Join-Path $pasta $m.Arquivo)) $tx
                 $tx.Commit()
             } catch { $tx.Rollback(); throw }
         }

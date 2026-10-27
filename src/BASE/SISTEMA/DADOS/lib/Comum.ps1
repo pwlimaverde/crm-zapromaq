@@ -229,6 +229,31 @@ function Set-ConfigBanco($cn, [string]$chave, [string]$valor, $tx) {
     }
 }
 
+# DEV-04 (ciclo 018): checksum (SHA-256 do arquivo) de cada migração aplicada, em config 'sha256.migracao.NNN'
+# (fora do prefixo 'migracao.', que outros scripts listam). Migração já aplicada não pode mudar depois: o banco e
+# o repositório divergiriam em silêncio. Assinatura do VBA: pendência P10 do PLANO (depende de certificado da TI).
+function Get-ChaveChecksumMigracao([string]$id) { return ('sha256.migracao.' + $id) }
+function Get-ChecksumMigracao([string]$arquivo) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $fs = [System.IO.File]::OpenRead($arquivo)
+        try { return (($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('x2') }) -join '') } finally { $fs.Dispose() }
+    } finally { $sha.Dispose() }
+}
+# $registros: chave -> valor de config (migracao.NNN e sha256.migracao.NNN); $arquivosPorId: Id -> caminho.
+# Só as migrações APLICADAS entram. Devolve { divergentes = ids cujo arquivo mudou; sem_registro = aplicadas
+# antes do checksum existir }.
+function Test-ChecksumsMigracoes($registros, $arquivosPorId) {
+    $div = New-Object System.Collections.ArrayList; $sem = New-Object System.Collections.ArrayList
+    foreach ($id in @($arquivosPorId.Keys | Sort-Object)) {
+        if (-not $registros.ContainsKey('migracao.' + $id)) { continue }
+        $chave = Get-ChaveChecksumMigracao $id
+        if (-not $registros.ContainsKey($chave) -or [string]::IsNullOrWhiteSpace([string]$registros[$chave])) { [void]$sem.Add([string]$id); continue }
+        if ([string]$registros[$chave] -ne (Get-ChecksumMigracao $arquivosPorId[$id])) { [void]$div.Add([string]$id) }
+    }
+    return [pscustomobject]@{ divergentes = @($div); sem_registro = @($sem) }
+}
+
 # O banco está em uso (.laccdb presente)? O .laccdb pode demorar alguns instantes para sumir depois do último
 # Close: espera até $esperarMs antes de decidir (ciclo 007: o ensaio recusava a própria cópia recém-fechada).
 # Continua conservador: .laccdb que não some (resto de queda) conta como em uso.

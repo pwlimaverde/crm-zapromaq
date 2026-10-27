@@ -10,7 +10,7 @@
 - [x] P8 checar-ambiente completo (feature/checar-ambiente)
 - [x] P9 estados por linha do lote (feature/lote-estados)
 - [x] P10 contato homônimo no conector (feature/homonimo-conector)
-- [ ] P11 checksum das migrações (feature/checksum-migracoes)
+- [x] P11 checksum das migrações (feature/checksum-migracoes)
 - [ ] P12 fuso no diagnóstico do front (feature/fuso-diag)
 - [ ] P13 metas "não definida" (decisão no PLANO)
 - [ ] Documentação final (feature/docs-finais)
