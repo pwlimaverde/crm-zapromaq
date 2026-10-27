@@ -53,6 +53,11 @@ já publicada em `VERSAO-FRONT.txt`, então um pacote com `VERSAO.txt` mais
 antigo nunca repete um número (o que faria as estações acharem que não há nada
 novo).
 
+**Voltar uma publicação:** extraia por cima da BASE o pacote da versão anterior e rode
+`SISTEMA\MONTAR-FRONTEND.bat -Volta -Motivo "<por que>"`: a volta sai como versão nova e
+maior (as estações atualizam pelo `INICIAR-CRM`). Nada de copiar `.xlsm` à mão de
+`execucao\historico-front\`.
+
 Arquivo que saiu do projeto continua na rede depois da extração (ela só
 acrescenta e substitui). Os conectores carregam as bibliotecas por nome, então
 isso não atrapalha.

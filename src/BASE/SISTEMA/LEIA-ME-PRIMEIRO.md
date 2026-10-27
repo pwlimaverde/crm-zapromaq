@@ -44,9 +44,13 @@ Só o passo 4, e depois o 5 e o 6. A sequência é a mesma.
 
 ## Se algo der errado depois de publicar
 
-- **Voltar o front:** as versões anteriores ficam em
-  `SISTEMA\DADOS\execucao\historico-front\`. Copie a que você quer de volta para
-  a raiz como `CRM_Zapromaq.xlsm` e peça para abrirem o `INICIAR-CRM` de novo.
+- **Voltar o front:** extraia por cima da BASE o pacote da versão anterior e rode
+  `SISTEMA\MONTAR-FRONTEND.bat -Volta -Motivo "<por que>"`. A volta é publicada como
+  versão **nova e maior** (as estações atualizam sozinhas pelo `INICIAR-CRM`), com
+  manifesto de release; sem motivo, sem pacote anterior ou com esquema diferente do
+  banco, ela é recusada. Não copie `.xlsm` à mão de `execucao\historico-front\`
+  (essa pasta só guarda o arquivo substituído; a cópia manual repetiria um número de
+  versão e as estações não atualizariam). Roteiro: `DADOS\docs\implantacao.md`.
 - **Voltar o banco:** a cópia de antes da publicação está em
   `SISTEMA\DADOS\execucao\backup\antes-da-publicacao\<data-hora>\`.
   Atenção: o que foi lançado depois da publicação está só no banco atual;

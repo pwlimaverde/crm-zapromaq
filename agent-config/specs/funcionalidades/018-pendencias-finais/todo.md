@@ -13,5 +13,5 @@
 - [x] P11 checksum das migrações (feature/checksum-migracoes)
 - [x] P12 fuso no diagnóstico do front (feature/fuso-diag)
 - [x] P13 metas "não definida": não aplicável (nenhum canal mostra meta x realizado) - D38 no PLANO
-- [ ] Documentação final (feature/docs-finais)
+- [x] Documentação final (feature/docs-finais)
 - [ ] `verificar-tudo -Completo` e push
