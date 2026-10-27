@@ -109,9 +109,11 @@ Depois de publicar, diga ao usuário para:
 2. avisar a equipe para abrir o `INICIAR-CRM` (ele vê a versão nova em
    `VERSAO-FRONT.txt` e copia o arquivo para cada estação).
 
-Deu errado depois de publicado: as versões anteriores do front estão em
-`SISTEMA\DADOS\execucao\historico-front\` e o banco em
-`execucao\backup\antes-da-publicacao\<data-hora>\`. Use `ver_log` para ler o
+Deu errado depois de publicado: a volta do front é uma publicação nova e maior -
+o usuário extrai por cima da BASE o pacote da versão anterior e roda, na estação,
+`SISTEMA\MONTAR-FRONTEND.bat -Volta -Motivo "<por que>"` (não copiar `.xlsm` de
+`execucao\historico-front\`: repetiria um número e as estações não atualizariam).
+O banco de antes da publicação está em `execucao\backup\antes-da-publicacao\<data-hora>\`. Use `ver_log` para ler o
 final do último log (`build`, `visual`, `migracoes`, `backup`, `ambiente`).
 
 ## Coisas que exigem a máquina certa
