@@ -302,6 +302,28 @@ try {
     Conferir 'versão mínima do front fora do formato é recusada' ($null -ne $erroM)
 } finally { Remove-Item -LiteralPath $tmpM -Force -ErrorAction SilentlyContinue }
 
+Write-Host '--- DEV-04 (ciclo 018): checksum das migrações aplicadas'
+$pastaMig = Join-Path $dados 'banco\migracoes'
+$migs = @(Get-ChildItem -LiteralPath $pastaMig -Filter '*.ps1' -File | Where-Object { $_.Name -match '^\d{3}-' })
+Conferir 'checksum de cada migração é SHA-256 (64 hex)' (@($migs | Where-Object { (Get-ChecksumMigracao $_.FullName) -notmatch '^[0-9a-f]{64}$' }).Count -eq 0 -and $migs.Count -ge 5)
+Conferir 'chave do checksum fica fora de migracao.% (sha256.migracao.NNN, até 40 caracteres)' ((Get-ChaveChecksumMigracao '005') -eq 'sha256.migracao.005')
+$tmpMg = Join-Path ([System.IO.Path]::GetTempPath()) ('crm-mig-' + $PID)
+New-Item -ItemType Directory -Path $tmpMg -Force | Out-Null
+try {
+    $a1 = Join-Path $tmpMg '001-a.ps1'; $a2 = Join-Path $tmpMg '002-b.ps1'; $a3 = Join-Path $tmpMg '003-c.ps1'
+    [System.IO.File]::WriteAllText($a1, 'um'); [System.IO.File]::WriteAllText($a2, 'dois'); [System.IO.File]::WriteAllText($a3, 'tres')
+    $reg = @{ 'migracao.001' = '2026-10-26 10:00 x'; 'migracao.002' = '2026-10-26 10:00 x'; 'sha256.migracao.001' = (Get-ChecksumMigracao $a1); 'sha256.migracao.002' = (Get-ChecksumMigracao $a2) }
+    $porId = @{ '001' = $a1; '002' = $a2; '003' = $a3 }
+    $c0 = Test-ChecksumsMigracoes $reg $porId
+    Conferir 'aplicadas sem mudança: nenhuma divergência; pendente não entra' (@($c0.divergentes).Count -eq 0 -and @($c0.sem_registro).Count -eq 0)
+    [System.IO.File]::WriteAllText($a2, 'dois alterado')
+    $c1 = Test-ChecksumsMigracoes $reg $porId
+    Conferir 'migração aplicada que mudou depois é divergente' ((@($c1.divergentes) -join ',') -eq '002')
+    $reg.Remove('sha256.migracao.001')
+    $c2 = Test-ChecksumsMigracoes $reg $porId
+    Conferir 'aplicada antes do checksum fica sem registro (não é divergente)' ((@($c2.sem_registro) -join ',') -eq '001' -and (@($c2.divergentes) -join ',') -eq '002')
+} finally { Remove-Item -LiteralPath $tmpMg -Recurse -Force -ErrorAction SilentlyContinue }
+
 Write-Host ''
 if ($script:falhas -eq 0) { Write-Host 'TUDO CERTO.' -ForegroundColor Green; exit 0 }
 Write-Host ($script:falhas.ToString() + ' falha(s).') -ForegroundColor Red; exit 1

@@ -63,6 +63,15 @@ try {
     $r = Executar (Join-Path $b1 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1') @('-Banco', $banco1, '-LiberarManutencao')
     Conferir 'aplicar-migracoes -LiberarManutencao desliga o sinal deixado por dono que caiu' ($r.codigo -eq 0 -and (ValorConfig $banco1 'manutencao') -eq '') $r.saida
 
+    Write-Host '--- DEV-04 (ciclo 018): checksum das migrações gravado em config e conferido ao aplicar'
+    $mig5 = @(Get-ChildItem -LiteralPath (Join-Path $b1 'SISTEMA\DADOS\banco\migracoes') -Filter '005-*.ps1' -File)[0]
+    Conferir 'a criação do banco grava o checksum de cada migração aplicada' ((ValorConfig $banco1 'sha256.migracao.005') -eq (Get-ChecksumMigracao $mig5.FullName)) (ValorConfig $banco1 'sha256.migracao.005')
+    $r = Executar (Join-Path $b1 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1') @('-Banco', $banco1)
+    Conferir 'sem mudança nas migrações: nada a aplicar (saída 0)' ($r.codigo -eq 0 -and $r.saida -match 'Nada a aplicar') $r.saida
+    [System.IO.File]::AppendAllText($mig5.FullName, "`r`n# alterada depois de aplicada`r`n")
+    $r = Executar (Join-Path $b1 'SISTEMA\DADOS\banco\aplicar-migracoes.ps1') @('-Banco', $banco1)
+    Conferir 'migração aplicada que mudou depois é recusada (saída 4) e citada' ($r.codigo -eq 4 -and $r.saida -match 'checksum diferente\): 005') $r.saida
+
     Write-Host '--- DEV-03: aviso por janela (seção 5.3), casos com hora fixa (os mesmos do testar-mcp e do modAutoteste)'
     function C([string]$quando, [string]$tipo, [bool]$val) { return [pscustomobject]@{ instante = [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null); tipo = $tipo; validado = $val } }
     function Agora([string]$quando) { return [datetime]::ParseExact($quando, 'yyyy-MM-dd HH:mm', $null) }

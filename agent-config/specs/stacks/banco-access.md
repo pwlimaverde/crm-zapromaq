@@ -51,6 +51,8 @@ Arquivo `NNN-descricao.ps1` que devolve `@{ Id; Descricao; EsquemaDe; EsquemaPar
   transacional), muda `config.versao_esquema` → front (`modConfig.VERSAO_ESQUEMA`) e MCP (que
   confere a versão antes de gravar) atualizam na **mesma** publicação.
 - Backup antes de migrar; aplicadas ficam em `config` (`migracao.NNN`). O build aplica as pendentes.
+- Ciclo 018 (DEV-04): o checksum do arquivo de cada migração aplicada fica em `config` (`sha256.migracao.NNN`);
+  migração já aplicada **não se edita** - o `aplicar-migracoes` recusa com saída 4. Correção vai numa migração nova.
 
 ## Estilo e regras
 
