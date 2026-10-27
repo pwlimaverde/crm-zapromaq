@@ -6,7 +6,8 @@ Option Explicit
 ' Antes o erro so aparecia na tela e se perdia. Agora cada falha de
 ' gravacao (e cada recusa por manutencao, esquema ou backup) vira uma
 ' linha em <BASE>\SISTEMA\DADOS\execucao\logs\front-<ESTACAO>-AAAAMM.log:
-'   instante  [ESTACAO\usuario vVERSAO]  tela|operacao|registro|resultado  erro N: texto
+'   instante fuso  [ESTACAO\usuario vVERSAO]  tela|operacao|registro|resultado  erro N: texto
+' (ciclo 018, DEV-06A: o instante sai com o fuso da estacao, ex. -03:00, como no conector)
 ' Sem conteudo comercial: so nomes de tela, tabela, operacao, id/codigo e o
 ' erro do motor. Um arquivo por estacao e por mes; a propria estacao apaga
 ' os seus anteriores ao mes anterior (retencao da secao 5.3).
@@ -14,6 +15,41 @@ Option Explicit
 '==========================================================
 Private mRetencaoFeita As Boolean
 Public gDiagFalhas As Long
+
+Private Type SYSTEMTIME_DIAG
+    Partes(0 To 7) As Integer
+End Type
+Private Type TIME_ZONE_INFORMATION
+    Bias As Long
+    StandardName(0 To 63) As Byte
+    StandardDate As SYSTEMTIME_DIAG
+    StandardBias As Long
+    DaylightName(0 To 63) As Byte
+    DaylightDate As SYSTEMTIME_DIAG
+    DaylightBias As Long
+End Type
+Private Declare PtrSafe Function GetTimeZoneInformation Lib "kernel32" (lpTimeZoneInformation As TIME_ZONE_INFORMATION) As Long
+
+' Diferenca do relogio da estacao para o UTC, em minutos (Brasilia = -180).
+Public Function FusoMinutos() As Long
+    Dim tz As TIME_ZONE_INFORMATION, r As Long, bias As Long
+    On Error GoTo falhou
+    r = GetTimeZoneInformation(tz)
+    bias = tz.Bias
+    If r = 2 Then bias = bias + tz.DaylightBias Else If r = 1 Then bias = bias + tz.StandardBias
+    FusoMinutos = -bias
+    Exit Function
+falhou:
+    FusoMinutos = 0
+End Function
+
+' Fuso no formato ISO 8601: -180 -> "-03:00"; 330 -> "+05:30". Pura.
+Public Function TextoFuso(ByVal minutos As Long) As String
+    Dim s As String, m As Long
+    If minutos < 0 Then s = "-" Else s = "+"
+    m = Abs(minutos)
+    TextoFuso = s & Format$(m \ 60, "00") & ":" & Format$(m Mod 60, "00")
+End Function
 
 Public Function Estacao() As String
     Dim e As String
@@ -51,13 +87,13 @@ Public Function DeveApagarDiag(ByVal nome As String, ByVal est As String, ByVal 
 End Function
 
 ' Uma linha sem quebra e sem excesso (o texto do erro do ADO pode ter varias linhas)
-Public Function LinhaDiag(ByVal quando As Date, ByVal est As String, ByVal usuario As String, ByVal versao As String, _
-                          ByVal tela As String, ByVal operacao As String, ByVal registro As String, _
+Public Function LinhaDiag(ByVal quando As Date, ByVal fusoMin As Long, ByVal est As String, ByVal usuario As String, _
+                          ByVal versao As String, ByVal tela As String, ByVal operacao As String, ByVal registro As String, _
                           ByVal numero As Long, ByVal erro As String, ByVal resultado As String) As String
     Dim t As String
     t = Replace(Replace(erro, vbCr, " "), vbLf, " ")
     If Len(t) > 400 Then t = Left$(t, 400) & "..."
-    LinhaDiag = Format$(quando, "yyyy-mm-dd hh:nn:ss") & "  [" & est & "\" & usuario & " v" & versao & "]  " & _
+    LinhaDiag = Format$(quando, "yyyy-mm-dd hh:nn:ss") & " " & TextoFuso(fusoMin) & "  [" & est & "\" & usuario & " v" & versao & "]  " & _
                 tela & "|" & operacao & "|" & registro & "|" & resultado & "  erro " & numero & ": " & t
 End Function
 
@@ -80,7 +116,7 @@ Public Sub Registrar(ByVal tela As String, ByVal operacao As String, ByVal regis
     If Not mRetencaoFeita Then ApagarAntigos pasta, est
     f = FreeFile
     Open pasta & NomeArquivoDiag(est, Now) For Append Access Write Lock Write As #f
-    Print #f, LinhaDiag(Now, est, modConfig.UsuarioAtual(), modConfig.VERSAO_FRONT, tela, operacao, registro, numero, erro, resultado)
+    Print #f, LinhaDiag(Now, FusoMinutos(), est, modConfig.UsuarioAtual(), modConfig.VERSAO_FRONT, tela, operacao, registro, numero, erro, resultado)
     Close #f
     Exit Sub
 falhou:

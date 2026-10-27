@@ -78,7 +78,14 @@ Public Function Autoteste(Optional ByVal versaoEsperada As String = "") As Strin
     Confere "diag dois meses atras sai", modDiag.DeveApagarDiag("front-EST1-202608.log", "EST1", DateSerial(2026, 10, 19)), True
     Confere "diag virada de ano", modDiag.DeveApagarDiag("front-EST1-202511.log", "EST1", DateSerial(2026, 1, 5)), True
     Confere "diag de outra estacao nao e apagado", modDiag.DeveApagarDiag("front-EST2-202601.log", "EST1", DateSerial(2026, 10, 19)), False
-    Confere "diag linha numa so linha", (InStr(modDiag.LinhaDiag(DateSerial(2026, 10, 19), "EST1", "ana", "1.6", "frmCRM", "salvar", "clientes:12", 3021, "erro" & vbCrLf & "x", "erro"), vbLf) = 0), True
+    Confere "diag linha numa so linha", (InStr(modDiag.LinhaDiag(DateSerial(2026, 10, 19), -180, "EST1", "ana", "1.6", "frmCRM", "salvar", "clientes:12", 3021, "erro" & vbCrLf & "x", "erro"), vbLf) = 0), True
+    ' DEV-06A (ciclo 018): instante com o fuso, no formato do conector
+    Confere "diag linha com fuso", Left$(modDiag.LinhaDiag(DateSerial(2026, 10, 19) + TimeSerial(10, 5, 0), -180, "EST1", "ana", "1.6", "frmCRM", "salvar", "clientes:12", 3021, "x", "erro"), 37), _
+            "2026-10-19 10:05:00 -03:00  [EST1\ana"
+    Confere "fuso -03:00", modDiag.TextoFuso(-180), "-03:00"
+    Confere "fuso +05:30", modDiag.TextoFuso(330), "+05:30"
+    Confere "fuso UTC", modDiag.TextoFuso(0), "+00:00"
+    Confere "fuso da estacao em minutos inteiros de 15", (modDiag.FusoMinutos() Mod 15 = 0 And Abs(modDiag.FusoMinutos()) <= 14 * 60), True
     Confere "diag operacao do SQL sem valores", modDB.OperacaoDoSql("UPDATE clientes SET empresa=? WHERE id=?"), "UPDATE clientes"
     Confere "diag operacao INSERT", modDB.OperacaoDoSql("INSERT INTO log_alteracoes (a) VALUES (?)"), "INSERT log_alteracoes"
 

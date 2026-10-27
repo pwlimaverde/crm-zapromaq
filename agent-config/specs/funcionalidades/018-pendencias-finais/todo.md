@@ -11,7 +11,7 @@
 - [x] P9 estados por linha do lote (feature/lote-estados)
 - [x] P10 contato homônimo no conector (feature/homonimo-conector)
 - [x] P11 checksum das migrações (feature/checksum-migracoes)
-- [ ] P12 fuso no diagnóstico do front (feature/fuso-diag)
+- [x] P12 fuso no diagnóstico do front (feature/fuso-diag)
 - [ ] P13 metas "não definida" (decisão no PLANO)
 - [ ] Documentação final (feature/docs-finais)
 - [ ] `verificar-tudo -Completo` e push
