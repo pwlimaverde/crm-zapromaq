@@ -1,6 +1,6 @@
 # Spec: Pendências finais do plano revisado (ciclo 018)
 
-> Situação: aprovada em 26/10/2026 (pedido do usuário: "implementar tudo de ponta a ponta"). Itens do
+> Concluída em 27/10/2026 - feature/botao-duplicar a feature/revisao-018 (verificar-tudo -Completo TUDO CERTO). Situação: aprovada em 26/10/2026 (pedido do usuário: "implementar tudo de ponta a ponta"). Itens do
 > documento-base (seção 5.2 e DEV-02, 03, 04, 06A, 07, 08, 10, 12, 21, 28) que ficaram de fora dos ciclos 010 a 017.
 > Uma branch `feature/<nome>` por pendência, a partir da `develop`.
 
@@ -10,25 +10,25 @@ Fechar o que o documento-base de aceite pede e ainda não está no código, sem 
 
 ## Critérios de aceite (uma pendência por linha; teste que falha primeiro entre parênteses)
 
-- [ ] P1 (DEV-28) Botão "Duplicar" na ficha de oportunidades, mesma rotina do menu da grade (`modGrade.AbrirDuplicacao`);
+- [x] P1 (DEV-28) Botão "Duplicar" na ficha de oportunidades, mesma rotina do menu da grade (`modGrade.AbrirDuplicacao`);
       contato inativo: a ficha abre com a empresa da origem e a escolha do contato já nessa empresa.
       (`Confere` de `modRegras.RotuloBotaoAcao`; `testar-uso` abre a duplicação pela ficha sem gravar)
-- [ ] P2 (5.2) `dt_prox_acao` nova ou alterada anterior a hoje é recusada nos três canais; a vencida já gravada fica.
+- [x] P2 (5.2) `dt_prox_acao` nova ou alterada anterior a hoje é recusada nos três canais; a vencida já gravada fica.
       (`Confere`; caso C34 na matriz; `testar-mcp`) - conector 1.12.0, nota de mudança.
-- [ ] P3 (DEV-21) "Retomada a avaliar" só em Perdido e Descartado, igual no front e no conector. (`Confere`; `testar-mcp`)
-- [ ] P4 (5.2, DEV-10) `retomar_em` desabilitado na ficha fora de Perdido e Descartado (`modRegras.RetomadaHabilitada`).
-- [ ] P5 (DEV-03) Restauração sem `-Backup` usa a última cópia **validada**. (`testar-recuperacao`)
-- [ ] P6 (DEV-08) `config.versao_minima_front` e `config.versao_minima_conector`, gravadas pela montagem e conferidas no
+- [x] P3 (DEV-21) "Retomada a avaliar" só em Perdido e Descartado, igual no front e no conector. (`Confere`; `testar-mcp`)
+- [x] P4 (5.2, DEV-10) `retomar_em` desabilitado na ficha fora de Perdido e Descartado (`modRegras.RetomadaHabilitada`).
+- [x] P5 (DEV-03) Restauração sem `-Backup` usa a última cópia **validada**. (`testar-recuperacao`)
+- [x] P6 (DEV-08) `config.versao_minima_front` e `config.versao_minima_conector`, gravadas pela montagem e conferidas no
       ponto de escrita do front e do conector. (`Confere`; `testar-mcp`)
-- [ ] P7 (DEV-07) A skill do Claude Desktop cita todas as ferramentas do catálogo; o `verificar.py` falha se faltar uma.
-- [ ] P8 (DEV-02) `checar-ambiente` com versão do front instalada, pasta local e sincronização, Codex e escrita na pasta
+- [x] P7 (DEV-07) A skill do Claude Desktop cita todas as ferramentas do catálogo; o `verificar.py` falha se faltar uma.
+- [x] P8 (DEV-02) `checar-ambiente` com versão do front instalada, pasta local e sincronização, Codex e escrita na pasta
       do banco; matriz de estações em `implantacao.md`. (`testar-preparacao-rede`)
-- [ ] P9 (DEV-12) Lote: INDETERMINADA quando a falha é no commit; NÃO PROCESSADA para as linhas não alcançadas. (`testar-uso`)
-- [ ] P10 (5.2) Contato homônimo no conector pede confirmação (`confirmar_homonimo`), como a ficha. (`testar-mcp`)
-- [ ] P11 (DEV-04) Checksum por migração gravado em `config` e conferido ao aplicar; assinatura do VBA vira pendência
+- [x] P9 (DEV-12) Lote: INDETERMINADA quando a falha é no commit; NÃO PROCESSADA para as linhas não alcançadas. (`testar-uso`)
+- [x] P10 (5.2) Contato homônimo no conector pede confirmação (`confirmar_homonimo`), como a ficha. (`testar-mcp`)
+- [x] P11 (DEV-04) Checksum por migração gravado em `config` e conferido ao aplicar; assinatura do VBA vira pendência
       no PLANO (depende de certificado da TI). (`testar-build-lib`)
-- [ ] P12 (DEV-06A) Linha de diagnóstico do front com fuso. (`Confere`)
-- [ ] P13 (5.2) Metas "não definida": só se houver tela de meta; senão, decisão registrada no PLANO.
+- [x] P12 (DEV-06A) Linha de diagnóstico do front com fuso. (`Confere`)
+- [x] P13 (5.2) Metas "não definida": só se houver tela de meta; senão, decisão registrada no PLANO.
 
 ## Decisões assumidas
 
